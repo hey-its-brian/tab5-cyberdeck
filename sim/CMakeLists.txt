@@ -64,3 +64,10 @@ target_compile_definitions(deck_sim PRIVATE
     DECK_SIM_SDCARD="${CMAKE_CURRENT_SOURCE_DIR}/sdcard")
 target_compile_options(deck_sim PRIVATE -Wall -Wextra -Wno-unused-parameter)
 target_link_libraries(deck_sim PRIVATE lvgl)
+
+# Unit tests for the calculator engine (no LVGL).
+add_executable(calc_test calc_test.c ${ROOT}/apps/app_calc/calc_engine.c)
+target_include_directories(calc_test PRIVATE ${ROOT}/apps/app_calc)
+target_compile_options(calc_test PRIVATE -Wall -Wextra)
+enable_testing()
+add_test(NAME calc_engine COMMAND calc_test)
