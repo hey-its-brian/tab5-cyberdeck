@@ -13,6 +13,7 @@ Each version ends with something flashable and usable.
 
 ## v0.2: Markdown (read, write, preview)
 
+- OTA-ready partition table (two 6 MB app slots) so v0.6 can update without USB
 - md4c parser mapped to LVGL: headings, emphasis, lists, quotes, fenced code, tables, rules
 - File browser for `/sdcard/notes`: new, rename, delete
 - Monospace editor: line numbers, autosave, `Ctrl+S`
@@ -43,9 +44,16 @@ Each version ends with something flashable and usable.
 - Host profiles, known_hosts pinning, ed25519 keys on SD
 - Checkpoint: `htop` and `vim` usable on a Linux box
 
+## v0.6: OTA updates
+
+- A/B app slots (layout already in place since v0.2, so no USB reflash needed)
+- Check GitHub Releases for a newer firmware from SYSTEM, show notes, download, verify, swap slot
+- Rollback: a new image must mark itself good after boot, otherwise the bootloader reverts
+- Optional: push a build from the Mac over the local network during development
+- Checkpoint: v0.6 updates itself to a test v0.6.1 over Wi-Fi, and a deliberately broken image rolls back
+
 ## v1.0: Polish
 
 - Battery stats, idle sleep, wake on key
-- OTA updates
 - More accents, cross-module links (open a note from SSH, send a result to Notes)
 - 24 h soak test for leaks
