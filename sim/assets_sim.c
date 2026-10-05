@@ -8,10 +8,11 @@ static const char *s_files[] = {
     [DECK_ASSET_FONT_DISPLAY] = "Orbitron.ttf",
     [DECK_ASSET_FONT_MONO]    = "ShareTechMono-Regular.ttf",
     [DECK_ASSET_FONT_ICONS]   = "icons.ttf",
+    [DECK_ASSET_FONT_TERM]    = "term.ttf",
 };
 
-static uint8_t *s_data[3];
-static size_t s_size[3];
+static uint8_t *s_data[4];
+static size_t s_size[4];
 
 const uint8_t *deck_asset(deck_asset_t id, size_t *size)
 {

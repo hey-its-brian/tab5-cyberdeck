@@ -15,6 +15,7 @@ typedef enum {
     DECK_ASSET_FONT_DISPLAY,   /* Orbitron */
     DECK_ASSET_FONT_MONO,      /* Share Tech Mono */
     DECK_ASSET_FONT_ICONS,     /* Material Design Icons subset */
+    DECK_ASSET_FONT_TERM,      /* JetBrains Mono subset (terminal) */
 } deck_asset_t;
 
 /* Returns a pointer to the asset bytes (valid for the program lifetime) and

@@ -7,6 +7,8 @@ extern const uint8_t mono_ttf_start[] asm("_binary_ShareTechMono_Regular_ttf_sta
 extern const uint8_t mono_ttf_end[] asm("_binary_ShareTechMono_Regular_ttf_end");
 extern const uint8_t icons_ttf_start[] asm("_binary_icons_ttf_start");
 extern const uint8_t icons_ttf_end[] asm("_binary_icons_ttf_end");
+extern const uint8_t term_ttf_start[] asm("_binary_term_ttf_start");
+extern const uint8_t term_ttf_end[] asm("_binary_term_ttf_end");
 
 const uint8_t *deck_asset(deck_asset_t id, size_t *size)
 {
@@ -20,6 +22,9 @@ const uint8_t *deck_asset(deck_asset_t id, size_t *size)
         case DECK_ASSET_FONT_ICONS:
             *size = (size_t)(icons_ttf_end - icons_ttf_start);
             return icons_ttf_start;
+        case DECK_ASSET_FONT_TERM:
+            *size = (size_t)(term_ttf_end - term_ttf_start);
+            return term_ttf_start;
     }
     *size = 0;
     return NULL;

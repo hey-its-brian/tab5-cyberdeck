@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "deck_hal.h"
 #include "deck_input.h"
@@ -40,10 +41,11 @@ typedef struct {
     char path[256];
 } ev_t;
 
-static ev_t s_ev[128];
+static ev_t s_ev[512];
 static int s_ev_n;
 
 static uint32_t s_now;
+static bool s_realtime; /* --realtime: let real processes (the pty shell) keep up */
 static uint32_t fake_tick(void) { return s_now; }
 
 static bool s_touch_down;
@@ -56,6 +58,22 @@ static void touch_read(lv_indev_t *indev, lv_indev_data_t *data)
     data->point.x = s_touch_x;
     data->point.y = s_touch_y;
     data->state   = s_touch_down ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+}
+
+/* ASCII to HID usage + shift (US layout), for --type. */
+static bool ascii_to_hid(char c, uint8_t *code, uint8_t *mods)
+{
+    static const char plain[] = "1234567890\0\0\0\0 -=[]\\\0;'`,./";
+    static const char shift[] = "!@#$%^&*()\0\0\0\0 _+{}|\0:\"~<>?";
+    *mods = 0;
+    if (c >= 'a' && c <= 'z') { *code = (uint8_t)(0x04 + c - 'a'); return true; }
+    if (c >= 'A' && c <= 'Z') { *code = (uint8_t)(0x04 + c - 'A'); *mods = 0x02; return true; }
+    if (c == '\n') { *code = 0x28; return true; }
+    for (int i = 0; i < (int)sizeof(plain) - 1; i++) {
+        if (plain[i] && plain[i] == c) { *code = (uint8_t)(0x1E + i); return true; }
+        if (shift[i] && shift[i] == c) { *code = (uint8_t)(0x1E + i); *mods = 0x02; return true; }
+    }
+    return false;
 }
 
 static bool parse_key(const char *spec, uint8_t *code, uint8_t *mods)
@@ -171,6 +189,7 @@ static void headless_loop(lv_display_t *disp)
         }
         if (s_touch_down && s_now >= s_touch_until) s_touch_down = false;
         lv_timer_handler();
+        if (s_realtime) usleep(5000);
         for (int i = 0; i < s_ev_n; i++) {
             if (s_ev[i].type == EV_SHOT && s_ev[i].at == s_now) {
                 lv_refr_now(disp);
@@ -208,6 +227,8 @@ int main(int argc, char **argv)
         const char *v = (i + 1 < argc) ? argv[i + 1] : "";
         if (strcmp(a, "--headless") == 0) {
             headless = true;
+        } else if (strcmp(a, "--realtime") == 0) {
+            s_realtime = true;
         } else if (strcmp(a, "--wifi") == 0) {
             hal_cfg_set_str("wifi_ssid", "NIGHTCITY-5G"); /* start "online" */
         } else if (strcmp(a, "--no-boot") == 0) {
@@ -215,8 +236,19 @@ int main(int argc, char **argv)
         } else if (strcmp(a, "--accent") == 0) {
             accent = atoi(v);
             i++;
+        } else if (strcmp(a, "--type") == 0) {
+            /* --type MS:TEXT  ("\n" in TEXT presses Enter); one key every 40 ms */
+            uint32_t at      = (uint32_t)strtoul(v, NULL, 10) / 5 * 5;
+            const char *text = strchr(v, ':');
+            for (const char *c = text ? text + 1 : ""; *c && s_ev_n < 512; c++, at += 40) {
+                char ch = *c;
+                if (c[0] == '\\' && c[1] == 'n') { ch = '\n'; c++; }
+                ev_t *e = &s_ev[s_ev_n];
+                if (ascii_to_hid(ch, &e->code, &e->mods)) { e->at = at; e->type = EV_KEY; s_ev_n++; }
+            }
+            i++;
         } else if ((strcmp(a, "--key") == 0 || strcmp(a, "--tap") == 0 || strcmp(a, "--shot") == 0) &&
-                   s_ev_n < 128) {
+                   s_ev_n < 512) {
             ev_t *e      = &s_ev[s_ev_n];
             e->at        = (uint32_t)strtoul(v, NULL, 10) / 5 * 5;
             const char *rest = strchr(v, ':');

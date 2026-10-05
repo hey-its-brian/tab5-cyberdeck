@@ -8,4 +8,5 @@ idf_component_register(
         "${fonts}/Orbitron.ttf"
         "${fonts}/ShareTechMono-Regular.ttf"
         "${fonts}/icons.ttf"
+        "${fonts}/term.ttf"
 )
