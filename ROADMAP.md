@@ -77,6 +77,21 @@ add-on). Revisit after v1.0.
 - Optional: push a build from the Mac over the local network during development
 - Checkpoint: updates itself to a test release over Wi-Fi, and a deliberately broken image rolls back
 
+## Later: RF watch (receive-only)
+
+A passive monitoring suite that listens and alerts, never transmits.
+
+- External radio modules on the expansion port: nRF24 (2.4 GHz), CC1101 (sub-GHz), RFID/NFC reader
+- Activity view per band, baseline of what is normal around you, alerts on anything new or unusual
+- Event log to SD, alert in the status bar
+- Hardware decision first: which modules, and how they share the expansion port with the keyboard (I2C on G0/G1)
+
+## Later: Wi-Fi presence radar
+
+- Detect movement and people nearby from changes in Wi-Fi signals (channel state information)
+- Open question: CSI may not be reachable through ESP-Hosted on the built-in C6; may need a dedicated ESP32 module
+- Radar-style view: presence, motion intensity, history
+
 ## v1.0: Polish
 
 - Battery stats, idle sleep, wake on key
