@@ -11,11 +11,11 @@ weather.
 |---|---|---|
 | ![Boot](docs/screenshots/boot.png) | ![System](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
-## Status: v0.4 in progress (Wi-Fi, clock sync, weather)
+## Status: v0.4.0 (Wi-Fi, clock sync, weather)
 
 ![Weather](docs/screenshots/weather.png)
 
-**v0.4 so far:** Wi-Fi through the Tab5's ESP32-C6 (no C6 reflash needed: the
+**v0.4:** Wi-Fi through the Tab5's ESP32-C6 (no C6 reflash needed: the
 firmware talks to M5Stack's factory ESP-Hosted v1.4.1), network join from
 SYSTEM (scan, password, hidden networks, forget), NTP clock sync written back
 to the RTC, 17 timezones, and the WEATHER module: Open-Meteo by city search,

@@ -13,7 +13,7 @@
 extern "C" {
 #endif
 
-#define DECK_VERSION "0.4.0-dev"
+#define DECK_VERSION "0.4.0"
 
 #define DECK_STATUSBAR_H 56
 
