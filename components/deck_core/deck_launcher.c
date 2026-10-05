@@ -9,6 +9,7 @@
 
 #include "deck_boot.h"
 #include "deck_hal.h"
+#include "deck_net.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
 #include "deck_widgets.h"
@@ -128,7 +129,12 @@ static const char *stats_text(void)
     hal_power_t p;
     hal_power_read(&p);
 
-    char sd[24], pwr[24];
+    char sd[24], pwr[24], net[32];
+    if (net_state() == NET_CONNECTED) {
+        snprintf(net, sizeof(net), "NET %s", net_ip());
+    } else {
+        snprintf(net, sizeof(net), "NET %s", net_state_name(net_state()));
+    }
     if (hal_sd_mounted()) {
         snprintf(sd, sizeof(sd), "SD %.1fG FREE", (double)hal_sd_free_bytes() / 1e9);
     } else {
@@ -141,10 +147,10 @@ static const char *stats_text(void)
     } else {
         snprintf(pwr, sizeof(pwr), "PWR %d%% %.2fV", p.percent, (double)p.volts);
     }
-    snprintf(buf, sizeof(buf), "CPU %luMHZ  //  PSRAM %.1f/%.0fM  //  SRAM %lu/%luK  //  %s  //  %s  //  KBD %s",
-             (unsigned long)si.cpu_mhz, (double)(si.psram_total - si.psram_free) / 1048576.0,
-             (double)si.psram_total / 1048576.0, (unsigned long)((si.heap_int_total - si.heap_int_free) / 1024),
-             (unsigned long)(si.heap_int_total / 1024), sd, pwr, hal_kbd_present() ? "LINK" : "DOWN");
+    snprintf(buf, sizeof(buf), "%s  //  PSRAM %.1f/%.0fM  //  SRAM %lu/%luK  //  %s  //  %s  //  KBD %s", net,
+             (double)(si.psram_total - si.psram_free) / 1048576.0, (double)si.psram_total / 1048576.0,
+             (unsigned long)((si.heap_int_total - si.heap_int_free) / 1024), (unsigned long)(si.heap_int_total / 1024),
+             sd, pwr, hal_kbd_present() ? "LINK" : "DOWN");
     return buf;
 }
 

@@ -7,6 +7,9 @@
  * PPA so the keyboard sits below the screen.
  */
 #include "deck_hal.h"
+#include "deck_tz.h"
+
+#include <stdlib.h>
 
 #include <string.h>
 #include <sys/time.h>
@@ -261,6 +264,29 @@ bool hal_rtc_set(const struct tm *local)
 
 bool hal_rtc_present(void) { return s_rtc_ok; }
 
+static int s_tz = DECK_TZ_DEFAULT;
+
+static void tz_apply(int index)
+{
+    s_tz = (index >= 0 && index < DECK_TZ_COUNT) ? index : DECK_TZ_DEFAULT;
+    setenv("TZ", g_deck_tz[s_tz].posix, 1);
+    tzset();
+}
+
+int hal_tz_count(void) { return DECK_TZ_COUNT; }
+const char *hal_tz_name(int index) { return (index >= 0 && index < DECK_TZ_COUNT) ? g_deck_tz[index].name : "?"; }
+int hal_tz_get(void) { return s_tz; }
+
+void hal_tz_set(int index)
+{
+    time_t now = time(nullptr);
+    tz_apply(index);
+    hal_cfg_set_i32("tz", s_tz);
+    struct tm local;
+    localtime_r(&now, &local);
+    hal_rtc_set(&local); /* same instant, new wall time */
+}
+
 /* ---- Storage ------------------------------------------------------------- */
 
 static void sd_mount(void)
@@ -364,6 +390,24 @@ void hal_cfg_set_i32(const char *key, int32_t value)
     nvs_commit(s_nvs);
 }
 
+bool hal_cfg_get_str(const char *key, char *out, size_t n)
+{
+    if (n) out[0] = '\0';
+    size_t len = n;
+    return s_nvs_ok && n && nvs_get_str(s_nvs, key, out, &len) == ESP_OK;
+}
+
+void hal_cfg_set_str(const char *key, const char *value)
+{
+    if (!s_nvs_ok) return;
+    if (value) {
+        nvs_set_str(s_nvs, key, value);
+    } else {
+        nvs_erase_key(s_nvs, key);
+    }
+    nvs_commit(s_nvs);
+}
+
 /* ---- System info --------------------------------------------------------- */
 
 void hal_sysinfo(hal_sysinfo_t *out)
@@ -411,14 +455,16 @@ bool hal_init(void)
     name_board();
     ESP_LOGI(TAG, "board: %s", s_board_name);
 
-    /* The ESP32-C6 radio stays off until the network layer lands in v0.4. */
-    s_board.wlan_power(false);
+    /* Power the ESP32-C6 radio. deck_net brings up the ESP-Hosted link to it
+     * later, from its own task. */
+    s_board.wlan_power(true);
 
     if (!display_init()) {
         return false;
     }
     hal_backlight_set((uint8_t)hal_cfg_get_i32("bright", 80));
 
+    tz_apply((int)hal_cfg_get_i32("tz", DECK_TZ_DEFAULT)); /* before the RTC is read as local time */
     s_rtc_ok = s_board.rtc_init() == ESP_OK;
     if (s_rtc_ok) {
         rtc_seed_system_time();

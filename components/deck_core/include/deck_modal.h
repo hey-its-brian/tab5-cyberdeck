@@ -17,10 +17,22 @@ typedef void (*deck_prompt_cb_t)(const char *text, void *user);
 typedef void (*deck_confirm_cb_t)(bool yes, void *user);
 
 void deck_modal_prompt(const char *title, const char *initial, deck_prompt_cb_t cb, void *user);
+/* Same, with the text masked (passwords). */
+void deck_modal_password(const char *title, deck_prompt_cb_t cb, void *user);
+
+/* Pick one of `count` rows; `index` is -1 when cancelled. Items are copied. */
+typedef void (*deck_list_cb_t)(int index, void *user);
+void deck_modal_list(const char *title, const char *const *items, int count, deck_list_cb_t cb, void *user);
 void deck_modal_confirm(const char *title, const char *message, const char *yes_label, deck_confirm_cb_t cb,
                         void *user);
 
 bool deck_modal_active(void);
+
+/* Enter while a modal is open: submit the prompt, pick the focused row, or
+ * press the focused button. The shell routes Enter here instead of to LVGL,
+ * because LVGL acts on Enter at key-down and would deliver the key-up to
+ * whatever is focused after the dialog closes. */
+void deck_modal_enter(void);
 
 /* Close like Esc: the callback gets a cancel. */
 void deck_modal_cancel(void);

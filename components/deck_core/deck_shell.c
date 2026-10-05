@@ -144,6 +144,10 @@ bool deck_shell_key(const deck_key_t *k)
             deck_modal_cancel();
             return true;
         }
+        if (k->code == HID_ENTER) {
+            deck_modal_enter();
+            return true;
+        }
         return (k->mods & DECK_MOD_ALT) != 0; /* no module switching under a dialog */
     }
 
