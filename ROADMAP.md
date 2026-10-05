@@ -1,0 +1,51 @@
+# Roadmap
+
+Each version ends with something flashable and usable.
+
+## v0.1: Shell and cyberpunk UI (done)
+
+- [x] Tab5 bring-up via M5Stack's BSP (all panel revisions), landscape through PPA
+- [x] Tab5 Keyboard in HID mode with hot-plug, routed to hotkeys, modules and LVGL
+- [x] Boot POST, HUD status bar, launcher, glitch transitions, scanlines
+- [x] SYSTEM module: brightness, accents, toggles, RTC clock, hardware readout
+- [x] Desktop simulator with headless screenshots
+- [ ] Verify on hardware: boot time under 3 s, touch and keyboard on every screen
+
+## v0.2: Markdown (read, write, preview)
+
+- md4c parser mapped to LVGL: headings, emphasis, lists, quotes, fenced code, tables, rules
+- File browser for `/sdcard/notes`: new, rename, delete
+- Monospace editor: line numbers, autosave, `Ctrl+S`
+- `Ctrl+P` toggles edit and preview; side-by-side split at 1280 px
+- Checkpoint: write a note on the keyboard, preview it, power-cycle, it is still there
+
+## v0.3: Calculator
+
+- Shunting-yard engine (doubles): `( ) ^ %`, sin cos sqrt log, `ans`
+- History tape with Up/Down recall
+- Programmer mode: hex/dec/bin/oct, bitwise ops
+- Touch keypad that hides while typing
+- Checkpoint: `(0xFF << 2) | 3` and `2^10 / 3` from either input
+
+## v0.4: Weather and the network layer
+
+- ESP32-C6 Wi-Fi over SDIO (esp_hosted), Wi-Fi setup in SYSTEM
+- SNTP clock sync, timezone setting, HTTPS with the cert bundle
+- Open-Meteo: conditions, 24 h trace, 7-day strip, offline cache
+- Status bar NET indicator goes live
+- Checkpoint: survives a Wi-Fi drop and reconnect; correct time after cold boot
+
+## v0.5: SSH client
+
+- wolfSSH + wolfSSL (libssh2 port as fallback), P4 hardware crypto
+- VT100/xterm-256color emulator, dirty-rect grid renderer, PSRAM scrollback
+- Full key passthrough incl. `Esc`; `Alt+Esc` returns to the deck
+- Host profiles, known_hosts pinning, ed25519 keys on SD
+- Checkpoint: `htop` and `vim` usable on a Linux box
+
+## v1.0: Polish
+
+- Battery stats, idle sleep, wake on key
+- OTA updates
+- More accents, cross-module links (open a note from SSH, send a result to Notes)
+- 24 h soak test for leaks

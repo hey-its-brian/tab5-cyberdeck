@@ -1,0 +1,7 @@
+dependencies:
+  idf:
+    version: ">=5.4"
+  # Pinned to the versions M5Stack's Tab5 Keyboard demo was validated with.
+  lvgl/lvgl: "9.5.0"
+  espressif/esp_lvgl_port: "2.8.0~1"
+  espressif/i2c_bus: "^1.5.1"
