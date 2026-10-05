@@ -448,7 +448,13 @@ bool hal_init(void)
 {
     nvs_init();
 
-    if (s_board.begin() != ESP_OK) {
+    /* i2c_bus asks IDF for an existing bus handle before creating one, and IDF
+     * logs an error when there is none yet. Expected during bring-up, so mute
+     * that tag for begin() only; real I2C errors later still show. */
+    esp_log_level_set("i2c.master", ESP_LOG_NONE);
+    esp_err_t begin_err = s_board.begin();
+    esp_log_level_set("i2c.master", ESP_LOG_WARN);
+    if (begin_err != ESP_OK) {
         ESP_LOGE(TAG, "board begin failed");
         return false;
     }

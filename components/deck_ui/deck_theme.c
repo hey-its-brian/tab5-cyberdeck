@@ -92,6 +92,7 @@ void deck_theme_init(void)
     g_font.disp_m  = load_font(DECK_ASSET_FONT_DISPLAY, 24);
     g_font.disp_l  = load_font(DECK_ASSET_FONT_DISPLAY, 36);
     g_font.disp_xl = load_font(DECK_ASSET_FONT_DISPLAY, 56);
+    g_font.disp_hero = load_font(DECK_ASSET_FONT_DISPLAY, 88);
     g_font.icon_s  = load_font(DECK_ASSET_FONT_ICONS, 24);
     g_font.icon_m  = load_font(DECK_ASSET_FONT_ICONS, 40);
     g_font.icon_l  = load_font(DECK_ASSET_FONT_ICONS, 96);
@@ -102,6 +103,7 @@ void deck_theme_init(void)
     set_fallback(g_font.disp_m, g_font.mono_m);
     set_fallback(g_font.disp_l, g_font.mono_l);
     set_fallback(g_font.disp_xl, g_font.mono_l);
+    set_fallback(g_font.disp_hero, g_font.mono_l);
     /* Icons are NOT a fallback for text fonts: tiny_ttf logs an error for
      * every glyph miss before falling back, which would spam the console on
      * each redraw. Use deck_icon_text() to put an icon next to text. */

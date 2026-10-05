@@ -92,6 +92,37 @@ size_t net_scan_results(net_ap_t *out, size_t max)
 
 bool net_time_synced(void) { return net_state() == NET_CONNECTED; }
 
+/* ---- Async fetch --------------------------------------------------------- */
+
+typedef struct {
+    char *url;
+    char *body;
+    size_t len;
+    net_fetch_cb_t cb;
+    void *user;
+    volatile bool *alive;
+} fetch_t;
+
+static void fetch_deliver(void *arg)
+{
+    fetch_t *f = (fetch_t *)arg;
+    if (f->alive == NULL || *f->alive) f->cb(f->body, f->len, f->user);
+    free(f->body);
+    free(f->url);
+    free(f);
+}
+
+void net_fetch(const char *url, net_fetch_cb_t cb, void *user, volatile bool *alive)
+{
+    fetch_t *f = (fetch_t *)calloc(1, sizeof(fetch_t));
+    f->url     = strdup(url);
+    f->cb      = cb;
+    f->user    = user;
+    f->alive   = alive;
+    f->body    = net_http_get(url, &f->len); /* the simulator just blocks */
+    lv_async_call(fetch_deliver, f);
+}
+
 char *net_http_get(const char *url, size_t *len)
 {
     char cmd[1024];

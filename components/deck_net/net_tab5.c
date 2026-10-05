@@ -12,6 +12,7 @@
 #include <time.h>
 
 #include "deck_hal.h"
+#include "lvgl.h"
 #include "esp_crt_bundle.h"
 #include "esp_event.h"
 #include "esp_http_client.h"
@@ -262,6 +263,50 @@ size_t net_scan_results(net_ap_t *out, size_t max)
 }
 
 bool net_time_synced(void) { return s_synced; }
+
+
+/* ---- Async fetch --------------------------------------------------------- */
+
+typedef struct {
+    char *url;
+    char *body;
+    size_t len;
+    net_fetch_cb_t cb;
+    void *user;
+    volatile bool *alive;
+} fetch_t;
+
+static void fetch_deliver(void *arg)
+{
+    fetch_t *f = (fetch_t *)arg;
+    if (f->alive == NULL || *f->alive) f->cb(f->body, f->len, f->user);
+    free(f->body);
+    free(f->url);
+    free(f);
+}
+
+static void fetch_task(void *arg)
+{
+    fetch_t *f = (fetch_t *)arg;
+    f->body    = net_http_get(f->url, &f->len);
+    hal_lvgl_lock(0);
+    lv_async_call(fetch_deliver, f); /* lv_async_call is not thread safe: hold the lock */
+    hal_lvgl_unlock();
+    vTaskDelete(NULL);
+}
+
+void net_fetch(const char *url, net_fetch_cb_t cb, void *user, volatile bool *alive)
+{
+    fetch_t *f = (fetch_t *)calloc(1, sizeof(fetch_t));
+    f->url     = strdup(url);
+    f->cb      = cb;
+    f->user    = user;
+    f->alive   = alive;
+    /* TLS handshakes need a deep stack. */
+    if (xTaskCreatePinnedToCore(fetch_task, "fetch", 10240, f, 4, NULL, 0) != pdPASS) {
+        lv_async_call(fetch_deliver, f);
+    }
+}
 
 /* ---- HTTP ---------------------------------------------------------------- */
 

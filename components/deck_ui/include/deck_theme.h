@@ -38,6 +38,7 @@ typedef struct {
     const lv_font_t *disp_m;    /* Orbitron 24: titles */
     const lv_font_t *disp_l;    /* Orbitron 36: headings */
     const lv_font_t *disp_xl;   /* Orbitron 56: hero numbers */
+    const lv_font_t *disp_hero; /* Orbitron 88: one big number per screen */
     const lv_font_t *icon_s;    /* MDI 24: status bar */
     const lv_font_t *icon_m;    /* MDI 40 */
     const lv_font_t *icon_l;    /* MDI 96: launcher tiles */

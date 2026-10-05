@@ -11,7 +11,19 @@ weather.
 |---|---|---|
 | ![Boot](docs/screenshots/boot.png) | ![System](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
-## Status: v0.3.0 (Calculator)
+## Status: v0.4 in progress (Wi-Fi, clock sync, weather)
+
+![Weather](docs/screenshots/weather.png)
+
+**v0.4 so far:** Wi-Fi through the Tab5's ESP32-C6 (no C6 reflash needed: the
+firmware talks to M5Stack's factory ESP-Hosted v1.4.1), network join from
+SYSTEM (scan, password, hidden networks, forget), NTP clock sync written back
+to the RTC, 17 timezones, and the WEATHER module: Open-Meteo by city search,
+current conditions, 24 h temperature and rain trace, 7-day strip, offline
+cache. Keys in WEATHER: `R` refresh, `L` location, `U` units.
+Parser tests: `cmake --build sim/build --target weather_test && sim/build/weather_test`.
+
+### v0.3.0 (released)
 
 ![Calc](docs/screenshots/calc.png)
 
@@ -42,7 +54,7 @@ flash when moving from v0.1.
 - Launcher with five large touch tiles, keyboard navigation and a live system ticker
 - Glitch transitions, optional CRT scanlines, four accent themes (NETRUNNER, ARASAKA, NOMAD, MILITECH)
 - **SYSTEM** module: brightness, scanlines, boot sequence, accent, RTC clock setting, live hardware readout
-- TERMINAL, CALC and WEATHER are placeholders that show their planned features until their version lands
+- TERMINAL is a placeholder until v0.7 that show their planned features until their version lands
 
 See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
 
@@ -83,8 +95,9 @@ one image works on every Tab5.
 
 ## Desktop simulator
 
-`sim/` runs the same UI code (everything above `deck_hal`) on SDL2 with fake
-hardware, so screens can be developed and checked without the board. It
+`sim/` runs the same UI code (everything above `deck_hal` and `deck_net`) on
+SDL2 with fake hardware and a pretend radio (HTTP goes through `curl`, so
+WEATHER shows live data; pass `--wifi` to start "connected"), so screens can be developed and checked without the board. It
 reuses the LVGL tree that `idf.py build` downloads (or fetches LVGL 9.5.0 if
 that is missing). Needs `brew install sdl2 cmake`.
 
@@ -115,6 +128,7 @@ components/
   deck_ui/            theme tokens + fonts, chamfered panel widgets, effects
   deck_core/          app registry, key routing, shell, status bar, launcher, boot POST, modals
   deck_md/            markdown to LVGL renderer (md4c)
+  deck_net/           Wi-Fi over the ESP32-C6 (ESP-Hosted), SNTP, HTTPS fetch
   md4c/               md4c markdown parser (vendored, MIT)
   m5_tab5_component/  M5Stack Tab5 BSP (vendored, MIT)
   m5_tab5_keyboard_component/  M5Stack Tab5 Keyboard driver (vendored, MIT)

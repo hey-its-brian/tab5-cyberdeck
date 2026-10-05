@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "lvgl.h"
 #include "sim.h"
@@ -26,6 +27,9 @@ static int s_cfg_n;
 static uint8_t s_backlight = 80;
 
 bool hal_init(void) { return true; }
+
+/* The sim's "SD card" is a folder; make sure it exists before anyone writes. */
+__attribute__((constructor)) static void sim_storage_init(void) { mkdir(DECK_SIM_SDCARD, 0755); }
 bool hal_lvgl_lock(uint32_t timeout_ms) { return true; }
 void hal_lvgl_unlock(void) {}
 

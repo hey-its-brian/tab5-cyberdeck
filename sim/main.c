@@ -5,7 +5,7 @@
  *   mouse = touch, keyboard = Tab5 keyboard (Option/Alt = ALT).
  *
  * Headless mode renders scripted screenshots on a virtual clock:
- *   deck_sim --headless [--no-boot] [--accent N]
+ *   deck_sim --headless [--no-boot] [--wifi] [--accent N]
  *            [--key MS:SPEC]...   SPEC like esc, enter, left, a, 5, comma, alt+2, ctrl+s, shift+9
  *            [--tap MS:X,Y]...
  *            [--shot MS:FILE.ppm]...
@@ -208,6 +208,8 @@ int main(int argc, char **argv)
         const char *v = (i + 1 < argc) ? argv[i + 1] : "";
         if (strcmp(a, "--headless") == 0) {
             headless = true;
+        } else if (strcmp(a, "--wifi") == 0) {
+            hal_cfg_set_str("wifi_ssid", "NIGHTCITY-5G"); /* start "online" */
         } else if (strcmp(a, "--no-boot") == 0) {
             boot = false;
         } else if (strcmp(a, "--accent") == 0) {

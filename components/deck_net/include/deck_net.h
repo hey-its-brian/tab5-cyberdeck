@@ -56,6 +56,13 @@ bool net_time_synced(void);
  * frees). Call from a worker task, never the LVGL task. NULL on failure. */
 char *net_http_get(const char *url, size_t *len);
 
+/* Non-blocking GET for UI code: runs on a worker task and calls `cb` on the
+ * LVGL task with the body (NULL on failure). The body is freed after `cb`
+ * returns. `alive` lets the caller cancel: if *alive is false by the time
+ * the result arrives, `cb` is skipped (e.g. the module was closed). */
+typedef void (*net_fetch_cb_t)(char *body, size_t len, void *user);
+void net_fetch(const char *url, net_fetch_cb_t cb, void *user, volatile bool *alive);
+
 #ifdef __cplusplus
 }
 #endif
