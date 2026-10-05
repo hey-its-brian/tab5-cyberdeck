@@ -138,7 +138,7 @@ static double call_fn(parser_t *ps, const char *name, double x)
     for (size_t i = 0; i < sizeof(plain) / sizeof(plain[0]); i++) {
         if (!strcmp(name, plain[i].name)) return plain[i].fn(x);
     }
-    fail(ps, "unknown function");
+    fail(ps, "unknown name");
     return 0;
 }
 
@@ -170,7 +170,7 @@ static double parse_primary(parser_t *ps)
         if (!strcmp(name, "ans")) return ps->ctx ? ps->ctx->ans : 0;
         if (!is_fn(name)) {
             ps->p -= n;
-            fail(ps, "unknown function");
+            fail(ps, "unknown name");
             return 0;
         }
         if (!accept(ps, "(")) {

@@ -11,7 +11,17 @@ weather.
 |---|---|---|
 | ![Boot](docs/screenshots/boot.png) | ![System](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
-## Status: v0.2 in progress (Markdown notes)
+## Status: v0.3 in progress (Calculator)
+
+![Calc](docs/screenshots/calc.png)
+
+**v0.3 so far:** CALC module with live results as you type, a tape of past
+results, hex/oct/bin readout for integers, DEG/RAD, and a touch keypad with
+SCI and PROG pages that hides once you type. `Enter` evaluates, `Up/Down`
+recall, `Ctrl+D` deg/rad, `Ctrl+K` keypad, `Ctrl+L` clear tape. Engine tests:
+`cmake --build sim/build --target calc_test && sim/build/calc_test`.
+
+### v0.2 (merged)
 
 | Notes: split edit + live preview | Notes: preview |
 |---|---|

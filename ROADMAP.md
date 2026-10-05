@@ -23,11 +23,12 @@ Each version ends with something flashable and usable.
 
 ## v0.3: Calculator
 
-- Shunting-yard engine (doubles): `( ) ^ %`, sin cos sqrt log, `ans`
-- History tape with Up/Down recall
-- Programmer mode: hex/dec/bin/oct, bitwise ops
-- Touch keypad that hides while typing
-- Checkpoint: `(0xFF << 2) | 3` and `2^10 / 3` from either input
+- [x] Recursive-descent engine (doubles): `( ) ^ % !`, sin..round, pi/e/`ans`, DEG/RAD; 56 host unit tests
+- [x] History tape with Up/Down recall; an operator on an empty line continues from `ans`
+- [x] Programmer mode: hex/bin/oct literals and readout, `& | xor ~ << >>`, hex keys auto-prefix `0x`
+- [x] Touch keypad (SCI/PROG pages) that hides while typing; Ctrl+K toggles
+- [x] Checkpoint in the simulator: `(0xFF << 2) | 3` = 1023 and `2^10 / 3` = 341.333333333, from keyboard and touch
+- [ ] Checkpoint on hardware
 
 ## v0.4: Weather and the network layer
 

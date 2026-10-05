@@ -86,13 +86,13 @@ int main(void)
     err("1 + 2)", "unbalanced )");
     err("1 / 0", "division by zero");
     err("1.5 | 1", "bitwise ops need integers");
-    err("foo(1)", "unknown function");
+    err("foo(1)", "unknown name");
     err("2pi", "unexpected input");
     err("sqrt(-1)", "undefined");
     err("10^400", "overflow");
     err("171!", "factorial needs 0..170");
     err("1 << 64", "shift out of range");
-    err("inf", "unknown function");
+    err("inf", "unknown name");
 
     fmt(1023, "1023");
     fmt(-0.0, "-0");

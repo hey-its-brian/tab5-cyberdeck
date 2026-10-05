@@ -6,7 +6,7 @@
  *
  * Headless mode renders scripted screenshots on a virtual clock:
  *   deck_sim --headless [--no-boot] [--accent N]
- *            [--key MS:SPEC]...   SPEC like esc, enter, left, a, 5, alt+2, ctrl+s
+ *            [--key MS:SPEC]...   SPEC like esc, enter, left, a, 5, comma, alt+2, ctrl+s, shift+9
  *            [--tap MS:X,Y]...
  *            [--shot MS:FILE.ppm]...
  */
@@ -81,6 +81,8 @@ static bool parse_key(const char *spec, uint8_t *code, uint8_t *mods)
     } names[] = {
         {"esc", 0x29},   {"enter", 0x28}, {"tab", 0x2B},  {"space", 0x2C}, {"bs", 0x2A},
         {"del", 0x4C},   {"right", 0x4F}, {"left", 0x50}, {"down", 0x51},  {"up", 0x52},
+        {"minus", 0x2D}, {"equal", 0x2E}, {"lbracket", 0x2F}, {"rbracket", 0x30}, {"backslash", 0x31},
+        {"semicolon", 0x33}, {"quote", 0x34}, {"grave", 0x35}, {"comma", 0x36}, {"dot", 0x37}, {"slash", 0x38},
     };
     for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
         if (strcmp(spec, names[i].name) == 0) {
