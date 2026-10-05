@@ -8,3 +8,4 @@ dependencies.lock
 .DS_Store
 sdkconfig.defaults.local
 /shots/
+sim/sdcard/

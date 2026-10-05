@@ -7,6 +7,7 @@ idf_component_register(
         "deck_launcher.c"
         "deck_boot.c"
         "deck_stub.c"
+        "deck_modal.c"
     INCLUDE_DIRS "include"
     REQUIRES lvgl__lvgl deck_hal deck_ui
 )

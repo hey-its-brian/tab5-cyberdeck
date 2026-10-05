@@ -49,7 +49,12 @@ typedef struct {
 } deck_key_t;
 
 void        deck_input_init(void);
+
+/* The group keyboard focus currently moves in. Normally the shared app
+ * group; a modal pushes its own so focus cannot leave the dialog. */
 lv_group_t *deck_input_group(void);
+void        deck_input_push_group(lv_group_t *g);
+void        deck_input_pop_group(void);
 
 /* HID usage + modifiers to an LVGL key or character (US layout). */
 uint32_t deck_input_translate(uint8_t code, uint8_t mods);

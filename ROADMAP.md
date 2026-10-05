@@ -13,12 +13,13 @@ Each version ends with something flashable and usable.
 
 ## v0.2: Markdown (read, write, preview)
 
-- OTA-ready partition table (two 6 MB app slots) so v0.6 can update without USB
-- md4c parser mapped to LVGL: headings, emphasis, lists, quotes, fenced code, tables, rules
-- File browser for `/sdcard/notes`: new, rename, delete
-- Monospace editor: line numbers, autosave, `Ctrl+S`
-- `Ctrl+P` toggles edit and preview; side-by-side split at 1280 px
-- Checkpoint: write a note on the keyboard, preview it, power-cycle, it is still there
+- [x] OTA-ready partition table (two 6 MB app slots) so v0.6 can update without USB
+- [x] md4c parser mapped to LVGL: headings, emphasis, lists, task lists, quotes, fenced code, tables, rules
+- [x] File browser for `/sdcard/notes`: new, rename, delete (internal flash fallback without a card)
+- [x] Monospace editor: autosave, `Ctrl+S`, save on exit, on-screen keyboard when no keyboard is attached
+- [x] `Ctrl+P` toggles edit and preview; `Ctrl+T` side-by-side split with live preview
+- [ ] Line numbers in the editor
+- [ ] Checkpoint on hardware: write a note on the keyboard, preview it, power-cycle, it is still there
 
 ## v0.3: Calculator
 

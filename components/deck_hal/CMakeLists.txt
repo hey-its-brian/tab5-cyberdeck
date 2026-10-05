@@ -9,6 +9,7 @@ idf_component_register(
         esp_driver_sdmmc
         sdmmc
         fatfs
+        wear_levelling
         nvs_flash
         esp_timer
 )

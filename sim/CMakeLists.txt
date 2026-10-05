@@ -29,6 +29,7 @@ target_link_libraries(lvgl PUBLIC SDL2::SDL2)
 target_compile_options(lvgl PRIVATE -w)
 
 file(GLOB APP_SRCS "${ROOT}/apps/*/*.c")
+set_source_files_properties(${ROOT}/components/md4c/md4c.c PROPERTIES COMPILE_OPTIONS "-w;-DMD4C_USE_UTF8")
 file(GLOB APP_DIRS LIST_DIRECTORIES true "${ROOT}/apps/*")
 
 add_executable(deck_sim
@@ -45,14 +46,21 @@ add_executable(deck_sim
     ${ROOT}/components/deck_core/deck_launcher.c
     ${ROOT}/components/deck_core/deck_boot.c
     ${ROOT}/components/deck_core/deck_stub.c
+    ${ROOT}/components/deck_core/deck_modal.c
+    ${ROOT}/components/deck_md/deck_md.c
+    ${ROOT}/components/md4c/md4c.c
     ${APP_SRCS}
 )
 target_include_directories(deck_sim PRIVATE
     ${ROOT}/components/deck_hal/include
     ${ROOT}/components/deck_ui/include
     ${ROOT}/components/deck_core/include
+    ${ROOT}/components/deck_md/include
+    ${ROOT}/components/md4c
     ${APP_DIRS}
 )
-target_compile_definitions(deck_sim PRIVATE DECK_ASSET_DIR="${ROOT}/assets/fonts")
+target_compile_definitions(deck_sim PRIVATE
+    DECK_ASSET_DIR="${ROOT}/assets/fonts"
+    DECK_SIM_SDCARD="${CMAKE_CURRENT_SOURCE_DIR}/sdcard")
 target_compile_options(deck_sim PRIVATE -Wall -Wextra -Wno-unused-parameter)
 target_link_libraries(deck_sim PRIVATE lvgl)
