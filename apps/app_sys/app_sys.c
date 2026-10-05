@@ -1,5 +1,8 @@
 /*
- * SYSTEM module: display and style settings, clock, live hardware readout.
+ * SYSTEM module, three columns:
+ *   DISPLAY   brightness, scanlines, boot POST, accent
+ *   NETWORK   Wi-Fi status and setup, timezone, clock (manual or NTP)
+ *   SYSTEM    live hardware readout and hotkeys
  */
 #include "app_sys.h"
 
@@ -9,6 +12,8 @@
 #include "deck_fx.h"
 #include "deck_hal.h"
 #include "deck_icons.h"
+#include "deck_modal.h"
+#include "deck_net.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
 #include "deck_widgets.h"
@@ -20,6 +25,15 @@ typedef struct {
     lv_obj_t *modal;
     lv_obj_t *roll[5];
     lv_timer_t *timer;
+
+    lv_obj_t *net_state;
+    lv_obj_t *net_ssid;
+    lv_obj_t *net_ip;
+    lv_obj_t *net_signal;
+    lv_obj_t *join_btn;
+    lv_obj_t *tz_val;
+    lv_obj_t *ntp;
+    lv_timer_t *scan_poll;
 } sys_ui_t;
 
 static sys_ui_t s_ui;
@@ -218,6 +232,139 @@ static void open_clock_modal(lv_event_t *e)
     lv_group_focus_obj(s_ui.roll[3]);
 }
 
+/* ---- Network ------------------------------------------------------------- */
+
+#define SCAN_SHOW 16
+
+static net_ap_t s_aps[SCAN_SHOW];
+static int s_ap_count;
+static char s_join_ssid[33];
+
+static void password_entered(const char *text, void *ud)
+{
+    (void)ud;
+    if (text) net_connect(s_join_ssid, text);
+}
+
+static void other_ssid_entered(const char *text, void *ud)
+{
+    (void)ud;
+    if (text == NULL || text[0] == '\0') return;
+    snprintf(s_join_ssid, sizeof(s_join_ssid), "%s", text);
+    deck_modal_password(s_join_ssid, password_entered, NULL);
+}
+
+static void network_picked(int index, void *ud)
+{
+    (void)ud;
+    if (index < 0) return;
+    if (index == s_ap_count) { /* "Other network..." */
+        deck_modal_prompt("HIDDEN NETWORK", "", other_ssid_entered, NULL);
+        return;
+    }
+    snprintf(s_join_ssid, sizeof(s_join_ssid), "%s", s_aps[index].ssid);
+    if (s_aps[index].secure) {
+        deck_modal_password(s_join_ssid, password_entered, NULL);
+    } else {
+        net_connect(s_join_ssid, "");
+    }
+}
+
+static void scan_poll(lv_timer_t *t)
+{
+    if (!net_scan_done()) return;
+    lv_timer_delete(t);
+    s_ui.scan_poll = NULL;
+    if (s_ui.join_btn) lv_label_set_text(lv_obj_get_child(s_ui.join_btn, 0), "JOIN");
+
+    s_ap_count = (int)net_scan_results(s_aps, SCAN_SHOW);
+    static char rows[SCAN_SHOW + 1][64];
+    const char *items[SCAN_SHOW + 1];
+    for (int i = 0; i < s_ap_count; i++) {
+        int bars = s_aps[i].rssi > -55 ? 4 : s_aps[i].rssi > -65 ? 3 : s_aps[i].rssi > -75 ? 2 : 1;
+        snprintf(rows[i], sizeof(rows[i]), "%-32.32s %s %.*s", s_aps[i].ssid, s_aps[i].secure ? "LOCK" : "OPEN",
+                 bars, "||||");
+        items[i] = rows[i];
+    }
+    snprintf(rows[s_ap_count], sizeof(rows[0]), "Other network...");
+    items[s_ap_count] = rows[s_ap_count];
+    deck_modal_list("JOIN NETWORK", items, s_ap_count + 1, network_picked, NULL);
+}
+
+static void join_clicked(lv_event_t *e)
+{
+    (void)e;
+    if (s_ui.scan_poll) return;
+    if (!net_scan_start()) {
+        lv_label_set_text(lv_obj_get_child(s_ui.join_btn, 0), "NO RADIO");
+        return;
+    }
+    lv_label_set_text(lv_obj_get_child(s_ui.join_btn, 0), "SCANNING");
+    s_ui.scan_poll = lv_timer_create(scan_poll, 100, NULL);
+}
+
+static void forget_confirmed(bool yes, void *ud)
+{
+    (void)ud;
+    if (yes) net_forget();
+}
+
+static void forget_clicked(lv_event_t *e)
+{
+    (void)e;
+    if (net_ssid()[0] == '\0') return;
+    char msg[96];
+    snprintf(msg, sizeof(msg), "Forget %s? The deck will stop joining it.", net_ssid());
+    deck_modal_confirm("FORGET NETWORK", msg, "FORGET", forget_confirmed, NULL);
+}
+
+static void tz_picked(int index, void *ud)
+{
+    (void)ud;
+    if (index >= 0) hal_tz_set(index);
+}
+
+static void tz_clicked(lv_event_t *e)
+{
+    (void)e;
+    static const char *names[32];
+    int n = hal_tz_count();
+    for (int i = 0; i < n && i < 32; i++) names[i] = hal_tz_name(i);
+    deck_modal_list("TIMEZONE", names, n, tz_picked, NULL);
+}
+
+/* "KEY ........ value" row; returns the value label. */
+static lv_obj_t *kv_row(lv_obj_t *parent, const char *key)
+{
+    lv_obj_t *r = deck_box(parent);
+    lv_obj_set_width(r, LV_PCT(100));
+    lv_obj_t *k = deck_label(r, g_font.mono_m, g_pal.dim, key);
+    lv_obj_align(k, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_t *v = deck_label(r, g_font.mono_m, g_pal.text, "");
+    lv_obj_align(v, LV_ALIGN_RIGHT_MID, 0, 0);
+    return v;
+}
+
+static void refresh_net(void)
+{
+    net_state_t st = net_state();
+    lv_color_t c   = st == NET_CONNECTED ? g_pal.ok : st == NET_NO_RADIO ? g_pal.danger
+                     : (st == NET_CONNECTING || st == NET_STARTING) ? g_pal.warn : g_pal.dim;
+    lv_label_set_text(s_ui.net_state, net_state_name(st));
+    lv_obj_set_style_text_color(s_ui.net_state, c, 0);
+    lv_label_set_text(s_ui.net_ssid, net_ssid()[0] ? net_ssid() : "--");
+    lv_label_set_text(s_ui.net_ip, net_ip()[0] ? net_ip() : "--");
+    if (st == NET_CONNECTED) {
+        lv_label_set_text_fmt(s_ui.net_signal, "%d dBm  %.*s", net_rssi(), net_bars(), "||||");
+    } else {
+        lv_label_set_text(s_ui.net_signal, "--");
+    }
+    lv_label_set_text(s_ui.tz_val, hal_tz_name(hal_tz_get()));
+    lv_label_set_text(s_ui.ntp, net_time_synced() ? "NTP: SYNCED" : st == NET_CONNECTED ? "NTP: SYNCING"
+                                                                                        : "NTP: WAITING FOR NETWORK");
+    lv_obj_set_style_text_color(s_ui.ntp, net_time_synced() ? g_pal.ok : g_pal.dim, 0);
+}
+
 /* ---- Live info ----------------------------------------------------------- */
 
 static void fmt_bytes(char *buf, size_t n, size_t used, size_t total)
@@ -249,7 +396,7 @@ static void refresh(lv_timer_t *t)
     }
 
     if (hal_sd_mounted()) {
-        snprintf(buf, sizeof(buf), "SD %.2f / %.2f GB FREE", (double)hal_sd_free_bytes() / 1e9,
+        snprintf(buf, sizeof(buf), "SD %.1f / %.1f GB FREE", (double)hal_sd_free_bytes() / 1e9,
                  (double)hal_sd_total_bytes() / 1e9);
         lv_label_set_text(s_ui.info[INFO_SD], buf);
     } else {
@@ -264,8 +411,8 @@ static void refresh(lv_timer_t *t)
         snprintf(buf, sizeof(buf), "USB  %.2fV", (double)p.volts);
         lv_label_set_text(s_ui.info[INFO_PWR], buf);
     } else {
-        snprintf(buf, sizeof(buf), "%.2fV  %+.0fmA  %d%%%s", (double)p.volts, (double)(p.amps * 1000.0f), p.percent,
-                 p.charging ? "  CHG" : "");
+        snprintf(buf, sizeof(buf), "%.2fV %+.0fmA %d%%%s", (double)p.volts, (double)(p.amps * 1000.0f), p.percent,
+                 p.charging ? " CHG" : "");
         lv_label_set_text(s_ui.info[INFO_PWR], buf);
     }
     lv_label_set_text(s_ui.info[INFO_FW], "DECK//OS v" DECK_VERSION);
@@ -275,9 +422,19 @@ static void refresh(lv_timer_t *t)
     localtime_r(&now, &tm);
     lv_label_set_text_fmt(s_ui.clock_val, "%04d-%02d-%02d  %02d:%02d", tm.tm_year + 1900, tm.tm_mon + 1,
                           tm.tm_mday, tm.tm_hour, tm.tm_min);
+    refresh_net();
 }
 
 /* ---- Module -------------------------------------------------------------- */
+
+static lv_obj_t *small_button(lv_obj_t *parent, const char *text, lv_event_cb_t cb, void *ud)
+{
+    lv_obj_t *b = deck_button(parent, text, NULL);
+    lv_obj_set_style_min_height(b, 46, 0);
+    lv_obj_set_style_pad_ver(b, 8, 0);
+    lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
+    return b;
+}
 
 static bool start(deck_app_t *self, lv_obj_t *parent)
 {
@@ -288,18 +445,19 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
     lv_obj_set_size(root, LV_PCT(100), LV_PCT(100));
     lv_obj_set_flex_flow(root, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_all(root, 24, 0);
-    lv_obj_set_style_pad_column(root, 24, 0);
+    lv_obj_set_style_pad_column(root, 20, 0);
 
-    /* Left: settings */
-    lv_obj_t *left = column_panel(root, 620);
+    /* ---- DISPLAY ---- */
+    lv_obj_t *left = column_panel(root, 372);
     deck_section(left, "DISPLAY");
 
     lv_obj_t *row = setting_row(left, ICON_BRIGHTNESS, "BRIGHTNESS");
     s_ui.bright_val = deck_label(row, g_font.mono_m, g_pal.accent, "");
     lv_obj_align(s_ui.bright_val, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_t *slider = lv_slider_create(left);
-    lv_obj_set_width(slider, LV_PCT(96));
+    lv_obj_set_width(slider, LV_PCT(92));
     lv_obj_set_style_margin_left(slider, 10, 0);
+    lv_obj_set_style_margin_bottom(slider, 8, 0);
     lv_slider_set_range(slider, 10, 100);
     int32_t bright = hal_cfg_get_i32("bright", 80);
     lv_slider_set_value(slider, bright, LV_ANIM_OFF);
@@ -310,17 +468,18 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
 
     row = setting_row(left, ICON_MONITOR, "SCANLINES");
     add_switch(row, hal_cfg_get_i32("scan", 1) != 0, scan_changed);
-    row = setting_row(left, ICON_CHIP, "BOOT POST SEQUENCE");
+    row = setting_row(left, ICON_CHIP, "BOOT POST");
     add_switch(row, hal_cfg_get_i32("boot", 1) != 0, boot_changed);
 
     deck_section(left, "ACCENT");
     lv_obj_t *sw = deck_box(left);
     lv_obj_set_width(sw, LV_PCT(100));
-    lv_obj_set_flex_flow(sw, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_flow(sw, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_flex_align(sw, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(sw, 12, 0);
     for (int i = 0; i < DECK_ACCENT_COUNT; i++) {
         lv_obj_t *b = deck_panel(sw, DECK_CUT_BR, 12);
-        lv_obj_set_size(b, 128, 64);
+        lv_obj_set_size(b, 150, 58);
         lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
         deck_panel_set_outline(b, deck_theme_accent_color(i));
         if (i == deck_theme_accent()) {
@@ -329,53 +488,69 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
         }
         lv_obj_t *bar = lv_obj_create(b);
         lv_obj_remove_style_all(bar);
-        lv_obj_set_size(bar, 96, 6);
+        lv_obj_set_size(bar, 110, 5);
         lv_obj_set_style_bg_color(bar, deck_theme_accent_color(i), 0);
         lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
-        lv_obj_align(bar, LV_ALIGN_TOP_MID, 0, 14);
+        lv_obj_align(bar, LV_ALIGN_TOP_MID, 0, 12);
         lv_obj_t *l = deck_label(b, g_font.mono_s, deck_theme_accent_color(i), deck_theme_accent_name(i));
-        lv_obj_align(l, LV_ALIGN_BOTTOM_MID, 0, -10);
+        lv_obj_align(l, LV_ALIGN_BOTTOM_MID, 0, -8);
         lv_obj_add_event_cb(b, accent_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         lv_group_add_obj(deck_input_group(), b);
     }
 
-    deck_section(left, "CLOCK");
-    row = setting_row(left, ICON_CLOCK, "");
-    s_ui.clock_val = lv_obj_get_child(lv_obj_get_child(row, 0), 1);
-    lv_obj_t *set = deck_button(row, "SET", NULL);
-    lv_obj_align(set, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_obj_add_event_cb(set, open_clock_modal, LV_EVENT_CLICKED, parent);
+    /* ---- NETWORK + TIME ---- */
+    lv_obj_t *mid = column_panel(root, 392);
+    lv_obj_set_style_pad_row(mid, 10, 0);
+    deck_section(mid, "NETWORK");
+    s_ui.net_state  = deck_label(mid, g_font.disp_m, g_pal.dim, "");
+    s_ui.net_ssid   = kv_row(mid, "SSID");
+    s_ui.net_ip     = kv_row(mid, "IP");
+    s_ui.net_signal = kv_row(mid, "SIGNAL");
+    lv_obj_t *nb = deck_box(mid);
+    lv_obj_set_width(nb, LV_PCT(100));
+    lv_obj_set_flex_flow(nb, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_column(nb, 12, 0);
+    lv_obj_set_style_margin_top(nb, 4, 0);
+    s_ui.join_btn = small_button(nb, "JOIN", join_clicked, NULL);
+    small_button(nb, "FORGET", forget_clicked, NULL);
 
-    /* Right: live system info */
+    lv_obj_t *ts = deck_section(mid, "TIME");
+    lv_obj_set_style_margin_top(ts, 8, 0);
+    lv_obj_t *tzr = deck_box(mid);
+    lv_obj_set_width(tzr, LV_PCT(100));
+    s_ui.tz_val = deck_label(tzr, g_font.mono_m, g_pal.text, "");
+    lv_obj_align(s_ui.tz_val, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_t *zb = small_button(tzr, "ZONE", tz_clicked, NULL);
+    lv_obj_align(zb, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_t *clk = deck_box(mid);
+    lv_obj_set_width(clk, LV_PCT(100));
+    s_ui.clock_val = deck_label(clk, g_font.mono_m, g_pal.text, "");
+    lv_obj_align(s_ui.clock_val, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_t *set = small_button(clk, "SET", open_clock_modal, parent);
+    lv_obj_align(set, LV_ALIGN_RIGHT_MID, 0, 0);
+    s_ui.ntp = deck_label(mid, g_font.mono_s, g_pal.dim, "");
+
+    /* ---- SYSTEM ---- */
     lv_obj_t *right = column_panel(root, 0);
     lv_obj_set_flex_grow(right, 1);
     lv_obj_set_style_pad_row(right, 8, 0);
     deck_section(right, "SYSTEM");
-    for (int i = 0; i < INFO_COUNT; i++) {
-        lv_obj_t *r = deck_box(right);
-        lv_obj_set_width(r, LV_PCT(100));
-        lv_obj_t *k = deck_label(r, g_font.mono_m, g_pal.dim, s_info_keys[i]);
-        lv_obj_align(k, LV_ALIGN_LEFT_MID, 0, 0);
-        s_ui.info[i] = deck_label(r, g_font.mono_m, g_pal.text, "");
-        lv_obj_align(s_ui.info[i], LV_ALIGN_RIGHT_MID, 0, 0);
-    }
+    for (int i = 0; i < INFO_COUNT; i++) s_ui.info[i] = kv_row(right, s_info_keys[i]);
 
     static const char *hotkeys[][2] = {
         {"ALT+1..5", "LAUNCH MODULE"},
-        {"ALT+ESC", "RETURN TO DECK, ALWAYS"},
+        {"ALT+ESC", "BACK TO DECK"},
         {"ESC", "BACK / CLOSE"},
-        {"TAB  ARROWS", "MOVE FOCUS"},
+        {"TAB ARROWS", "MOVE FOCUS"},
         {"ENTER", "ACTIVATE"},
     };
     lv_obj_t *hk = deck_section(right, "HOTKEYS");
     lv_obj_set_style_margin_top(hk, 10, 0);
     for (size_t i = 0; i < sizeof(hotkeys) / sizeof(hotkeys[0]); i++) {
-        lv_obj_t *r = deck_box(right);
-        lv_obj_set_width(r, LV_PCT(100));
-        lv_obj_t *k = deck_label(r, g_font.mono_m, g_pal.accent, hotkeys[i][0]);
-        lv_obj_align(k, LV_ALIGN_LEFT_MID, 0, 0);
-        lv_obj_t *v = deck_label(r, g_font.mono_m, g_pal.dim, hotkeys[i][1]);
-        lv_obj_align(v, LV_ALIGN_RIGHT_MID, 0, 0);
+        lv_obj_t *v = kv_row(right, hotkeys[i][0]);
+        lv_label_set_text(v, hotkeys[i][1]);
+        lv_obj_set_style_text_color(v, g_pal.dim, 0);
+        lv_obj_set_style_text_color(lv_obj_get_child(lv_obj_get_parent(v), 0), g_pal.accent, 0);
     }
 
     refresh(NULL);
@@ -388,6 +563,7 @@ static void stop(deck_app_t *self)
 {
     (void)self;
     if (s_ui.timer) lv_timer_delete(s_ui.timer);
+    if (s_ui.scan_poll) lv_timer_delete(s_ui.scan_poll);
     s_ui = (sys_ui_t){0};
 }
 

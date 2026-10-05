@@ -11,6 +11,7 @@
 
 #include "deck_fx.h"
 #include "deck_hal.h"
+#include "deck_net.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
 #include "deck_widgets.h"
@@ -68,7 +69,15 @@ static void collect(void)
     } else {
         add(ST_WARN, "NO MEDIA", "STO  SDCARD");
     }
-    add(ST_DEFER, "v0.4", "NET  ESP32-C6 WIFI6");
+    /* The C6 link is usually still coming up this early; say what we know. */
+    net_state_t ns = net_state();
+    if (ns == NET_NO_RADIO) {
+        add(ST_WARN, "NO RADIO", "NET  ESP32-C6 WIFI6");
+    } else if (ns == NET_STARTING) {
+        add(ST_DEFER, "LINKING", "NET  ESP32-C6 WIFI6");
+    } else {
+        add(ST_OK, NULL, "NET  ESP32-C6 WIFI6");
+    }
     hal_power_t p;
     hal_power_read(&p);
     if (p.valid && p.percent >= 0) {

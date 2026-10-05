@@ -32,3 +32,27 @@
 #define ICON_BACKSPACE      "\xF3\xB0\x81\xAE" /* F006E */
 #define ICON_HISTORY        "\xF3\xB0\x8B\x9A" /* F02DA */
 #define ICON_KEYPAD         "\xF3\xB0\xA5\xBB" /* F097B */
+
+/* Weather */
+#define WX_SUNNY            "\xF3\xB0\x96\x99" /* F0599 */
+#define WX_NIGHT            "\xF3\xB0\x96\x94" /* F0594 */
+#define WX_PARTLY           "\xF3\xB0\x96\x95" /* F0595 */
+#define WX_NIGHT_PARTLY     "\xF3\xB0\xBC\xB1" /* F0F31 */
+#define WX_CLOUDY           "\xF3\xB0\x96\x90" /* F0590 */
+#define WX_FOG              "\xF3\xB0\x96\x91" /* F0591 */
+#define WX_RAIN             "\xF3\xB0\x96\x97" /* F0597 */
+#define WX_POURING          "\xF3\xB0\x96\x96" /* F0596 */
+#define WX_SNOW             "\xF3\xB0\x96\x98" /* F0598 */
+#define WX_SNOW_HEAVY       "\xF3\xB0\xBC\xB6" /* F0F36 */
+#define WX_SLEET            "\xF3\xB0\x99\xBF" /* F067F */
+#define WX_STORM            "\xF3\xB0\x99\xBE" /* F067E */
+#define WX_HAIL             "\xF3\xB0\x96\x92" /* F0592 */
+#define WX_WIND             "\xF3\xB0\x96\x9D" /* F059D */
+#define WX_SUNRISE          "\xF3\xB0\x96\x9C" /* F059C */
+#define WX_SUNSET           "\xF3\xB0\x96\x9B" /* F059B */
+#define ICON_HUMIDITY       "\xF3\xB0\x96\x8E" /* F058E */
+#define ICON_GAUGE          "\xF3\xB0\x8A\x9A" /* F029A */
+#define ICON_THERMO         "\xF3\xB0\x94\x8F" /* F050F */
+#define ICON_PIN            "\xF3\xB0\x8D\x8E" /* F034E */
+#define ICON_REFRESH        "\xF3\xB0\x91\x90" /* F0450 */
+#define ICON_UMBRELLA       "\xF3\xB0\x95\x8A" /* F054A */

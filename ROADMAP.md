@@ -30,13 +30,14 @@ Each version ends with something flashable and usable.
 - [x] Checkpoint in the simulator: `(0xFF << 2) | 3` = 1023 and `2^10 / 3` = 341.333333333, from keyboard and touch
 - [x] Checkpoint on hardware
 
-## v0.4: Wi-Fi, clock sync and weather
+## v0.4: Wi-Fi, clock sync and weather (done)
 
-- ESP32-C6 Wi-Fi over SDIO (esp_hosted); Wi-Fi setup in SYSTEM (scan, join, remember)
-- SNTP clock sync written back to the RTC, timezone setting
-- HTTPS with the cert bundle; status bar NET indicator goes live
-- WEATHER module: Open-Meteo conditions, 24 h trace, 7-day strip, offline cache
-- Checkpoint: survives a Wi-Fi drop and reconnect; correct time after cold boot
+- [x] ESP32-C6 Wi-Fi over SDIO (ESP-Hosted 1.4.0 matched to the factory C6 firmware); verified on hardware
+- [x] Wi-Fi setup in SYSTEM: scan, join, hidden networks, forget; credentials in NVS
+- [x] SNTP clock sync written back to the RTC; 17 timezones applied before the RTC is read
+- [x] HTTPS with the cert bundle; status bar NET indicator, boot POST and stats line go live
+- [x] WEATHER module: Open-Meteo city search, conditions, 24 h trace, 7-day strip, offline cache, F/C
+- [x] Checkpoint on hardware: join Wi-Fi, clock corrects itself, weather loads, survives a Wi-Fi drop
 
 ## v0.5: File portal
 

@@ -69,9 +69,18 @@ void hal_power_read(hal_power_t *out);
 
 /* ---- Clock --------------------------------------------------------------- */
 
-/* System time is seeded from the RTC at boot; this writes it back to both. */
+/* System time is seeded from the RTC at boot; this writes it back to both.
+ * The RTC holds local wall time for the selected timezone. */
 bool hal_rtc_set(const struct tm *local);
 bool hal_rtc_present(void);
+
+/* Timezones: a fixed list of POSIX TZ rules. The choice is persisted and
+ * applied at boot before the RTC is read. Changing it keeps the absolute
+ * time and rewrites the RTC in the new local time. */
+int         hal_tz_count(void);
+const char *hal_tz_name(int index);
+int         hal_tz_get(void);
+void        hal_tz_set(int index);
 
 /* ---- Storage ------------------------------------------------------------- */
 
@@ -91,6 +100,9 @@ uint64_t hal_sd_free_bytes(void);
 
 int32_t hal_cfg_get_i32(const char *key, int32_t def);
 void    hal_cfg_set_i32(const char *key, int32_t value);
+/* Copies into out (always NUL terminated); returns false if not set. */
+bool    hal_cfg_get_str(const char *key, char *out, size_t n);
+void    hal_cfg_set_str(const char *key, const char *value);   /* NULL erases */
 
 /* ---- System info --------------------------------------------------------- */
 

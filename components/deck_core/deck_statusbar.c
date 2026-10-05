@@ -8,6 +8,7 @@
 #include <time.h>
 
 #include "deck_hal.h"
+#include "deck_net.h"
 #include "deck_icons.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
@@ -85,7 +86,15 @@ static void refresh(lv_timer_t *t)
     bool kbd = hal_kbd_present();
     set_indicator(s_kbd, kbd ? ICON_KEYBOARD : ICON_KEYBOARD_OFF, "KBD", kbd ? g_pal.accent : g_pal.dim);
     set_indicator(s_sd, ICON_SD, "SD", hal_sd_mounted() ? g_pal.accent : g_pal.dim);
-    set_indicator(s_net, ICON_WIFI_OFF, "NET", g_pal.dim);
+    switch (net_state()) {
+        case NET_CONNECTED: set_indicator(s_net, ICON_WIFI, "NET", g_pal.accent); break;
+        case NET_CONNECTING:
+        case NET_STARTING:
+            /* Blink while joining. */
+            set_indicator(s_net, ICON_WIFI, "NET", (tm.tm_sec & 1) ? g_pal.warn : g_pal.dim);
+            break;
+        default: set_indicator(s_net, ICON_WIFI_OFF, "NET", g_pal.dim); break;
+    }
 
     hal_power_t p;
     hal_power_read(&p);

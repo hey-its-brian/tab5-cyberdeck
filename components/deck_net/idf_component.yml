@@ -1,0 +1,7 @@
+dependencies:
+  idf: ">=5.4"
+  # Matched to the ESP-Hosted slave firmware M5Stack ships on the Tab5's
+  # ESP32-C6 (ESP32C6-WiFi-SDIO-Interface v1.4.1), same pairing as M5's own
+  # Tab5 firmware, so the C6 never needs reflashing.
+  espressif/esp_hosted: "1.4.0"
+  espressif/esp_wifi_remote: "0.8.5"

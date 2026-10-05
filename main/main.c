@@ -3,6 +3,7 @@
  * shell. Everything after that runs on the LVGL task.
  */
 #include "deck_hal.h"
+#include "deck_net.h"
 #include "deck_input.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
@@ -21,6 +22,8 @@ void app_main(void)
         ESP_LOGE("main", "display bring-up failed, halting");
         return;
     }
+
+    net_init(); /* brings up the C6 link in the background */
 
     hal_lvgl_lock(0);
     deck_theme_init();

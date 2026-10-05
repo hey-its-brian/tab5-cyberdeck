@@ -18,6 +18,7 @@ codepoints=(
     F0354  # language-markdown
     F0A9A  # calculator-variant
     F0595  # weather-partly-cloudy
+    F0590  # weather-cloudy
     F0493  # cog
     F030C  # keyboard
     F0310  # keyboard-off
@@ -41,6 +42,26 @@ codepoints=(
     F006E  # backspace
     F02DA  # history
     F097B  # keyboard-outline
+    F0599  # weather-sunny
+    F0594  # weather-night
+    F0F31  # weather-night-partly-cloudy
+    F0591  # weather-fog
+    F0597  # weather-rainy
+    F0596  # weather-pouring
+    F0598  # weather-snowy
+    F0F36  # weather-snowy-heavy
+    F067F  # weather-snowy-rainy
+    F067E  # weather-lightning-rainy
+    F0592  # weather-hail
+    F059D  # weather-windy
+    F059C  # weather-sunset-up
+    F059B  # weather-sunset-down
+    F058E  # water-percent
+    F029A  # gauge
+    F050F  # thermometer
+    F034E  # map-marker
+    F0450  # refresh
+    F054A  # umbrella
 )
 
 unicodes=$(printf 'U+%s,' "${codepoints[@]}")

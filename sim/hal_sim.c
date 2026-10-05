@@ -3,9 +3,13 @@
  * screen renders as it would on the Tab5.
  */
 #include "deck_hal.h"
+#include "deck_tz.h"
+
+#include <stdlib.h>
 
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "lvgl.h"
 #include "sim.h"
@@ -23,6 +27,9 @@ static int s_cfg_n;
 static uint8_t s_backlight = 80;
 
 bool hal_init(void) { return true; }
+
+/* The sim's "SD card" is a folder; make sure it exists before anyone writes. */
+__attribute__((constructor)) static void sim_storage_init(void) { mkdir(DECK_SIM_SDCARD, 0755); }
 bool hal_lvgl_lock(uint32_t timeout_ms) { return true; }
 void hal_lvgl_unlock(void) {}
 
@@ -64,6 +71,54 @@ bool hal_rtc_set(const struct tm *t)
 }
 
 bool hal_rtc_present(void) { return true; }
+
+static int s_tz = DECK_TZ_DEFAULT;
+int hal_tz_count(void) { return DECK_TZ_COUNT; }
+const char *hal_tz_name(int index) { return (index >= 0 && index < DECK_TZ_COUNT) ? g_deck_tz[index].name : "?"; }
+int hal_tz_get(void) { return s_tz; }
+void hal_tz_set(int index)
+{
+    s_tz = (index >= 0 && index < DECK_TZ_COUNT) ? index : DECK_TZ_DEFAULT;
+    setenv("TZ", g_deck_tz[s_tz].posix, 1);
+    tzset();
+}
+
+static struct {
+    char key[16];
+    char val[96];
+} s_str[16];
+
+bool hal_cfg_get_str(const char *key, char *out, size_t n)
+{
+    for (int i = 0; i < 16; i++) {
+        if (s_str[i].key[0] && strcmp(s_str[i].key, key) == 0) {
+            snprintf(out, n, "%s", s_str[i].val);
+            return true;
+        }
+    }
+    if (n) out[0] = '\0';
+    return false;
+}
+
+void hal_cfg_set_str(const char *key, const char *value)
+{
+    int free_slot = -1;
+    for (int i = 0; i < 16; i++) {
+        if (s_str[i].key[0] && strcmp(s_str[i].key, key) == 0) {
+            if (value) {
+                snprintf(s_str[i].val, sizeof(s_str[i].val), "%s", value);
+            } else {
+                s_str[i].key[0] = '\0';
+            }
+            return;
+        }
+        if (!s_str[i].key[0] && free_slot < 0) free_slot = i;
+    }
+    if (value && free_slot >= 0) {
+        snprintf(s_str[free_slot].key, sizeof(s_str[0].key), "%s", key);
+        snprintf(s_str[free_slot].val, sizeof(s_str[0].val), "%s", value);
+    }
+}
 
 /* Notes live in sim/sdcard (created on demand). */
 const char *hal_storage_root(void) { return DECK_SIM_SDCARD; }

@@ -9,5 +9,5 @@ idf_component_register(
         "deck_stub.c"
         "deck_modal.c"
     INCLUDE_DIRS "include"
-    REQUIRES lvgl__lvgl deck_hal deck_ui
+    REQUIRES lvgl__lvgl deck_hal deck_ui deck_net
 )
