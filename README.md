@@ -32,7 +32,7 @@ monospace editor, a rendered preview (headings, emphasis, lists, task lists,
 quotes, code, tables, rules) and a live split view. Files are plain `.md` in
 `/sdcard/notes`, or in internal flash when no card is inserted. `Ctrl+S` save,
 `Ctrl+P` edit/preview, `Ctrl+T` split, `Esc` save and close, autosave after
-20 s. Partition table is now OTA-ready (see ROADMAP v0.6), which means one USB
+20 s. Partition table is now OTA-ready (see ROADMAP v0.8), which means one USB
 flash when moving from v0.1.
 
 ### v0.1.0 (released)

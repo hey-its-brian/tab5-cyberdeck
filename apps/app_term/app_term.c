@@ -1,4 +1,4 @@
-/* Placeholder until v0.5, when the real module replaces this file. */
+/* Placeholder until v0.7, when the real module replaces this file. */
 #include "app_term.h"
 
 #include "deck_icons.h"
@@ -8,7 +8,7 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
 {
     return deck_stub_screen(self, parent,
         "> uplink.ssh ............ NOT INSTALLED\n"
-        "> scheduled for firmware v0.5\n"
+        "> scheduled for firmware v0.7\n"
         "\n"
         "PLANNED PAYLOAD\n"
         "  - wolfSSH client, ed25519 keys from SD, known_hosts pinning\n"
@@ -21,7 +21,7 @@ static deck_app_t s_app = {
     .name     = "TERMINAL",
     .tagline  = "SSH UPLINK",
     .icon     = ICON_CONSOLE,
-    .eta      = "v0.5",
+    .eta      = "v0.7",
     .on_start = start,
 };
 

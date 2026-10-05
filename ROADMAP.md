@@ -13,7 +13,7 @@ Each version ends with something flashable and usable.
 
 ## v0.2: Markdown (read, write, preview)
 
-- [x] OTA-ready partition table (two 6 MB app slots) so v0.6 can update without USB
+- [x] OTA-ready partition table (two 6 MB app slots) so OTA (v0.8) can update without USB
 - [x] md4c parser mapped to LVGL: headings, emphasis, lists, task lists, quotes, fenced code, tables, rules
 - [x] File browser for `/sdcard/notes`: new, rename, delete (internal flash fallback without a card)
 - [x] Monospace editor: autosave, `Ctrl+S`, save on exit, on-screen keyboard when no keyboard is attached
@@ -30,29 +30,54 @@ Each version ends with something flashable and usable.
 - [x] Checkpoint in the simulator: `(0xFF << 2) | 3` = 1023 and `2^10 / 3` = 341.333333333, from keyboard and touch
 - [ ] Checkpoint on hardware
 
-## v0.4: Weather and the network layer
+## v0.4: Wi-Fi, clock sync and weather
 
-- ESP32-C6 Wi-Fi over SDIO (esp_hosted), Wi-Fi setup in SYSTEM
-- SNTP clock sync, timezone setting, HTTPS with the cert bundle
-- Open-Meteo: conditions, 24 h trace, 7-day strip, offline cache
-- Status bar NET indicator goes live
+- ESP32-C6 Wi-Fi over SDIO (esp_hosted); Wi-Fi setup in SYSTEM (scan, join, remember)
+- SNTP clock sync written back to the RTC, timezone setting
+- HTTPS with the cert bundle; status bar NET indicator goes live
+- WEATHER module: Open-Meteo conditions, 24 h trace, 7-day strip, offline cache
 - Checkpoint: survives a Wi-Fi drop and reconnect; correct time after cold boot
 
-## v0.5: SSH client
+## v0.5: File portal
+
+- Toggle in SYSTEM starts a web file manager on the LAN: `http://deck.local` (mDNS) plus the IP shown on screen
+- Browse, upload (drag and drop), download, rename, delete on the SD card; folders for notes and music
+- Access PIN shown on the deck while the portal is on; auto-off after idle
+- Checkpoint: drop 20 MP3s and a few notes from the Mac's browser, they show up in NOTES and the player
+
+## v0.6: Audio player (MP3)
+
+- ES8388 codec to the built-in speaker and the 3.5 mm headphone jack (auto-switch on plug)
+- MP3 decode (esp-audio-codec / Helix) streamed from SD, gapless queue
+- PLAYER module: library by folder, now playing, seek, volume, shuffle/repeat
+- Keeps playing in the background while you use other modules; mini controls in the status bar
+- Checkpoint: an hour of playback while using NOTES and SSH, no dropouts
+
+### Bluetooth audio (decision needed)
+
+The Tab5's radio (ESP32-C6) has Bluetooth LE only. Ordinary Bluetooth
+headphones need Bluetooth Classic (A2DP), which the C6 cannot do, so audio
+over Bluetooth needs one of:
+
+1. **Bluetooth transmitter on the headphone jack.** No firmware work; works with v0.6 as is.
+2. **USB Bluetooth audio dongle in the Tab5's USB-A port** (one that presents as a USB sound card). Firmware adds a USB audio host output. Clean and self-contained.
+3. **Classic ESP32 add-on board** on the expansion port acting as an A2DP source, fed over I2S. Most flexible, most work.
+
+## v0.7: SSH client
 
 - wolfSSH + wolfSSL (libssh2 port as fallback), P4 hardware crypto
 - VT100/xterm-256color emulator, dirty-rect grid renderer, PSRAM scrollback
 - Full key passthrough incl. `Esc`; `Alt+Esc` returns to the deck
-- Host profiles, known_hosts pinning, ed25519 keys on SD
+- Host profiles, known_hosts pinning, ed25519 keys on SD (loadable through the portal)
 - Checkpoint: `htop` and `vim` usable on a Linux box
 
-## v0.6: OTA updates
+## v0.8: OTA updates
 
 - A/B app slots (layout already in place since v0.2, so no USB reflash needed)
 - Check GitHub Releases for a newer firmware from SYSTEM, show notes, download, verify, swap slot
 - Rollback: a new image must mark itself good after boot, otherwise the bootloader reverts
 - Optional: push a build from the Mac over the local network during development
-- Checkpoint: v0.6 updates itself to a test v0.6.1 over Wi-Fi, and a deliberately broken image rolls back
+- Checkpoint: updates itself to a test release over Wi-Fi, and a deliberately broken image rolls back
 
 ## v1.0: Polish
 
