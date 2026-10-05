@@ -120,7 +120,7 @@ static bool parse_target(const char *s, host_t *h)
     snprintf(h->host, sizeof(h->host), "%.*s", (int)hl, at + 1);
     h->port = colon ? (uint16_t)atoi(colon + 1) : 22;
     if (h->port == 0 || h->host[0] == '\0') return false;
-    snprintf(h->name, sizeof(h->name), "%s", h->host);
+    snprintf(h->name, sizeof(h->name), "%.47s", h->host);
     return true;
 }
 

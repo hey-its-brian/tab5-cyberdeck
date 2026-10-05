@@ -71,3 +71,6 @@ CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 # Keep the DSI panel refreshing while flash is written (OTA download),
 # otherwise its interrupts are masked and the screen strobes.
 CONFIG_LCD_DSI_ISR_IRAM_SAFE=y
+
+# ---- SSH ----------------------------------------------------------------------
+CONFIG_LIBSSH2_DEBUG_ENABLE=n
