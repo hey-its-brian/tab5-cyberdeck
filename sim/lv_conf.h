@@ -23,6 +23,7 @@
 #define LV_TINY_TTF_CACHE_GLYPH_CNT 256
 
 #define LV_USE_OBSERVER 1
+#define LV_USE_QRCODE 1
 
 #define LV_USE_SDL 1
 #define LV_SDL_INCLUDE_PATH <SDL.h>

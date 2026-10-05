@@ -9,6 +9,7 @@
 
 #include "deck_hal.h"
 #include "deck_net.h"
+#include "deck_portal.h"
 #include "deck_icons.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
@@ -22,6 +23,7 @@ static lv_obj_t *s_kbd;
 static lv_obj_t *s_sd;
 static lv_obj_t *s_net;
 static lv_obj_t *s_pwr;
+static lv_obj_t *s_link;
 static lv_timer_t *s_timer;
 
 static void back_clicked(lv_event_t *e)
@@ -96,6 +98,15 @@ static void refresh(lv_timer_t *t)
         default: set_indicator(s_net, ICON_WIFI_OFF, "NET", g_pal.dim); break;
     }
 
+    /* The portal outlives its module, so its idle shutdown is driven here. */
+    portal_tick();
+    if (portal_running()) {
+        lv_obj_remove_flag(s_link, LV_OBJ_FLAG_HIDDEN);
+        set_indicator(s_link, ICON_SERVER, "LINK", portal_busy() && (tm.tm_sec & 1) ? g_pal.text : g_pal.accent2);
+    } else {
+        lv_obj_add_flag(s_link, LV_OBJ_FLAG_HIDDEN);
+    }
+
     hal_power_t p;
     hal_power_read(&p);
     char buf[32];
@@ -167,6 +178,8 @@ void deck_statusbar_create(lv_obj_t *parent)
     lv_obj_set_flex_align(right, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(right, 22, 0);
     lv_obj_align(right, LV_ALIGN_RIGHT_MID, -16, 0);
+    s_link = indicator(right);
+    lv_obj_add_flag(s_link, LV_OBJ_FLAG_HIDDEN);
     s_kbd = indicator(right);
     s_sd  = indicator(right);
     s_net = indicator(right);

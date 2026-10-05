@@ -45,6 +45,7 @@ add_executable(deck_sim
     main.c
     hal_sim.c
     net_sim.c
+    portal_sim.c
     assets_sim.c
     ${ROOT}/components/deck_ui/deck_theme.c
     ${ROOT}/components/deck_ui/deck_widgets.c
@@ -67,6 +68,7 @@ target_include_directories(deck_sim PRIVATE
     ${ROOT}/components/deck_core/include
     ${ROOT}/components/deck_md/include
     ${ROOT}/components/deck_net/include
+    ${ROOT}/components/deck_portal/include
     ${ROOT}/components/md4c
     ${APP_DIRS}
 )
