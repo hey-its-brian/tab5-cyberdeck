@@ -31,6 +31,7 @@
 #define ICON_HOME           "\xF3\xB0\x8B\x9C" /* F02DC */
 #define ICON_BACKSPACE      "\xF3\xB0\x81\xAE" /* F006E */
 #define ICON_HISTORY        "\xF3\xB0\x8B\x9A" /* F02DA */
+#define ICON_SERVER         "\xF3\xB0\x92\x8D" /* F048D */
 #define ICON_KEYPAD         "\xF3\xB0\xA5\xBB" /* F097B */
 
 /* Weather */

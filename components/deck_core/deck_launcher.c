@@ -14,9 +14,9 @@
 #include "deck_theme.h"
 #include "deck_widgets.h"
 
-#define TILE_W 226
+#define ROW_W 1232   /* content width inside the launcher padding */
 #define TILE_H 470
-#define TILE_GAP 22
+#define TILE_GAP 18
 #define MAX_TILES 9
 
 static lv_obj_t *s_tiles[MAX_TILES];
@@ -48,10 +48,10 @@ static void show_selection(void)
     }
 }
 
-static lv_obj_t *build_tile(lv_obj_t *parent, deck_app_t *app, int index)
+static lv_obj_t *build_tile(lv_obj_t *parent, deck_app_t *app, int index, int32_t tile_w)
 {
     lv_obj_t *t = deck_panel(parent, DECK_CUT_TL | DECK_CUT_BR, 22);
-    lv_obj_set_size(t, TILE_W, TILE_H);
+    lv_obj_set_size(t, tile_w, TILE_H);
     lv_obj_add_flag(t, LV_OBJ_FLAG_CLICKABLE);
     deck_panel_set_tab(t, true);
     deck_panel_set_hazard(t, app->eta != NULL);
@@ -222,8 +222,10 @@ void deck_launcher_create(lv_obj_t *parent)
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_column(row, TILE_GAP, 0);
     s_tile_count = 0;
-    for (size_t i = 0; i < deck_app_count() && i < MAX_TILES; i++) {
-        s_tiles[s_tile_count++] = build_tile(row, deck_app_get(i), (int)i);
+    int n        = (int)(deck_app_count() < MAX_TILES ? deck_app_count() : MAX_TILES);
+    int32_t tile_w = n ? (ROW_W - (n - 1) * TILE_GAP) / n : ROW_W;
+    for (int i = 0; i < n; i++) {
+        s_tiles[s_tile_count++] = build_tile(row, deck_app_get((size_t)i), i, tile_w);
     }
     if (s_sel >= s_tile_count) s_sel = 0;
     show_selection();
