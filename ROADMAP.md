@@ -53,15 +53,12 @@ Each version ends with something flashable and usable.
 - Keeps playing in the background while you use other modules; mini controls in the status bar
 - Checkpoint: an hour of playback while using NOTES and SSH, no dropouts
 
-### Bluetooth audio (decision needed)
+### Bluetooth audio (deferred)
 
-The Tab5's radio (ESP32-C6) has Bluetooth LE only. Ordinary Bluetooth
-headphones need Bluetooth Classic (A2DP), which the C6 cannot do, so audio
-over Bluetooth needs one of:
-
-1. **Bluetooth transmitter on the headphone jack.** No firmware work; works with v0.6 as is.
-2. **USB Bluetooth audio dongle in the Tab5's USB-A port** (one that presents as a USB sound card). Firmware adds a USB audio host output. Clean and self-contained.
-3. **Classic ESP32 add-on board** on the expansion port acting as an A2DP source, fed over I2S. Most flexible, most work.
+Audio goes to the built-in speaker and the 3.5 mm jack for now. The ESP32-C6
+is Bluetooth LE only, so Bluetooth headphones would need external hardware
+(a transmitter on the jack, a USB Bluetooth audio dongle, or a classic ESP32
+add-on). Revisit after v1.0.
 
 ## v0.7: SSH client
 
