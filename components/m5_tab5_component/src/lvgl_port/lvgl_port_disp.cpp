@@ -240,12 +240,15 @@ static bool dpi_panel_trans_done_cb(esp_lcd_panel_handle_t panel, esp_lcd_dpi_pa
     return false;
 }
 
-static bool dpi_panel_refresh_done_cb(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata,
-                                      void *user_ctx)
+/* DECK//OS patch: runs from IRAM with the context passed directly, so it
+ * keeps working while the cache is off during flash writes (OTA). The
+ * original looked the context up with lv_display_get_driver_data(), which
+ * lives in flash, so the refresh interrupt could not stay enabled then. */
+static bool IRAM_ATTR dpi_panel_refresh_done_cb(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata,
+                                                void *user_ctx)
 {
     BaseType_t need_yield = pdFALSE;
-    lv_display_t *disp    = (lv_display_t *)user_ctx;
-    lvgl_disp_ctx_t *ctx  = (lvgl_disp_ctx_t *)lv_display_get_driver_data(disp);
+    lvgl_disp_ctx_t *ctx  = (lvgl_disp_ctx_t *)user_ctx;
 
     if (ctx && ctx->trans_sem) {
         xSemaphoreGiveFromISR(ctx->trans_sem, &need_yield);
@@ -661,7 +664,10 @@ lv_display_t *lvgl_port_add_disp_dsi(const lvgl_disp_cfg_t *disp_cfg, const lvgl
     } else {
         cbs.on_color_trans_done = dpi_panel_trans_done_cb;
     }
-    esp_lcd_dpi_panel_register_event_callbacks(ctx->panel_handle, &cbs, disp);
+    /* refresh_done gets the context itself (IRAM-safe); trans_done still
+     * needs the display for lv_disp_flush_ready(). */
+    esp_lcd_dpi_panel_register_event_callbacks(ctx->panel_handle, &cbs,
+                                               dsi_cfg->flags.avoid_tearing ? (void *)ctx : (void *)disp);
 
     // For DSI + PPA rotation: don't use LVGL's software rotation
     // We already created display with rotated resolution, PPA handles the actual rotation

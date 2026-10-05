@@ -39,13 +39,15 @@ Each version ends with something flashable and usable.
 - [x] WEATHER module: Open-Meteo city search, conditions, 24 h trace, 7-day strip, offline cache, F/C
 - [x] Checkpoint on hardware: join Wi-Fi, clock corrects itself, weather loads, survives a Wi-Fi drop
 
-## v0.5: OTA updates (moved up)
+## v0.5: OTA updates (done)
 
-- A/B app slots (layout already in place since v0.2, so no USB reflash needed)
-- Check GitHub Releases for a newer firmware from SYSTEM, show notes, download, verify, swap slot
-- Rollback: a new image must mark itself good after boot, otherwise the bootloader reverts
-- Optional: push a build from the Mac over the local network during development
-- Checkpoint: updates itself to a test release over Wi-Fi, and a deliberately broken image rolls back
+- [x] A/B app slots (layout in place since v0.2)
+- [x] Check GitHub Releases from SYSTEM (stable or beta channel), show notes, download, verify, swap slot
+- [x] Rollback: a new build must confirm itself within 15 s, otherwise the bootloader reverts
+- [x] Wrong-image guard (project name checked before writing); status bar UPD indicator, auto-check once per boot
+- [x] Checkpoint on hardware: 0.5.0 updated itself to a test 0.5.1 over Wi-Fi (1.7 MB in about 10 s), and a deliberately crashing 0.5.2 rolled back on its own, twice
+- [x] Fixed: screen strobing during the download (DSI interrupts masked while flash is written)
+- [ ] Optional: push a build from the Mac over the local network during development
 
 ## Web flasher (GitHub Pages)
 
