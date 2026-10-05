@@ -5,6 +5,7 @@
 #include "deck_launcher.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include "deck_hal.h"
 #include "deck_shell.h"
@@ -22,6 +23,10 @@ static int s_sel;          /* keyboard selection, survives trips into apps */
 static bool s_kbd_nav;     /* only show the selection once the keyboard is used */
 static lv_obj_t *s_uptime;
 static lv_timer_t *s_timer;
+static lv_obj_t *s_stats;
+static lv_timer_t *s_stats_timer;
+static uint32_t s_stats_start;
+static bool s_stats_settled;
 
 static void tile_clicked(lv_event_t *e)
 {
@@ -96,24 +101,92 @@ static void launcher_deleted(lv_event_t *e)
         lv_timer_delete(s_timer);
         s_timer = NULL;
     }
+    if (s_stats_timer) {
+        lv_timer_delete(s_stats_timer);
+        s_stats_timer = NULL;
+    }
     s_tile_count = 0;
     s_uptime     = NULL;
+    s_stats      = NULL;
 }
 
-static const char *ticker_text(void)
+/* ---- Stats line ---------------------------------------------------------
+ * On arrival the line "decodes": scrambled glyphs that lock in left to right
+ * with a little jitter and color flicker, then it settles into a static
+ * readout refreshed once a second. */
+
+#define DECODE_MS 2400     /* total scramble time */
+#define DECODE_TICK_MS 40
+#define STATS_X 92
+
+static const char *stats_text(void)
 {
-    static char buf[320];
-    char sd[40];
+    static char buf[160];
+    hal_sysinfo_t si;
+    hal_sysinfo(&si);
+    hal_power_t p;
+    hal_power_read(&p);
+
+    char sd[24], pwr[24];
     if (hal_sd_mounted()) {
-        snprintf(sd, sizeof(sd), "SD %.1f GB FREE", (double)hal_sd_free_bytes() / 1e9);
+        snprintf(sd, sizeof(sd), "SD %.1fG FREE", (double)hal_sd_free_bytes() / 1e9);
     } else {
-        snprintf(sd, sizeof(sd), "SD NO MEDIA");
+        snprintf(sd, sizeof(sd), "SD --");
     }
-    snprintf(buf, sizeof(buf),
-             "KBD LINK %s   //   %s   //   NET OFFLINE (SCHEDULED v0.4)   //   "
-             "ALT+1..%d QUICK LAUNCH   //   ESC RETURNS TO DECK   //   THE NET IS VAST, STAY FROSTY   //   ",
-             hal_kbd_present() ? "ONLINE" : "DOWN", sd, (int)deck_app_count());
+    if (!p.valid) {
+        snprintf(pwr, sizeof(pwr), "PWR --");
+    } else if (p.percent < 0) {
+        snprintf(pwr, sizeof(pwr), "PWR USB");
+    } else {
+        snprintf(pwr, sizeof(pwr), "PWR %d%% %.2fV", p.percent, (double)p.volts);
+    }
+    snprintf(buf, sizeof(buf), "CPU %luMHZ  //  PSRAM %.1f/%.0fM  //  SRAM %lu/%luK  //  %s  //  %s  //  KBD %s",
+             (unsigned long)si.cpu_mhz, (double)(si.psram_total - si.psram_free) / 1048576.0,
+             (double)si.psram_total / 1048576.0, (unsigned long)((si.heap_int_total - si.heap_int_free) / 1024),
+             (unsigned long)(si.heap_int_total / 1024), sd, pwr, hal_kbd_present() ? "LINK" : "DOWN");
     return buf;
+}
+
+static void stats_tick(lv_timer_t *t)
+{
+    const char *target = stats_text();
+    if (s_stats_settled) {
+        lv_label_set_text(s_stats, target);
+        return;
+    }
+
+    uint32_t elapsed = lv_tick_elaps(s_stats_start);
+    if (elapsed >= DECODE_MS) {
+        s_stats_settled = true;
+        lv_label_set_text(s_stats, target);
+        lv_obj_set_style_text_color(s_stats, g_pal.text, 0);
+        lv_obj_align(s_stats, LV_ALIGN_LEFT_MID, STATS_X, 0);
+        lv_timer_set_period(t, 1000);
+        return;
+    }
+
+    /* Characters lock in left to right over the last two thirds of the run;
+     * before that everything is noise. */
+    static const char noise[] = "!<>-_/\\[]{}=+*^?#%&0123456789ABCDEFXZ";
+    size_t len      = strlen(target);
+    int32_t lock_at = (int32_t)elapsed - DECODE_MS / 3;
+    size_t locked   = lock_at <= 0 ? 0 : (size_t)((uint64_t)lock_at * len / (DECODE_MS * 2 / 3));
+    char buf[160];
+    for (size_t i = 0; i < len && i < sizeof(buf) - 1; i++) {
+        char c = target[i];
+        buf[i] = (i < locked || c == ' ') ? c : noise[lv_rand(0, sizeof(noise) - 2)];
+    }
+    buf[len < sizeof(buf) ? len : sizeof(buf) - 1] = '\0';
+    lv_label_set_text(s_stats, buf);
+
+    /* Occasional horizontal tear and color flicker. */
+    bool tear = lv_rand(0, 9) < 3;
+    lv_obj_align(s_stats, LV_ALIGN_LEFT_MID, STATS_X + (tear ? (int32_t)lv_rand(0, 12) - 6 : 0), 0);
+    static const lv_color_t *flicker[3];
+    flicker[0] = &g_pal.accent;
+    flicker[1] = &g_pal.accent2;
+    flicker[2] = &g_pal.text;
+    lv_obj_set_style_text_color(s_stats, *flicker[tear ? lv_rand(0, 1) : 2], 0);
 }
 
 void deck_launcher_create(lv_obj_t *parent)
@@ -157,11 +230,14 @@ void deck_launcher_create(lv_obj_t *parent)
     lv_obj_t *tl = deck_label(tag, g_font.disp_s, g_pal.bg, "SYS>");
     lv_obj_center(tl);
 
-    lv_obj_t *tick = deck_label(bar, g_font.mono_m, g_pal.text, ticker_text());
-    lv_label_set_long_mode(tick, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
-    lv_obj_set_width(tick, 1228 - 28 - 76 - 20);
-    lv_obj_set_style_anim_duration(tick, 70, 0); /* for scrolling labels this is px/s */
-    lv_obj_align(tick, LV_ALIGN_LEFT_MID, 92, 0);
+    s_stats = deck_label(bar, g_font.mono_m, g_pal.text, "");
+    lv_label_set_long_mode(s_stats, LV_LABEL_LONG_MODE_CLIP);
+    lv_obj_set_width(s_stats, 1228 - 28 - STATS_X);
+    lv_obj_align(s_stats, LV_ALIGN_LEFT_MID, STATS_X, 0);
+    s_stats_start   = lv_tick_get();
+    s_stats_settled = false;
+    s_stats_timer   = lv_timer_create(stats_tick, DECODE_TICK_MS, NULL);
+    stats_tick(s_stats_timer);
 
     uptime_tick(NULL);
     s_timer = lv_timer_create(uptime_tick, 1000, NULL);
