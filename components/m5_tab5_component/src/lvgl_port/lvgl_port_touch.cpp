@@ -13,6 +13,15 @@
 #include "lvgl_port.h"
 #include "lvgl_port_touch.h"
 
+/* DECK//OS patch: the multi-touch emulation below sends synthetic PRESSED /
+ * RELEASED / CLICKED events on top of LVGL's own. With one finger that means
+ * a second RELEASED on lift, which toggles checkable widgets (switches) twice,
+ * and repeated CLICKED after a 1 s hold. Off by default; LVGL handles the
+ * primary touch point normally. */
+#ifndef M5TAB5_TOUCH_MULTI_EMULATION
+#define M5TAB5_TOUCH_MULTI_EMULATION 0
+#endif
+
 static const char *TAG = "lvgl_touch";
 
 /*******************************************************************************
@@ -41,7 +50,7 @@ typedef struct {
 /*******************************************************************************
  * Helpers
  ******************************************************************************/
-static void touch_obj_delete_cb(lv_event_t *e)
+[[maybe_unused]] static void touch_obj_delete_cb(lv_event_t *e)
 {
     lvgl_touch_ctx_t *ctx = (lvgl_touch_ctx_t *)lv_event_get_user_data(e);
     lv_obj_t *obj         = (lv_obj_t *)lv_event_get_target(e);
@@ -150,6 +159,7 @@ static void touch_read_callback(lv_indev_t *indev, lv_indev_data_t *data)
         data->point.y = ctx->last_points[0].y;
         data->state   = LV_INDEV_STATE_PRESSED;
 
+#if M5TAB5_TOUCH_MULTI_EMULATION
         /* --- Improved Multi-touch Handling (ID-agnostic) --- */
         lv_obj_t *scr = lv_scr_act();
         uint32_t now  = lv_tick_get();
@@ -307,8 +317,10 @@ static void touch_read_callback(lv_indev_t *indev, lv_indev_data_t *data)
         memcpy(ctx->pressed_obj_pool, new_pool, sizeof(new_pool));
         memcpy(ctx->point_press_time, new_press_time, sizeof(new_press_time));
         memcpy(ctx->point_repeat_time, new_repeat_time, sizeof(new_repeat_time));
+#endif  // M5TAB5_TOUCH_MULTI_EMULATION
 
     } else {
+#if M5TAB5_TOUCH_MULTI_EMULATION
         // Release ALL tracked secondary objects
         for (int j = 0; j < 10; j++) {
             if (ctx->pressed_obj_pool[j] != NULL) {
@@ -316,6 +328,7 @@ static void touch_read_callback(lv_indev_t *indev, lv_indev_data_t *data)
                 ctx->pressed_obj_pool[j] = NULL;
             }
         }
+#endif
 
         data->state         = LV_INDEV_STATE_RELEASED;
         ctx->last_touch_cnt = 0;
