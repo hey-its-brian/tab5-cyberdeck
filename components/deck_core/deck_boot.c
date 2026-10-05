@@ -12,6 +12,7 @@
 #include "deck_fx.h"
 #include "deck_hal.h"
 #include "deck_net.h"
+#include "deck_ota.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
 #include "deck_widgets.h"
@@ -86,6 +87,11 @@ static void collect(void)
         add(ST_OK, NULL, "PWR  USB %.2fV", (double)p.volts);
     } else {
         add(ST_WARN, "NO SENSOR", "PWR  INA226");
+    }
+    if (ota_pending_verify()) {
+        add(ST_WARN, "SELF-TEST", "FW   DECK//OS v%s UPDATED", DECK_VERSION);
+    } else {
+        add(ST_OK, NULL, "FW   DECK//OS v%s", DECK_VERSION);
     }
     add(ST_NONE, NULL, "> JACKING IN");
 }

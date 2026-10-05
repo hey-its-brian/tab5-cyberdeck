@@ -4,6 +4,7 @@
  */
 #include "deck_hal.h"
 #include "deck_net.h"
+#include "deck_ota.h"
 #include "deck_input.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
@@ -24,6 +25,7 @@ void app_main(void)
     }
 
     net_init(); /* brings up the C6 link in the background */
+    ota_init(DECK_VERSION); /* arms the rollback countdown on a fresh OTA build */
 
     hal_lvgl_lock(0);
     deck_theme_init();
