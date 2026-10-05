@@ -11,11 +11,11 @@ weather.
 |---|---|---|
 | ![Boot](docs/screenshots/boot.png) | ![System](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
-## Status: v0.3 in progress (Calculator)
+## Status: v0.3.0 (Calculator)
 
 ![Calc](docs/screenshots/calc.png)
 
-**v0.3 so far:** CALC module with live results as you type, a tape of past
+**v0.3:** CALC module with live results as you type, a tape of past
 results, hex/oct/bin readout for integers, DEG/RAD, and a touch keypad with
 SCI and PROG pages that hides once you type. `Enter` evaluates, `Up/Down`
 recall, `Ctrl+D` deg/rad, `Ctrl+K` keypad, `Ctrl+L` clear tape. Engine tests:

@@ -11,7 +11,7 @@ Each version ends with something flashable and usable.
 - [x] Desktop simulator with headless screenshots
 - [ ] Verify on hardware: boot time under 3 s, touch and keyboard on every screen
 
-## v0.2: Markdown (read, write, preview)
+## v0.2: Markdown (read, write, preview) (done)
 
 - [x] OTA-ready partition table (two 6 MB app slots) so OTA (v0.8) can update without USB
 - [x] md4c parser mapped to LVGL: headings, emphasis, lists, task lists, quotes, fenced code, tables, rules
@@ -19,16 +19,16 @@ Each version ends with something flashable and usable.
 - [x] Monospace editor: autosave, `Ctrl+S`, save on exit, on-screen keyboard when no keyboard is attached
 - [x] `Ctrl+P` toggles edit and preview; `Ctrl+T` side-by-side split with live preview
 - [ ] Line numbers in the editor
-- [ ] Checkpoint on hardware: write a note on the keyboard, preview it, power-cycle, it is still there
+- [x] Checkpoint on hardware: write a note on the keyboard, preview it, power-cycle, it is still there
 
-## v0.3: Calculator
+## v0.3: Calculator (done)
 
 - [x] Recursive-descent engine (doubles): `( ) ^ % !`, sin..round, pi/e/`ans`, DEG/RAD; 56 host unit tests
 - [x] History tape with Up/Down recall; an operator on an empty line continues from `ans`
 - [x] Programmer mode: hex/bin/oct literals and readout, `& | xor ~ << >>`, hex keys auto-prefix `0x`
 - [x] Touch keypad (SCI/PROG pages) that hides while typing; Ctrl+K toggles
 - [x] Checkpoint in the simulator: `(0xFF << 2) | 3` = 1023 and `2^10 / 3` = 341.333333333, from keyboard and touch
-- [ ] Checkpoint on hardware
+- [x] Checkpoint on hardware
 
 ## v0.4: Wi-Fi, clock sync and weather
 
