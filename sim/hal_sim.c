@@ -65,6 +65,10 @@ bool hal_rtc_set(const struct tm *t)
 
 bool hal_rtc_present(void) { return true; }
 
+/* Notes live in sim/sdcard (created on demand). */
+const char *hal_storage_root(void) { return DECK_SIM_SDCARD; }
+bool hal_storage_is_sd(void) { return true; }
+
 bool hal_sd_mounted(void) { return true; }
 uint64_t hal_sd_total_bytes(void) { return 31914983424ull; }
 uint64_t hal_sd_free_bytes(void) { return 29716070400ull; }

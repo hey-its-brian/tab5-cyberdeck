@@ -297,6 +297,31 @@ static void sd_mount(void)
     }
 }
 
+/* Internal flash fallback so notes work without a card. */
+#define FLASH_MOUNT "/flash"
+static bool s_flash_ok;
+static wl_handle_t s_wl = WL_INVALID_HANDLE;
+
+static void flash_fs_mount(void)
+{
+    esp_vfs_fat_mount_config_t mcfg = {};
+    mcfg.format_if_mount_failed      = true; /* first boot after the v0.2 partition change */
+    mcfg.max_files                   = 4;
+    mcfg.allocation_unit_size        = 4096;
+    esp_err_t err = esp_vfs_fat_spiflash_mount_rw_wl(FLASH_MOUNT, "storage", &mcfg, &s_wl);
+    s_flash_ok    = err == ESP_OK;
+    if (!s_flash_ok) ESP_LOGW(TAG, "internal storage not mounted (%s)", esp_err_to_name(err));
+}
+
+const char *hal_storage_root(void)
+{
+    if (s_sd_ok) return HAL_SD_MOUNT;
+    if (s_flash_ok) return FLASH_MOUNT;
+    return nullptr;
+}
+
+bool hal_storage_is_sd(void) { return s_sd_ok; }
+
 bool hal_sd_mounted(void) { return s_sd_ok; }
 
 uint64_t hal_sd_total_bytes(void)
@@ -405,6 +430,7 @@ bool hal_init(void)
     s_ina_ok    = s_board.ina226_init() == ESP_OK;
 
     sd_mount();
+    if (!s_sd_ok) flash_fs_mount();
 
     s_key_q = xQueueCreate(64, sizeof(hal_key_t));
     xTaskCreatePinnedToCore(kbd_monitor_task, "kbd_mon", 4096, nullptr, 4, nullptr, 0);

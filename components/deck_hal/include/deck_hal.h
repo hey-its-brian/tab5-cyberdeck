@@ -77,6 +77,12 @@ bool hal_rtc_present(void);
 
 #define HAL_SD_MOUNT "/sdcard"
 
+/* Where user files live: the SD card if one is mounted, otherwise a FAT
+ * partition in internal flash (about 3.8 MB). NULL if neither is usable.
+ * Paths are POSIX; use stdio/dirent on them directly. */
+const char *hal_storage_root(void);
+bool        hal_storage_is_sd(void);
+
 bool     hal_sd_mounted(void);
 uint64_t hal_sd_total_bytes(void);
 uint64_t hal_sd_free_bytes(void);

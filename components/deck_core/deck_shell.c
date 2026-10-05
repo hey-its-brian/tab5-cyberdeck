@@ -4,6 +4,7 @@
 #include "deck_fx.h"
 #include "deck_hal.h"
 #include "deck_launcher.h"
+#include "deck_modal.h"
 #include "deck_statusbar.h"
 #include "deck_theme.h"
 #include "deck_widgets.h"
@@ -42,6 +43,8 @@ static void teardown(void)
 {
     deck_app_t *app = s_current;
     s_current       = NULL;
+    if (app && app->on_exit) app->on_exit(app);
+    deck_modal_discard();
     lv_group_remove_all_objs(deck_input_group());
     lv_obj_clean(s_content);
     deck_input_reset();
@@ -135,6 +138,14 @@ bool deck_shell_key(const deck_key_t *k)
         return true;
     }
     if (s_busy) return true; /* swallow keys mid-transition */
+
+    if (deck_modal_active()) {
+        if (k->code == HID_ESC) {
+            deck_modal_cancel();
+            return true;
+        }
+        return (k->mods & DECK_MOD_ALT) != 0; /* no module switching under a dialog */
+    }
 
     if (k->mods & DECK_MOD_ALT) {
         if (k->code == HID_ESC) {

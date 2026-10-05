@@ -5,11 +5,13 @@
  *   on_start(parent)        build the UI as children of `parent`
  *   on_key(key)             optional: see every key press first; return true
  *                           to consume it (shortcuts, terminal input)
- *   on_stop()               optional: free non-LVGL resources (timers are
- *                           fine to leave if they are attached to objects)
+ *   on_exit()               optional: runs first when leaving, while the
+ *                           module's widgets still exist (save work here)
+ *   on_stop()               optional: free non-LVGL resources; runs after
+ *                           the widgets are deleted
  *
- * The shell deletes `parent` after on_stop(), so LVGL children are freed
- * automatically. All callbacks run on the LVGL task with the lock held.
+ * The shell deletes everything under `parent` between on_exit() and
+ * on_stop(), so LVGL children never need freeing by hand. All callbacks run on the LVGL task with the lock held.
  *
  * Esc returns home unless on_key consumes it; Alt+Esc always returns home.
  */
@@ -35,6 +37,7 @@ struct deck_app {
                               is scheduled for ("v0.5"), shown as OFFLINE */
 
     bool (*on_start)(deck_app_t *self, lv_obj_t *parent);
+    void (*on_exit)(deck_app_t *self);
     void (*on_stop)(deck_app_t *self);
     bool (*on_key)(deck_app_t *self, const deck_key_t *key);
 

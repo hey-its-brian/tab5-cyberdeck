@@ -12,7 +12,8 @@ typedef struct {
     lv_indev_state_t state;
 } pending_t;
 
-static lv_group_t *s_group;
+static lv_group_t *s_group;       /* active group */
+static lv_group_t *s_base_group;  /* the shared app group */
 static lv_indev_t *s_indev;
 static pending_t s_pending[PENDING_MAX];
 static int s_head, s_tail;
@@ -136,9 +137,24 @@ void deck_input_reset(void)
 
 lv_group_t *deck_input_group(void) { return s_group; }
 
+/* Switching groups mid-keystroke (Enter submits a dialog on press) must
+ * not let the matching release click whatever is focused in the new group,
+ * so reset LVGL's keypad state as well as ours. */
+static void switch_group(lv_group_t *g)
+{
+    s_group = g;
+    lv_indev_set_group(s_indev, g);
+    lv_indev_reset(s_indev, NULL);
+    deck_input_reset();
+}
+
+void deck_input_push_group(lv_group_t *g) { switch_group(g); }
+void deck_input_pop_group(void) { switch_group(s_base_group); }
+
 void deck_input_init(void)
 {
-    s_group = lv_group_create();
+    s_group      = lv_group_create();
+    s_base_group = s_group;
     lv_group_set_default(s_group);
     lv_group_set_wrap(s_group, true);
 

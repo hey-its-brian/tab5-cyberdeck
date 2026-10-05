@@ -11,14 +11,28 @@ weather.
 |---|---|---|
 | ![Boot](docs/screenshots/boot.png) | ![System](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
-## Status: v0.1.0 (UI shell)
+## Status: v0.2 in progress (Markdown notes)
+
+| Notes: split edit + live preview | Notes: preview |
+|---|---|
+| ![Split](docs/screenshots/notes_split.png) | ![Preview](docs/screenshots/notes_preview.png) |
+
+**v0.2 so far:** NOTES module with a file browser (new, rename, delete), a
+monospace editor, a rendered preview (headings, emphasis, lists, task lists,
+quotes, code, tables, rules) and a live split view. Files are plain `.md` in
+`/sdcard/notes`, or in internal flash when no card is inserted. `Ctrl+S` save,
+`Ctrl+P` edit/preview, `Ctrl+T` split, `Esc` save and close, autosave after
+20 s. Partition table is now OTA-ready (see ROADMAP v0.6), which means one USB
+flash when moving from v0.1.
+
+### v0.1.0 (released)
 
 - Boot POST that reports real hardware state (keyboard, SD, RTC, battery); tap or any key skips it
 - HUD status bar: clock, keyboard link, SD, network, battery
 - Launcher with five large touch tiles, keyboard navigation and a live system ticker
 - Glitch transitions, optional CRT scanlines, four accent themes (NETRUNNER, ARASAKA, NOMAD, MILITECH)
 - **SYSTEM** module: brightness, scanlines, boot sequence, accent, RTC clock setting, live hardware readout
-- TERMINAL, NOTES, CALC and WEATHER are placeholders that show their planned features until their version lands
+- TERMINAL, CALC and WEATHER are placeholders that show their planned features until their version lands
 
 See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
 
@@ -89,7 +103,9 @@ main/                 app_main: hal_init, theme, input, register modules, start 
 components/
   deck_hal/           the only hardware-aware layer (C API); hal_tab5.cpp for the board
   deck_ui/            theme tokens + fonts, chamfered panel widgets, effects
-  deck_core/          app registry, key routing, shell, status bar, launcher, boot POST
+  deck_core/          app registry, key routing, shell, status bar, launcher, boot POST, modals
+  deck_md/            markdown to LVGL renderer (md4c)
+  md4c/               md4c markdown parser (vendored, MIT)
   m5_tab5_component/  M5Stack Tab5 BSP (vendored, MIT)
   m5_tab5_keyboard_component/  M5Stack Tab5 Keyboard driver (vendored, MIT)
 apps/                 one component per module (app_sys is the template for real ones)
@@ -99,8 +115,8 @@ sim/                  SDL2 desktop simulator and fake HAL
 
 ### Writing a module
 
-A module is a `deck_app_t` with `on_start(parent)` and optional `on_key` and
-`on_stop` callbacks (see `components/deck_core/include/deck_app.h`). Build the
+A module is a `deck_app_t` with `on_start(parent)` and optional `on_key`,
+`on_exit` (save work; widgets still alive) and `on_stop` callbacks (see `components/deck_core/include/deck_app.h`). Build the
 UI under `parent` with the `deck_ui` kit, register it in `main/main.c` and in
 `sim/main.c`, and add its folder to `main/CMakeLists.txt`.
 
