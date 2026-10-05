@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "deck_boot.h"
 #include "deck_hal.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
@@ -154,6 +155,10 @@ static void stats_tick(lv_timer_t *t)
         lv_label_set_text(s_stats, target);
         return;
     }
+
+    /* The home screen is built behind the boot POST; hold the decode until
+     * the POST is gone so it is actually seen. */
+    if (deck_boot_active()) s_stats_start = lv_tick_get();
 
     uint32_t elapsed = lv_tick_elaps(s_stats_start);
     if (elapsed >= DECODE_MS) {
