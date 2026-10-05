@@ -2,11 +2,12 @@
  * SYSTEM module, three columns:
  *   DISPLAY   brightness, scanlines, boot POST, accent
  *   NETWORK   Wi-Fi status and setup, timezone, clock (manual or NTP)
- *   SYSTEM    live hardware readout and hotkeys
+ *   SYSTEM    live hardware readout and firmware updates
  */
 #include "app_sys.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 
 #include "deck_fx.h"
@@ -14,6 +15,7 @@
 #include "deck_icons.h"
 #include "deck_modal.h"
 #include "deck_net.h"
+#include "deck_ota.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
 #include "deck_widgets.h"
@@ -34,6 +36,8 @@ typedef struct {
     lv_obj_t *tz_val;
     lv_obj_t *ntp;
     lv_timer_t *scan_poll;
+    lv_obj_t *ota_status;
+    lv_obj_t *ota_btn;
 } sys_ui_t;
 
 static sys_ui_t s_ui;
@@ -365,6 +369,132 @@ static void refresh_net(void)
     lv_obj_set_style_text_color(s_ui.ntp, net_time_synced() ? g_pal.ok : g_pal.dim, 0);
 }
 
+/* ---- Firmware updates ---------------------------------------------------- */
+
+/* The install screen lives on the top layer so it survives leaving SYSTEM;
+ * a timer of its own keeps it current until the deck reboots. */
+static lv_obj_t *s_flash;
+static lv_obj_t *s_flash_bar;
+static lv_obj_t *s_flash_pct;
+static lv_obj_t *s_flash_msg;
+
+static void flash_tick(lv_timer_t *t)
+{
+    ota_state_t st = ota_state();
+    lv_bar_set_value(s_flash_bar, ota_progress(), LV_ANIM_ON);
+    lv_label_set_text_fmt(s_flash_pct, "%d%%", ota_progress());
+    if (st == OTA_REBOOTING) {
+        lv_label_set_text(s_flash_msg, "VERIFIED // REBOOTING INTO NEW BUILD");
+        lv_obj_set_style_text_color(s_flash_msg, g_pal.ok, 0);
+    } else if (st == OTA_ERROR) {
+        /* Nothing was switched; the running build stays. */
+        lv_timer_delete(t);
+        lv_obj_delete(s_flash);
+        s_flash = NULL;
+        char msg[128];
+        snprintf(msg, sizeof(msg), "Update failed: %s. Nothing was changed.", ota_error());
+        deck_modal_confirm("UPDATE", msg, "OK", NULL, NULL);
+    }
+}
+
+static void show_flash_screen(void)
+{
+    s_flash = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(s_flash);
+    lv_obj_set_size(s_flash, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_color(s_flash, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(s_flash, LV_OPA_COVER, 0);
+    lv_obj_add_flag(s_flash, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_move_background(s_flash); /* under the scanlines */
+
+    lv_obj_t *col = deck_box(s_flash);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(col, 18, 0);
+    lv_obj_center(col);
+    lv_obj_t *t = deck_label(col, g_font.disp_l, g_pal.accent, "");
+    lv_label_set_text_fmt(t, "FLASHING v%s", ota_latest());
+    deck_label(col, g_font.mono_m, g_pal.dim, "WRITING TO THE IDLE SLOT // THE RUNNING BUILD STAYS UNTIL VERIFIED");
+    s_flash_bar = lv_bar_create(col);
+    lv_obj_set_size(s_flash_bar, 760, 22);
+    lv_bar_set_range(s_flash_bar, 0, 100);
+    lv_obj_set_style_radius(s_flash_bar, 0, 0);
+    lv_obj_set_style_radius(s_flash_bar, 0, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(s_flash_bar, g_pal.panel_hi, 0);
+    lv_obj_set_style_bg_color(s_flash_bar, g_pal.accent, LV_PART_INDICATOR);
+    s_flash_pct = deck_label(col, g_font.disp_xl, g_pal.text, "0%");
+    s_flash_msg = deck_label(col, g_font.mono_m, g_pal.warn, "DO NOT POWER OFF");
+    lv_timer_create(flash_tick, 200, NULL);
+}
+
+static void install_confirmed(bool yes, void *ud)
+{
+    (void)ud;
+    if (!yes || ota_state() != OTA_AVAILABLE) return;
+    ota_install();
+    show_flash_screen();
+}
+
+static void ota_clicked(lv_event_t *e)
+{
+    (void)e;
+    ota_state_t st = ota_state();
+    if (st == OTA_AVAILABLE) {
+        char msg[400];
+        const char *notes = ota_notes();
+        snprintf(msg, sizeof(msg), "Install v%s? The deck reboots when done.\n\n%.300s%s", ota_latest(), notes,
+                 strlen(notes) > 300 ? "..." : "");
+        deck_modal_confirm("UPDATE", msg, "INSTALL", install_confirmed, NULL);
+    } else if (st != OTA_CHECKING && st != OTA_DOWNLOADING && st != OTA_REBOOTING) {
+        ota_check(hal_cfg_get_i32("ota_beta", 0) != 0);
+    }
+}
+
+static void beta_changed(lv_event_t *e)
+{
+    bool on = lv_obj_has_state(lv_event_get_target_obj(e), LV_STATE_CHECKED);
+    hal_cfg_set_i32("ota_beta", on);
+}
+
+static void refresh_ota(void)
+{
+    char buf[96];
+    lv_color_t c = g_pal.dim;
+    const char *btn = "CHECK";
+    switch (ota_state()) {
+        case OTA_IDLE:
+            snprintf(buf, sizeof(buf), ota_pending_verify() ? "NEW BUILD: SELF-TEST RUNNING" : "RUNNING v%s",
+                     ota_running());
+            c = ota_pending_verify() ? g_pal.warn : g_pal.dim;
+            break;
+        case OTA_CHECKING:
+            snprintf(buf, sizeof(buf), "CHECKING GITHUB...");
+            c = g_pal.accent;
+            break;
+        case OTA_UP_TO_DATE:
+            snprintf(buf, sizeof(buf), "UP TO DATE (v%s)", ota_running());
+            c = g_pal.ok;
+            break;
+        case OTA_AVAILABLE:
+            snprintf(buf, sizeof(buf), "v%s AVAILABLE", ota_latest());
+            c   = g_pal.accent2;
+            btn = "INSTALL";
+            break;
+        case OTA_DOWNLOADING:
+            snprintf(buf, sizeof(buf), "DOWNLOADING %d%%", ota_progress());
+            c = g_pal.accent;
+            break;
+        case OTA_REBOOTING: snprintf(buf, sizeof(buf), "REBOOTING..."); break;
+        case OTA_ERROR:
+            snprintf(buf, sizeof(buf), "%.80s", ota_error());
+            c = g_pal.danger;
+            break;
+    }
+    lv_label_set_text(s_ui.ota_status, buf);
+    lv_obj_set_style_text_color(s_ui.ota_status, c, 0);
+    lv_label_set_text(lv_obj_get_child(s_ui.ota_btn, 0), btn);
+}
+
 /* ---- Live info ----------------------------------------------------------- */
 
 static void fmt_bytes(char *buf, size_t n, size_t used, size_t total)
@@ -423,6 +553,7 @@ static void refresh(lv_timer_t *t)
     lv_label_set_text_fmt(s_ui.clock_val, "%04d-%02d-%02d  %02d:%02d", tm.tm_year + 1900, tm.tm_mon + 1,
                           tm.tm_mday, tm.tm_hour, tm.tm_min);
     refresh_net();
+    refresh_ota();
 }
 
 /* ---- Module -------------------------------------------------------------- */
@@ -537,21 +668,16 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
     deck_section(right, "SYSTEM");
     for (int i = 0; i < INFO_COUNT; i++) s_ui.info[i] = kv_row(right, s_info_keys[i]);
 
-    static const char *hotkeys[][2] = {
-        {"ALT+1..5", "LAUNCH MODULE"},
-        {"ALT+ESC", "BACK TO DECK"},
-        {"ESC", "BACK / CLOSE"},
-        {"TAB ARROWS", "MOVE FOCUS"},
-        {"ENTER", "ACTIVATE"},
-    };
-    lv_obj_t *hk = deck_section(right, "HOTKEYS");
-    lv_obj_set_style_margin_top(hk, 10, 0);
-    for (size_t i = 0; i < sizeof(hotkeys) / sizeof(hotkeys[0]); i++) {
-        lv_obj_t *v = kv_row(right, hotkeys[i][0]);
-        lv_label_set_text(v, hotkeys[i][1]);
-        lv_obj_set_style_text_color(v, g_pal.dim, 0);
-        lv_obj_set_style_text_color(lv_obj_get_child(lv_obj_get_parent(v), 0), g_pal.accent, 0);
-    }
+    lv_obj_t *us = deck_section(right, "UPDATE");
+    lv_obj_set_style_margin_top(us, 10, 0);
+    s_ui.ota_status = deck_label(right, g_font.mono_m, g_pal.dim, "");
+    lv_obj_t *urow  = deck_box(right);
+    lv_obj_set_width(urow, LV_PCT(100));
+    s_ui.ota_btn = small_button(urow, "CHECK", ota_clicked, NULL);
+    lv_obj_align(s_ui.ota_btn, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_t *bl = deck_label(urow, g_font.mono_s, g_pal.dim, "BETA");
+    lv_obj_align(bl, LV_ALIGN_RIGHT_MID, -90, 0);
+    add_switch(urow, hal_cfg_get_i32("ota_beta", 0) != 0, beta_changed);
 
     refresh(NULL);
     s_ui.timer = lv_timer_create(refresh, 1000, NULL);

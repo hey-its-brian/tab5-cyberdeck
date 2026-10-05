@@ -9,6 +9,7 @@
 
 #include "deck_hal.h"
 #include "deck_net.h"
+#include "deck_ota.h"
 #include "deck_icons.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
@@ -22,6 +23,8 @@ static lv_obj_t *s_kbd;
 static lv_obj_t *s_sd;
 static lv_obj_t *s_net;
 static lv_obj_t *s_pwr;
+static lv_obj_t *s_upd;
+static bool s_auto_checked; /* one update check per boot, once online */
 static lv_timer_t *s_timer;
 
 static void back_clicked(lv_event_t *e)
@@ -86,6 +89,17 @@ static void refresh(lv_timer_t *t)
     bool kbd = hal_kbd_present();
     set_indicator(s_kbd, kbd ? ICON_KEYBOARD : ICON_KEYBOARD_OFF, "KBD", kbd ? g_pal.accent : g_pal.dim);
     set_indicator(s_sd, ICON_SD, "SD", hal_sd_mounted() ? g_pal.accent : g_pal.dim);
+    if (!s_auto_checked && net_state() == NET_CONNECTED && net_time_synced()) {
+        s_auto_checked = true;
+        ota_check(hal_cfg_get_i32("ota_beta", 0) != 0);
+    }
+    if (ota_state() == OTA_AVAILABLE) {
+        lv_obj_remove_flag(s_upd, LV_OBJ_FLAG_HIDDEN);
+        set_indicator(s_upd, ICON_BOLT, "UPD", (tm.tm_sec & 1) ? g_pal.accent2 : g_pal.dim);
+    } else {
+        lv_obj_add_flag(s_upd, LV_OBJ_FLAG_HIDDEN);
+    }
+
     switch (net_state()) {
         case NET_CONNECTED: set_indicator(s_net, ICON_WIFI, "NET", g_pal.accent); break;
         case NET_CONNECTING:
@@ -167,6 +181,8 @@ void deck_statusbar_create(lv_obj_t *parent)
     lv_obj_set_flex_align(right, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(right, 22, 0);
     lv_obj_align(right, LV_ALIGN_RIGHT_MID, -16, 0);
+    s_upd = indicator(right); /* shown only while an update is waiting */
+    lv_obj_add_flag(s_upd, LV_OBJ_FLAG_HIDDEN);
     s_kbd = indicator(right);
     s_sd  = indicator(right);
     s_net = indicator(right);
