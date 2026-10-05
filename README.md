@@ -11,7 +11,17 @@ weather.
 |---|---|---|
 | ![Boot](docs/screenshots/boot.png) | ![System](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
-## Status: v0.4.0 (Wi-Fi, clock sync, weather)
+## Status: v0.5.0 (over-the-air updates)
+
+**v0.5:** SYSTEM > UPDATE checks GitHub Releases, installs the new build over
+Wi-Fi into the idle app slot, and reboots. A new build must run cleanly for
+15 s before it is kept; otherwise the bootloader rolls back to the previous
+one. A blinking UPD in the status bar means an update is waiting. The BETA
+switch includes pre-releases. Releases from v0.5.0 on carry two images:
+`*-full.bin` for USB (written at 0x0) and `*-ota.bin` for over-the-air.
+
+### v0.4.0
+
 
 ![Weather](docs/screenshots/weather.png)
 
