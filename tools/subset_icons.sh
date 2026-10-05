@@ -38,6 +38,9 @@ codepoints=(
     F0026  # alert
     F140B  # lightning-bolt
     F02DC  # home
+    F006E  # backspace
+    F02DA  # history
+    F097B  # keyboard-outline
 )
 
 unicodes=$(printf 'U+%s,' "${codepoints[@]}")

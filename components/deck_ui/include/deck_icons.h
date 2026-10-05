@@ -29,3 +29,6 @@
 #define ICON_ALERT          "\xF3\xB0\x80\xA6" /* F0026 */
 #define ICON_BOLT           "\xF3\xB1\x90\x8B" /* F140B */
 #define ICON_HOME           "\xF3\xB0\x8B\x9C" /* F02DC */
+#define ICON_BACKSPACE      "\xF3\xB0\x81\xAE" /* F006E */
+#define ICON_HISTORY        "\xF3\xB0\x8B\x9A" /* F02DA */
+#define ICON_KEYPAD         "\xF3\xB0\xA5\xBB" /* F097B */
