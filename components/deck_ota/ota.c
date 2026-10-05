@@ -127,6 +127,7 @@ static void check_task(void *arg)
     if (!ok) {
         fail(net_state() == NET_CONNECTED ? "could not read releases from GitHub" : "no network");
     } else if (ota_version_cmp(s_latest, s_running) <= 0) {
+        ESP_LOGI(TAG, "up to date: running %s, latest release %s", s_running, s_latest);
         s_state = OTA_UP_TO_DATE;
     } else if (s_asset_url[0] == '\0') {
         fail("newer release has no OTA image (-ota.bin)");
