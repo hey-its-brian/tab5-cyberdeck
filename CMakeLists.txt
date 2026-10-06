@@ -6,7 +6,7 @@ set(EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_LIST_DIR}/apps")
 
 # Stored in the image header; OTA compares against GitHub release tags.
 # Keep in step with DECK_VERSION in components/deck_core/include/deck_shell.h.
-set(PROJECT_VER "1.0.0-beta.1")
+set(PROJECT_VER "1.0.0")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(tab5_cyberdeck)
