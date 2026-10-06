@@ -1,0 +1,79 @@
+# Deploys the web flasher (web/) to GitHub Pages whenever a release is
+# published, bundling that release's full image and an ESP Web Tools
+# manifest. Run it by hand from the Actions tab to redeploy the latest.
+name: Web flasher
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  ESP_WEB_TOOLS_VERSION: "10.4.0"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the latest stable release image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          ver="${tag#v}"
+          mkdir -p _site/firmware
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern "*-full.bin" --dir _site/firmware
+          bin=$(ls _site/firmware/*-full.bin | head -1)
+          test -n "$bin"
+          mv "$bin" _site/firmware/deck-os-full.bin
+          echo "VER=$ver" >> "$GITHUB_ENV"
+          echo "Deploying $tag"
+
+      - name: Bundle ESP Web Tools
+        run: |
+          npm pack "esp-web-tools@${ESP_WEB_TOOLS_VERSION}" --silent
+          tar xzf "esp-web-tools-${ESP_WEB_TOOLS_VERSION}.tgz"
+          mkdir -p _site/ewt
+          cp -r package/dist/web/* _site/ewt/
+
+      - name: Assemble site
+        run: |
+          cp web/index.html _site/
+          mkdir -p _site/screenshots
+          cp docs/screenshots/home.png _site/screenshots/
+          cat > _site/manifest.json <<JSON
+          {
+            "name": "DECK//OS",
+            "version": "${VER}",
+            "new_install_prompt_erase": true,
+            "builds": [
+              {
+                "chipFamily": "ESP32-P4",
+                "parts": [{ "path": "firmware/deck-os-full.bin", "offset": 0 }]
+              }
+            ]
+          }
+          JSON
+          touch _site/.nojekyll
+          ls -R _site | head -40
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

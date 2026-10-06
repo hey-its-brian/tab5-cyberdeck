@@ -91,6 +91,18 @@ See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
 
 Everything is also reachable by touch: tiles, the `< DECK` button and on-screen controls.
 
+## Install from the browser
+
+[**hey-its-brian.github.io/tab5-cyberdeck**](https://hey-its-brian.github.io/tab5-cyberdeck/): plug the
+Tab5 in over USB-C, click INSTALL in Chrome or Edge. After that, updates come
+over Wi-Fi (SYSTEM > UPDATE).
+
+## Releasing
+
+`tools/release.sh X.Y.Z notes.md "Title"` from a clean `main`: bumps the version,
+builds, attaches the full (USB/web) and OTA images to a GitHub release, and the
+release deploys the web flasher.
+
 ## Build and flash
 
 Needs ESP-IDF 5.4 or newer.

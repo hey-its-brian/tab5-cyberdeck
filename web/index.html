@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DECK//OS Installer</title>
+<meta name="description" content="Install DECK//OS on an M5Stack Tab5 from your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<!-- ESP Web Tools 10.4.0, copied from npm into the site by the deploy workflow (no CDN at runtime). -->
+<script type="module" src="ewt/install-button.js"></script>
+<style>
+:root {
+  --bg: #07070d; --panel: #0d0f1c; --panel-hi: #171a30; --line: #2a3050;
+  --text: #d8e1f0; --dim: #7a84a3; --accent: #00f0ff; --accent2: #ff2a6d;
+  --warn: #f3e600; --ok: #39ff14;
+  --mono: "Share Tech Mono", "SF Mono", Menlo, Consolas, monospace;
+  --disp: "Orbitron", var(--mono);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background-color: var(--bg);
+  background-image: linear-gradient(#16182a 1px, transparent 1px), linear-gradient(90deg, #16182a 1px, transparent 1px);
+  background-size: 40px 40px;
+  color: var(--text);
+  font: 17px/1.6 var(--mono);
+}
+.wrap { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
+header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+         border-bottom: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); padding-bottom: 14px; }
+.brand { font: 700 40px/1 var(--disp); letter-spacing: 2px; }
+.brand b { color: var(--accent); font-weight: 700; }
+.sub { color: var(--dim); }
+.grow { flex: 1; }
+.ver { color: var(--accent2); }
+.panel {
+  background: var(--panel); position: relative; padding: 24px; margin-top: 24px;
+  clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.panel::before { content: ""; position: absolute; left: 26px; top: 0; width: 64px; height: 3px; background: var(--accent2); }
+h2 { font: 500 18px/1.2 var(--disp); color: var(--accent); letter-spacing: 1px; margin: 0 0 14px; }
+h2::before { content: "// "; }
+.hero { width: 100%; height: auto; display: block; margin-top: 24px; border: 1px solid var(--line); }
+.install { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+esp-web-install-button button[slot="activate"] {
+  font: 700 20px/1 var(--disp); letter-spacing: 2px; color: var(--bg); background: var(--accent);
+  border: 0; padding: 18px 34px; cursor: pointer;
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+}
+esp-web-install-button button[slot="activate"]:hover { background: #6bf7ff; }
+.unsupported, .not-allowed { color: var(--warn); }
+ol { margin: 0; padding-left: 22px; }
+li { margin: 6px 0; }
+.note { color: var(--dim); font-size: 15px; }
+.warn { color: var(--warn); }
+a { color: var(--accent); }
+code { color: var(--ok); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 24px; }
+footer { margin-top: 32px; color: var(--dim); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">DECK<b>//OS</b></div>
+    <div class="sub">CYBERDECK FIRMWARE FOR THE M5STACK TAB5</div>
+    <div class="grow"></div>
+    <div class="ver" id="ver"></div>
+  </header>
+
+  <img class="hero" src="screenshots/home.png" alt="DECK//OS home screen" width="1280" height="720">
+
+  <div class="panel">
+    <h2>INSTALL</h2>
+    <div class="install">
+      <esp-web-install-button manifest="manifest.json">
+        <button slot="activate">INSTALL</button>
+        <span slot="unsupported" class="unsupported">This browser can't talk to USB devices. Use Chrome or Edge on a desktop computer.</span>
+        <span slot="not-allowed" class="not-allowed">Open this page over HTTPS to install.</span>
+      </esp-web-install-button>
+      <div class="note">Chrome or Edge on a desktop computer. Takes about a minute.</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>STEPS</h2>
+      <ol>
+        <li>Connect the Tab5 to this computer with a USB-C <b>data</b> cable.</li>
+        <li>Click <b>INSTALL</b> and pick the Tab5's port (it shows up as a USB JTAG/serial device).</li>
+        <li>Confirm, and wait for the progress to finish.</li>
+        <li>The Tab5 restarts into DECK//OS.</li>
+      </ol>
+      <p class="note">If no port appears, hold the Tab5's boot button while plugging it in, then try again.</p>
+    </div>
+    <div class="panel">
+      <h2>GOOD TO KNOW</h2>
+      <ul>
+        <li class="warn">Installing here resets settings (Wi-Fi, theme, timezone). Notes and files on the SD card are not touched.</li>
+        <li>After this, updates arrive over Wi-Fi: SYSTEM &gt; UPDATE.</li>
+        <li>Works on every Tab5 screen revision.</li>
+        <li>Pair it with the Tab5 Keyboard for the full deck.</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    <a href="https://github.com/hey-its-brian/tab5-cyberdeck">Source on GitHub</a> ·
+    <a href="https://github.com/hey-its-brian/tab5-cyberdeck/releases">Releases and notes</a> ·
+    Installer powered by <a href="https://esphome.github.io/esp-web-tools/">ESP Web Tools</a>
+  </footer>
+</div>
+<script>
+fetch("manifest.json").then((r) => r.json()).then((m) => {
+  document.getElementById("ver").textContent = "v" + m.version;
+}).catch(() => {});
+</script>
+</body>
+</html>
