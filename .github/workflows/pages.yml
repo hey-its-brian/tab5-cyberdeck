@@ -22,6 +22,9 @@ env:
 
 jobs:
   deploy:
+    # Pre-releases (betas) stay off the web flasher; it always serves the
+    # latest full release.
+    if: ${{ github.event_name != 'release' || !github.event.release.prerelease }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
