@@ -38,6 +38,7 @@ typedef struct {
     lv_timer_t *scan_poll;
     lv_obj_t *ota_status;
     lv_obj_t *ota_btn;
+    bool ota_want_install; /* a CHECK the user pressed: offer the install as soon as it finds one */
 } sys_ui_t;
 
 static sys_ui_t s_ui;
@@ -453,18 +454,30 @@ static void install_confirmed(bool yes, void *ud)
     show_flash_screen();
 }
 
+static void offer_install(void)
+{
+    char msg[400];
+        const char *notes = ota_notes();
+    snprintf(msg, sizeof(msg), "Install v%s? The deck reboots when done.\n\n%.300s%s", ota_latest(), notes,
+             strlen(notes) > 300 ? "..." : "");
+    deck_modal_confirm("UPDATE", msg, "INSTALL", install_confirmed, NULL);
+}
+
+static void start_check(void)
+{
+    ota_state_t st = ota_state();
+    if (st == OTA_CHECKING || st == OTA_DOWNLOADING || st == OTA_REBOOTING) return;
+    s_ui.ota_want_install = true;
+    ota_check(hal_cfg_get_i32("ota_beta", 0) != 0);
+}
+
 static void ota_clicked(lv_event_t *e)
 {
     (void)e;
-    ota_state_t st = ota_state();
-    if (st == OTA_AVAILABLE) {
-        char msg[400];
-        const char *notes = ota_notes();
-        snprintf(msg, sizeof(msg), "Install v%s? The deck reboots when done.\n\n%.300s%s", ota_latest(), notes,
-                 strlen(notes) > 300 ? "..." : "");
-        deck_modal_confirm("UPDATE", msg, "INSTALL", install_confirmed, NULL);
-    } else if (st != OTA_CHECKING && st != OTA_DOWNLOADING && st != OTA_REBOOTING) {
-        ota_check(hal_cfg_get_i32("ota_beta", 0) != 0);
+    if (ota_state() == OTA_AVAILABLE) {
+        offer_install();
+    } else {
+        start_check();
     }
 }
 
@@ -472,6 +485,7 @@ static void beta_changed(lv_event_t *e)
 {
     bool on = lv_obj_has_state(lv_event_get_target_obj(e), LV_STATE_CHECKED);
     hal_cfg_set_i32("ota_beta", on);
+    start_check(); /* the channel changed, so what counts as latest did too */
 }
 
 static void refresh_ota(void)
@@ -510,7 +524,15 @@ static void refresh_ota(void)
     }
     lv_label_set_text(s_ui.ota_status, buf);
     lv_obj_set_style_text_color(s_ui.ota_status, c, 0);
-    lv_label_set_text(lv_obj_get_child(s_ui.ota_btn, 0), btn);
+    lv_label_set_text(lv_obj_get_child_by_type(s_ui.ota_btn, 0, &lv_label_class), btn);
+
+    /* One press: a check the user started goes straight to the install
+     * dialog when it finds something. */
+    ota_state_t st = ota_state();
+    if (s_ui.ota_want_install && st != OTA_CHECKING) {
+        s_ui.ota_want_install = false;
+        if (st == OTA_AVAILABLE && !deck_modal_active()) offer_install();
+    }
 }
 
 /* ---- Live info ----------------------------------------------------------- */
