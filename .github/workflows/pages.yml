@@ -10,8 +10,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -19,6 +17,8 @@ concurrency:
 
 env:
   ESP_WEB_TOOLS_VERSION: "10.4.0"
+  # npm's published integrity for that version; the bundle is refused if it differs.
+  ESP_WEB_TOOLS_INTEGRITY: "sha512-3pwkeFFm5Fj7UQo8SJNYK5RXrtNCpq6X9QoI6bMT4GBZWgrJqjn0YvM9ihG74BtMoSFYXfmDtkehuxe50PTMPQ=="
 
 jobs:
   deploy:
@@ -26,11 +26,16 @@ jobs:
     # latest full release.
     if: ${{ github.event_name != 'release' || !github.event.release.prerelease }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned to commit SHAs (tags can be moved); the comment is the tag.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Fetch the latest stable release image
         env:
@@ -49,6 +54,8 @@ jobs:
       - name: Bundle ESP Web Tools
         run: |
           npm pack "esp-web-tools@${ESP_WEB_TOOLS_VERSION}" --silent
+          got="sha512-$(openssl dgst -sha512 -binary "esp-web-tools-${ESP_WEB_TOOLS_VERSION}.tgz" | base64 -w0)"
+          if [ "$got" != "$ESP_WEB_TOOLS_INTEGRITY" ]; then echo "esp-web-tools integrity mismatch: $got"; exit 1; fi
           tar xzf "esp-web-tools-${ESP_WEB_TOOLS_VERSION}.tgz"
           mkdir -p _site/ewt
           cp -r package/dist/web/* _site/ewt/
@@ -58,25 +65,20 @@ jobs:
           cp web/index.html _site/
           mkdir -p _site/screenshots
           cp docs/screenshots/home.png _site/screenshots/
-          cat > _site/manifest.json <<JSON
-          {
-            "name": "DECK//OS",
-            "version": "${VER}",
-            "new_install_prompt_erase": true,
-            "builds": [
-              {
-                "chipFamily": "ESP32-P4",
-                "parts": [{ "path": "firmware/deck-os-full.bin", "offset": 0 }]
-              }
-            ]
-          }
-          JSON
+          # jq quotes the version, so nothing in a tag name can break the JSON.
+          jq -n --arg ver "$VER" '{
+            name: "DECK//OS",
+            version: $ver,
+            new_install_prompt_erase: true,
+            builds: [{ chipFamily: "ESP32-P4",
+                       parts: [{ path: "firmware/deck-os-full.bin", offset: 0 }] }]
+          }' > _site/manifest.json
           touch _site/.nojekyll
           ls -R _site | head -40
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: _site
 
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
