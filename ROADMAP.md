@@ -70,7 +70,7 @@ Each version ends with something flashable and usable.
 - [x] SYSTEM > KBD LIGHT: OFF / LOW / HIGH (the keyboard default was too bright)
 - [x] SYSTEM > KBD THEME COLOR: keyboard LEDs take the accent color and follow accent changes
 - [x] Screen sleep: `Alt+0` or tap the status bar clock; backlight and keyboard light off, any key or touch wakes (that press is swallowed)
-- [ ] Checkpoint: verified on hardware
+- [x] Checkpoint: verified on hardware (installed over the air)
 
 ## v0.7: File portal
 
