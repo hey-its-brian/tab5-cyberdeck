@@ -543,7 +543,9 @@ static void task(void *arg)
             handle(m);
             continue;
         }
-        if (now_ms() - last_route > 500) {
+        /* Follow the headphone jack only while audio is open: the expander
+         * sits on the system I2C bus with touch, so stay off it when idle. */
+        if (s_state != PLAYER_STOPPED && now_ms() - last_route > 500) {
             last_route = now_ms();
             s_hp       = hal_headphones();
             aout_route(s_hp);
