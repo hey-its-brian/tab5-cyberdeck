@@ -65,6 +65,12 @@ typedef struct {
     void *ppa_out_buf[2];
     uint8_t ppa_buf_idx;
     size_t ppa_buf_size;
+    /* DECK//OS: rotate only what changed (see disp_flush_callback). */
+    int ppa_dir;            /* PPA "90 degrees": 1 counterclockwise, 2 clockwise, 0 unknown */
+    lv_area_t dirty;        /* union of this refresh's flushed areas */
+    lv_area_t prev_dirty;   /* the previous refresh's, which went to the other frame buffer */
+    bool dirty_valid;
+    uint8_t full_frames;    /* refreshes still to send whole (both buffers start empty) */
 #endif
 
     // Display info
@@ -92,6 +98,56 @@ static void disp_resolution_changed_cb(lv_event_t *e);
 /*******************************************************************************
  * PPA Rotation Helper (ESP32-P4 only)
  ******************************************************************************/
+/* Grow `a` to cover `b`. */
+static void area_join(lv_area_t *a, const lv_area_t *b)
+{
+    if (b->x1 < a->x1) a->x1 = b->x1;
+    if (b->y1 < a->y1) a->y1 = b->y1;
+    if (b->x2 > a->x2) a->x2 = b->x2;
+    if (b->y2 > a->y2) a->y2 = b->y2;
+}
+
+/* DECK//OS: which way does the PPA turn a "90 degree" rotation? Rotate a
+ * 4x2 test picture and see where a known pixel lands, so partial updates can
+ * place their blocks without assuming. 1 = counterclockwise, 2 = clockwise,
+ * 0 = unknown (then every refresh rotates the whole frame, as upstream). */
+static int ppa_probe_direction(ppa_client_handle_t client)
+{
+    const size_t sz = 128;
+    uint16_t *in    = (uint16_t *)heap_caps_aligned_calloc(128, 1, sz, MALLOC_CAP_SPIRAM);
+    uint16_t *out   = (uint16_t *)heap_caps_aligned_calloc(128, 1, sz, MALLOC_CAP_SPIRAM);
+    int dir         = 0;
+    if (in && out) {
+        for (int i = 0; i < 8; i++) in[i] = (uint16_t)(1 + i); /* pixel (x, y) = 1 + x + 4y */
+        esp_cache_msync(in, sz, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+        ppa_srm_oper_config_t c = {};
+        c.in.buffer             = in;
+        c.in.pic_w              = 4;
+        c.in.pic_h              = 2;
+        c.in.block_w            = 4;
+        c.in.block_h            = 2;
+        c.in.srm_cm             = PPA_SRM_COLOR_MODE_RGB565;
+        c.out.buffer            = out;
+        c.out.buffer_size       = sz;
+        c.out.pic_w             = 2;
+        c.out.pic_h             = 4;
+        c.out.srm_cm            = PPA_SRM_COLOR_MODE_RGB565;
+        c.rotation_angle        = PPA_SRM_ROTATION_ANGLE_90;
+        c.scale_x               = 1.0f;
+        c.scale_y               = 1.0f;
+        c.mode                  = PPA_TRANS_MODE_BLOCKING;
+        if (ppa_do_scale_rotate_mirror(client, &c) == ESP_OK) {
+            esp_cache_msync(out, sz, ESP_CACHE_MSYNC_FLAG_DIR_M2C);
+            /* counterclockwise: out(0,0) = in(3,0) = 4; clockwise: out(0,0) = in(0,1) = 5 */
+            dir = out[0] == 4 ? 1 : out[0] == 5 ? 2 : 0;
+            ESP_LOGI(TAG, "PPA rotate-90 probe: %s", dir == 1 ? "counterclockwise" : dir == 2 ? "clockwise" : "unknown");
+        }
+    }
+    heap_caps_free(in);
+    heap_caps_free(out);
+    return dir;
+}
+
 static esp_err_t ppa_rotate_init(lvgl_disp_ctx_t *ctx, size_t buffer_size)
 {
     ppa_client_config_t ppa_cfg = {};
@@ -102,7 +158,58 @@ static esp_err_t ppa_rotate_init(lvgl_disp_ctx_t *ctx, size_t buffer_size)
     // Just set the buffer size for reference.
     ctx->ppa_buf_size = buffer_size;
     ctx->ppa_buf_idx  = 0;
+    ctx->ppa_dir      = ppa_probe_direction(ctx->ppa_client);
+    ctx->dirty_valid  = false;
+    ctx->full_frames  = 2;
 
+    return ESP_OK;
+}
+
+/* DECK//OS: rotate only region `r` (LVGL coordinates, picture W x H) of the
+ * full LVGL buffer into the next DSI frame buffer at the matching spot.
+ * Rotating the whole 1.8 MB frame on every refresh competed with the DPI's
+ * scan-out for PSRAM bandwidth and caused underruns (blue flashes, and at
+ * worst a screen stuck on blue). */
+static esp_err_t ppa_rotate_region(lvgl_disp_ctx_t *ctx, const void *in_buf, int32_t W, int32_t H,
+                                   const lv_area_t *r, void **out_buf)
+{
+    uint8_t bpp = (ctx->color_format == LV_COLOR_FORMAT_RGB565) ? 2 : 3;
+    int32_t x0  = r->x1 < 0 ? 0 : (r->x1 & ~1);
+    int32_t y0  = r->y1 < 0 ? 0 : (r->y1 & ~1);
+    int32_t x1  = (r->x2 | 1) > W - 1 ? W - 1 : (r->x2 | 1);
+    int32_t y1  = (r->y2 | 1) > H - 1 ? H - 1 : (r->y2 | 1);
+    int32_t w = x1 - x0 + 1, h = y1 - y0 + 1;
+
+    esp_cache_msync((uint8_t *)in_buf + (size_t)y0 * W * bpp, (size_t)h * W * bpp,
+                    ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
+
+    ctx->ppa_buf_idx = !ctx->ppa_buf_idx;
+    void *out        = ctx->ppa_out_buf[ctx->ppa_buf_idx];
+
+    ppa_srm_oper_config_t c = {};
+    c.in.buffer             = in_buf;
+    c.in.pic_w              = (uint32_t)W;
+    c.in.pic_h              = (uint32_t)H;
+    c.in.block_w            = (uint32_t)w;
+    c.in.block_h            = (uint32_t)h;
+    c.in.block_offset_x     = (uint32_t)x0;
+    c.in.block_offset_y     = (uint32_t)y0;
+    c.in.srm_cm             = bpp == 2 ? PPA_SRM_COLOR_MODE_RGB565 : PPA_SRM_COLOR_MODE_RGB888;
+    c.out.buffer            = out;
+    c.out.buffer_size       = ctx->ppa_buf_size;
+    c.out.pic_w             = (uint32_t)H;
+    c.out.pic_h             = (uint32_t)W;
+    /* counterclockwise: (x, y) -> (y, W-1-x); clockwise: (x, y) -> (H-1-y, x) */
+    c.out.block_offset_x    = (uint32_t)(ctx->ppa_dir == 1 ? y0 : H - y0 - h);
+    c.out.block_offset_y    = (uint32_t)(ctx->ppa_dir == 1 ? W - x0 - w : x0);
+    c.out.srm_cm            = c.in.srm_cm;
+    c.rotation_angle        = PPA_SRM_ROTATION_ANGLE_90;
+    c.scale_x               = 1.0f;
+    c.scale_y               = 1.0f;
+    c.byte_swap             = ctx->flags.swap_bytes ? true : false;
+    c.mode                  = PPA_TRANS_MODE_BLOCKING;
+    ESP_RETURN_ON_ERROR(ppa_do_scale_rotate_mirror(ctx->ppa_client, &c), TAG, "PPA SRM failed");
+    *out_buf = out;
     return ESP_OK;
 }
 
@@ -277,6 +384,16 @@ static void disp_flush_callback(lv_display_t *drv, const lv_area_t *area, uint8_
     // For DSI with avoid_tearing (direct mode / full refresh)
     // DSI panels typically don't support partial updates, must refresh entire screen
     if (ctx->disp_type == LVGL_DISP_TYPE_DSI && ctx->flags.avoid_tearing) {
+#if lvgl_PORT_PPA_SUPPORTED
+        /* Collect what this refresh changed (direct mode: the LVGL buffer
+         * always holds the whole current picture). */
+        if (!ctx->dirty_valid) {
+            ctx->dirty       = *area;
+            ctx->dirty_valid = true;
+        } else {
+            area_join(&ctx->dirty, area);
+        }
+#endif
         if (is_last) {
             // Physical screen dimensions (always 720x1280 for this panel)
             int32_t phys_w = ctx->hres;  // 720
@@ -302,7 +419,19 @@ static void disp_flush_callback(lv_display_t *drv, const lv_area_t *area, uint8_
                 ESP_LOGD(TAG, "PPA rotate: in=%ldx%ld, out=%ldx%ld, rot=%d", lvgl_w, lvgl_h, phys_w, phys_h,
                          ctx->current_rotation);
 
-                esp_err_t ret = ppa_do_rotate(ctx, color_map, &full_area, ctx->current_rotation, &draw_buf);
+                /* Partial: what changed now plus what changed last time (that
+                 * went to the other frame buffer, so this one lacks it). */
+                esp_err_t ret;
+                if (ctx->ppa_dir && ctx->current_rotation == LV_DISPLAY_ROTATION_90 && ctx->full_frames == 0) {
+                    lv_area_t region = ctx->dirty;
+                    area_join(&region, &ctx->prev_dirty);
+                    ret = ppa_rotate_region(ctx, color_map, lvgl_w, lvgl_h, &region, &draw_buf);
+                } else {
+                    if (ctx->full_frames) ctx->full_frames--;
+                    ret = ppa_do_rotate(ctx, color_map, &full_area, ctx->current_rotation, &draw_buf);
+                }
+                ctx->prev_dirty  = ctx->dirty_valid ? ctx->dirty : full_area;
+                ctx->dirty_valid = false;
                 if (ret != ESP_OK) {
                     ESP_LOGE(TAG, "PPA rotation failed: %s", esp_err_to_name(ret));
                     lv_disp_flush_ready(drv);
