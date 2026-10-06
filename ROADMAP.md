@@ -117,6 +117,12 @@ add-on). Revisit after v1.0.
 - [x] SYSTEM > UPDATE and the popup share one install screen
 - [x] Checkpoint: released v1.0.0; the deck on the 1.0 beta offered it in the popup and installed it
 
+## Next: ESP-IDF 5.5
+
+- Move from IDF 5.4.0 to 5.5: two 5.4.0 bugs have bitten already (the self-delete race in `vTaskDeleteWithCaps` that crashed the portal on DISENGAGE, fixed in 5.5; worked around by never stopping the HTTP server)
+- Re-test display (PPA/DSI), ESP-Hosted Wi-Fi, LVGL port, codec, OTA and NVS encryption on the new IDF before releasing
+- Checkpoint: a beta on 5.5 passes the full module tour on hardware
+
 ## Next: Screen timeout and clock screensaver
 
 - SYSTEM > SCREEN TIMEOUT: off, 1, 2, 5, 10 or 30 minutes without a key or touch

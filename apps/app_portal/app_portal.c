@@ -173,8 +173,10 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
     s_ui.url_ip   = deck_label(txt, g_font.mono_l, g_pal.text, "");
     lv_obj_t *pl  = deck_label(txt, g_font.mono_s, g_pal.dim, "PIN");
     lv_obj_set_style_margin_top(pl, 14, 0);
-    s_ui.pin = deck_label(txt, g_font.disp_hero, g_pal.accent2, "");
-    lv_obj_set_style_text_letter_space(s_ui.pin, 6, 0);
+    /* disp_xl, not disp_hero: six wide digits (0s and 8s) in the hero font
+     * ran under the QR code. */
+    s_ui.pin = deck_label(txt, g_font.disp_xl, g_pal.accent2, "");
+    lv_obj_set_style_text_letter_space(s_ui.pin, 10, 0);
 
     s_ui.qr = lv_qrcode_create(s_ui.on_box);
     lv_qrcode_set_size(s_ui.qr, 200);

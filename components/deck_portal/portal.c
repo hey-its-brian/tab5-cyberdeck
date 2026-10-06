@@ -51,7 +51,12 @@ extern const char index_html_end[] asm("_binary_index_html_end");
 #define MAX_PIN_FAILS 5
 #define MAX_STALLS 3   /* consecutive receive timeouts before an upload is dropped */
 
+/* The server starts on the first ENGAGE and is never stopped: stopping it in
+ * ESP-IDF 5.4.0 runs vTaskDeleteWithCaps() on the server task, which can free
+ * its memory twice (a race fixed in IDF 5.5) and crash the deck. DISENGAGE
+ * closes the portal instead: s_open goes false and every request is refused. */
 static httpd_handle_t s_server;
+static volatile bool s_open;
 static char s_pin[7];
 static char s_token[33];
 static int s_pin_fails;
@@ -213,6 +218,7 @@ static bool authed(httpd_req_t *req)
 
 #define REQUIRE_AUTH(req)                                                         \
     do {                                                                          \
+        if (!s_open) return fail(req, "403 Forbidden", "portal closed");          \
         if (!trusted(req)) return fail(req, "421 Misdirected Request", "wrong host"); \
         if (!authed(req)) return fail(req, "401 Unauthorized", "login");          \
         touch();                                                                  \
@@ -222,6 +228,7 @@ static bool authed(httpd_req_t *req)
 
 static esp_err_t h_index(httpd_req_t *req)
 {
+    if (!s_open) return fail(req, "403 Forbidden", "portal closed");
     if (!trusted(req)) return fail(req, "421 Misdirected Request", "wrong host");
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "X-Content-Type-Options", "nosniff");
@@ -234,6 +241,7 @@ static esp_err_t h_index(httpd_req_t *req)
 
 static esp_err_t h_login(httpd_req_t *req)
 {
+    if (!s_open) return fail(req, "403 Forbidden", "portal closed");
     /* No touch() here: failed guesses must not keep the portal alive. */
     if (!trusted(req)) return fail(req, "421 Misdirected Request", "wrong host");
     if (esp_timer_get_time() < s_lock_until) return fail(req, "429 Too Many Requests", "locked, wait 30 s");
@@ -366,6 +374,10 @@ static esp_err_t h_upload(httpd_req_t *req)
     int stalls     = 0;
     s_busy         = true;
     while (ok && left > 0) {
+        if (!s_open) {
+            ok = false; /* disengaged mid-upload */
+            break;
+        }
         int r = httpd_req_recv(req, buf, left < IO_BUF ? left : IO_BUF);
         if (r == HTTPD_SOCK_ERR_TIMEOUT) {
             /* A client that stops sending would otherwise hold the (single)
@@ -484,7 +496,7 @@ static void ensure_folders(void)
 
 bool portal_start(void)
 {
-    if (s_server) return true;
+    if (s_open) return true;
     if (hal_storage_root() == NULL || net_state() != NET_CONNECTED) return false;
     if (s_ev_lock == NULL) s_ev_lock = xSemaphoreCreateMutex();
 
@@ -502,7 +514,7 @@ bool portal_start(void)
     cfg.recv_wait_timeout = 20;
     cfg.send_wait_timeout = 20;
     cfg.max_open_sockets  = 5;
-    if (httpd_start(&s_server, &cfg) != ESP_OK) {
+    if (s_server == NULL && httpd_start(&s_server, &cfg) != ESP_OK) {
         s_server = NULL;
         return false;
     }
@@ -517,6 +529,7 @@ bool portal_start(void)
         {.uri = "/api/delete", .method = HTTP_POST, .handler = h_delete},
         {.uri = "/api/rename", .method = HTTP_POST, .handler = h_rename},
     };
+    /* Registering again on a reopen just fails harmlessly (already there). */
     for (size_t i = 0; i < sizeof(uris) / sizeof(uris[0]); i++) httpd_register_uri_handler(s_server, &uris[i]);
 
     if (!s_mdns_up && mdns_init() == ESP_OK) {
@@ -527,21 +540,28 @@ bool portal_start(void)
     if (s_mdns_up) mdns_service_add(NULL, "_http", "_tcp", 80, NULL, 0);
 
     touch();
+    s_open = true;
     event(false, "portal up at http://%s", net_ip());
     return true;
 }
 
 void portal_stop(void)
 {
-    if (s_server == NULL) return;
-    httpd_stop(s_server);
-    s_server = NULL;
-    if (s_mdns_up) mdns_service_remove("_http", "_tcp");
+    if (!s_open) return;
+    s_open     = false;
     s_token[0] = '\0';
+    /* Drop every open connection; an upload in progress fails its next
+     * receive and cleans up its .part file. */
+    int fds[8];
+    size_t n = sizeof(fds) / sizeof(fds[0]);
+    if (s_server && httpd_get_client_list(s_server, &n, fds) == ESP_OK) {
+        for (size_t i = 0; i < n; i++) httpd_sess_trigger_close(s_server, fds[i]);
+    }
+    if (s_mdns_up) mdns_service_remove("_http", "_tcp");
     event(false, "portal down");
 }
 
-bool portal_running(void) { return s_server != NULL; }
+bool portal_running(void) { return s_open; }
 const char *portal_pin(void) { return s_pin; }
 const char *portal_host(void) { return "deck.local"; }
 uint32_t portal_idle_s(void) { return now_s() - s_last_req_s; }
@@ -549,12 +569,12 @@ bool portal_busy(void) { return s_busy; }
 
 bool portal_tick(void)
 {
-    if (s_server && !s_busy && portal_idle_s() > PORTAL_IDLE_OFF_S) {
+    if (s_open && !s_busy && portal_idle_s() > PORTAL_IDLE_OFF_S) {
         event(false, "idle %d min, shutting down", PORTAL_IDLE_OFF_S / 60);
         portal_stop();
         return true;
     }
-    if (s_server && net_state() != NET_CONNECTED) {
+    if (s_open && net_state() != NET_CONNECTED) {
         event(true, "network lost, shutting down");
         portal_stop();
         return true;

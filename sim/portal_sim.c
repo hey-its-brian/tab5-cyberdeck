@@ -3,6 +3,7 @@
 #include "deck_portal.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "deck_net.h"
@@ -39,7 +40,7 @@ void portal_stop(void)
 }
 
 bool portal_running(void) { return s_on; }
-const char *portal_pin(void) { return "271828"; }
+const char *portal_pin(void) { return getenv("SIM_PIN") ? getenv("SIM_PIN") : "271828"; }
 const char *portal_host(void) { return "deck.local"; }
 uint32_t portal_idle_s(void) { return s_on ? lv_tick_elaps(s_started) / 1000 : 0; }
 bool portal_busy(void) { return false; }
