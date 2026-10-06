@@ -56,14 +56,22 @@ Each version ends with something flashable and usable.
 - Covers first installs and recovery; OTA handles everything after
 - Optional: GitHub Actions builds the firmware on each tag and attaches both the full and OTA images to the release
 
-## v0.6: File portal
+## v0.6: SSH terminal (done)
+
+- [x] libssh2 (BSD) on ESP-IDF mbedTLS; wolfSSH ruled out (GPLv3 would make the firmware GPL)
+- [x] libvterm (MIT) xterm-256color emulation, dirty-cell grid renderer, 2000-line PSRAM scrollback
+- [x] Full key passthrough incl. `Esc`; `Alt+Esc` returns to the deck; touch bar for F-keys, PgUp/PgDn, Home/End, sticky Ctrl
+- [x] Host profiles, known_hosts pinning with change warning, device-generated ECDSA P-256 key with the public key on screen
+- [x] Checkpoint: full-screen apps verified in the simulator (top, vim) and SSH verified on hardware
+
+## v0.7: File portal
 
 - Toggle in SYSTEM starts a web file manager on the LAN: `http://deck.local` (mDNS) plus the IP shown on screen
 - Browse, upload (drag and drop), download, rename, delete on the SD card; folders for notes and music
 - Access PIN shown on the deck while the portal is on; auto-off after idle
 - Checkpoint: drop 20 MP3s and a few notes from the Mac's browser, they show up in NOTES and the player
 
-## v0.7: Audio player (MP3)
+## v0.8: Audio player (MP3)
 
 - ES8388 codec to the built-in speaker and the 3.5 mm headphone jack (auto-switch on plug)
 - MP3 decode (esp-audio-codec / Helix) streamed from SD, gapless queue
@@ -77,14 +85,6 @@ Audio goes to the built-in speaker and the 3.5 mm jack for now. The ESP32-C6
 is Bluetooth LE only, so Bluetooth headphones would need external hardware
 (a transmitter on the jack, a USB Bluetooth audio dongle, or a classic ESP32
 add-on). Revisit after v1.0.
-
-## v0.8: SSH client
-
-- wolfSSH + wolfSSL (libssh2 port as fallback), P4 hardware crypto
-- VT100/xterm-256color emulator, dirty-rect grid renderer, PSRAM scrollback
-- Full key passthrough incl. `Esc`; `Alt+Esc` returns to the deck
-- Host profiles, known_hosts pinning, ed25519 keys on SD (loadable through the portal)
-- Checkpoint: `htop` and `vim` usable on a Linux box
 
 ## Later: RF watch (receive-only)
 

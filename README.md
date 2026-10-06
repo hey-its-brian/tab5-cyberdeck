@@ -11,7 +11,18 @@ weather.
 |---|---|---|
 | ![Boot](docs/screenshots/boot.png) | ![System](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
-## Status: v0.5.0 (over-the-air updates)
+## Status: v0.6.0 (SSH terminal)
+
+**v0.6:** TERMINAL is an SSH client with an xterm-compatible screen (256
+colors, full-screen apps like htop and vim, 2000 lines of scrollback). Hosts
+are saved on the SD card; first connections show the server's fingerprint to
+trust, and a changed key gets a loud warning. Log in with a password or the
+deck's own ECDSA key (DEVICE KEY shows the public key for authorized_keys).
+Every key goes to the remote, Esc included; `Alt+Esc` leaves. The touch bar
+adds Esc, Tab, sticky Ctrl, arrows, PgUp/PgDn, Home/End and F1 to F12.
+Shift+Up/Down or dragging scrolls back.
+
+### v0.5.0: over-the-air updates
 
 **v0.5:** SYSTEM > UPDATE checks GitHub Releases, installs the new build over
 Wi-Fi into the idle app slot, and reboots. A new build must run cleanly for

@@ -38,6 +38,11 @@ target_link_libraries(lvgl PUBLIC SDL2::SDL2)
 target_compile_options(lvgl PRIVATE -w)
 
 file(GLOB APP_SRCS "${ROOT}/apps/*/*.c")
+list(FILTER APP_SRCS EXCLUDE REGEX "term_link_ssh\\.c$")   # device link; the sim uses term_link_pty.c
+file(GLOB VTERM_SRCS "${ROOT}/components/libvterm/src/*.c")
+add_library(vterm STATIC ${VTERM_SRCS})
+target_include_directories(vterm PUBLIC ${ROOT}/components/libvterm/include PRIVATE ${ROOT}/components/libvterm/src)
+target_compile_options(vterm PRIVATE -w)
 set_source_files_properties(${ROOT}/components/md4c/md4c.c PROPERTIES COMPILE_OPTIONS "-w;-DMD4C_USE_UTF8")
 file(GLOB APP_DIRS LIST_DIRECTORIES true "${ROOT}/apps/*")
 
@@ -46,6 +51,8 @@ add_executable(deck_sim
     hal_sim.c
     net_sim.c
     ota_sim.c
+    term_link_pty.c
+    ${ROOT}/components/deck_term/deck_term.c
     ${ROOT}/components/deck_ota/ota_version.c
     assets_sim.c
     ${ROOT}/components/deck_ui/deck_theme.c
@@ -70,6 +77,8 @@ target_include_directories(deck_sim PRIVATE
     ${ROOT}/components/deck_md/include
     ${ROOT}/components/deck_net/include
     ${ROOT}/components/deck_ota/include
+    ${ROOT}/components/deck_term/include
+    ${ROOT}/components/deck_term
     ${ROOT}/components/md4c
     ${APP_DIRS}
 )
@@ -77,7 +86,7 @@ target_compile_definitions(deck_sim PRIVATE
     DECK_ASSET_DIR="${ROOT}/assets/fonts"
     DECK_SIM_SDCARD="${CMAKE_CURRENT_SOURCE_DIR}/sdcard")
 target_compile_options(deck_sim PRIVATE -Wall -Wextra -Wno-unused-parameter)
-target_link_libraries(deck_sim PRIVATE lvgl cjson)
+target_link_libraries(deck_sim PRIVATE lvgl cjson vterm)
 
 # Unit tests for the calculator engine (no LVGL).
 add_executable(calc_test calc_test.c ${ROOT}/apps/app_calc/calc_engine.c)
