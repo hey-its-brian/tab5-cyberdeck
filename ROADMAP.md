@@ -107,6 +107,14 @@ is Bluetooth LE only, so Bluetooth headphones would need external hardware
 (a transmitter on the jack, a USB Bluetooth audio dongle, or a classic ESP32
 add-on). Revisit after v1.0.
 
+## v0.9: Update notifications
+
+- Check for updates at startup (once online) and then every hour, on the channel the BETA switch picks
+- When a newer build is found, a popup offers INSTALL or IGNORE, with the release notes
+- IGNORE skips that version (no more popups for it); a newer release asks again, and SYSTEM > UPDATE can still install it
+- Never interrupts: no popup during a transfer, an SSH session in the foreground, or while the screen sleeps (it waits)
+- Checkpoint: publish a release, the deck pops up within the hour; ignore it, no more popups until the next release
+
 ## Later: Space weather
 
 - SPACE module (or a WEATHER tab): planetary Kp index, geomagnetic storm level (G1 to G5), solar wind speed and Bz, X-ray flux and flare class, aurora chance for your latitude
