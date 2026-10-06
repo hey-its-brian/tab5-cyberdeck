@@ -56,13 +56,13 @@ Each version ends with something flashable and usable.
 - Covers first installs and recovery; OTA handles everything after
 - Optional: GitHub Actions builds the firmware on each tag and attaches both the full and OTA images to the release
 
-## v0.6: SSH terminal (moved up)
+## v0.6: SSH terminal (done)
 
-- libssh2 (BSD) on ESP-IDF mbedTLS; wolfSSH ruled out (GPLv3 would make the firmware GPL)
-- libvterm (MIT) xterm-256color emulation, dirty-cell grid renderer, PSRAM scrollback
-- Full key passthrough incl. `Esc`; `Alt+Esc` returns to the deck; touch bar for F-keys, PgUp/PgDn, Home/End, sticky Ctrl
-- Host profiles, known_hosts pinning, device-generated keys (ECDSA P-256) with the public key shown on screen
-- Checkpoint: `htop` and `vim` usable on a Linux box
+- [x] libssh2 (BSD) on ESP-IDF mbedTLS; wolfSSH ruled out (GPLv3 would make the firmware GPL)
+- [x] libvterm (MIT) xterm-256color emulation, dirty-cell grid renderer, 2000-line PSRAM scrollback
+- [x] Full key passthrough incl. `Esc`; `Alt+Esc` returns to the deck; touch bar for F-keys, PgUp/PgDn, Home/End, sticky Ctrl
+- [x] Host profiles, known_hosts pinning with change warning, device-generated ECDSA P-256 key with the public key on screen
+- [x] Checkpoint: full-screen apps verified in the simulator (top, vim) and SSH verified on hardware
 
 ## v0.7: File portal
 
