@@ -25,6 +25,10 @@ typedef void (*deck_list_cb_t)(int index, void *user);
 void deck_modal_list(const char *title, const char *const *items, int count, deck_list_cb_t cb, void *user);
 void deck_modal_confirm(const char *title, const char *message, const char *yes_label, deck_confirm_cb_t cb,
                         void *user);
+/* Same, for a risky "yes": CANCEL has focus and Enter does nothing for the
+ * first second, so type-ahead cannot accept it. */
+void deck_modal_confirm_danger(const char *title, const char *message, const char *yes_label, deck_confirm_cb_t cb,
+                               void *user);
 
 bool deck_modal_active(void);
 

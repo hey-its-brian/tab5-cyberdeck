@@ -76,7 +76,7 @@ static void refresh(lv_timer_t *t)
     bool on = portal_running();
     lv_label_set_text(s_ui.state, on ? "LINK ACTIVE" : "LINK DOWN");
     lv_obj_set_style_text_color(s_ui.state, on ? g_pal.ok : g_pal.dim, 0);
-    lv_label_set_text(lv_obj_get_child(s_ui.toggle, 0), on ? "DISENGAGE" : "ENGAGE");
+    lv_label_set_text(lv_obj_get_child_by_type(s_ui.toggle, 0, &lv_label_class), on ? "DISENGAGE" : "ENGAGE");
 
     if (on) {
         lv_obj_remove_flag(s_ui.on_box, LV_OBJ_FLAG_HIDDEN);
@@ -193,7 +193,7 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
     lv_obj_set_flex_grow(spacer, 1);
     s_ui.idle = deck_label(left, g_font.mono_s, g_pal.dim, "");
     deck_label(left, g_font.mono_s, g_pal.dim,
-               "Folders: /notes (NOTES module), /music (player, v0.6). [ENTER] toggles the link.");
+               "/notes feeds NOTES, /music the player.  [ENTER] toggles the link.");
 
     /* Right: log */
     lv_obj_t *right = deck_panel(root, DECK_CUT_TL | DECK_CUT_BR, 22);

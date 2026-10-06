@@ -155,11 +155,17 @@ async function info() {
 }
 
 function crumbs() {
-  const parts = cwd.split("/").filter(Boolean);
-  let html = '<a data-p="/">ROOT</a>', acc = "";
-  for (const p of parts) { acc += "/" + p; html += ' / <a data-p="' + acc + '">' + p + "</a>"; }
-  $("crumbs").innerHTML = html;
-  $("crumbs").querySelectorAll("a").forEach((a) => (a.onclick = () => load(a.dataset.p)));
+  const el = $("crumbs"), parts = cwd.split("/").filter(Boolean);
+  const link = (text, path) => {
+    const a = document.createElement("a");
+    a.textContent = text; // folder names are data, never markup
+    a.onclick = () => load(path);
+    el.append(a);
+  };
+  el.replaceChildren();
+  link("ROOT", "/");
+  let acc = "";
+  for (const p of parts) { acc += "/" + p; el.append(" / "); link(p, acc); }
 }
 
 async function load(path) {

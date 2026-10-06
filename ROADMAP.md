@@ -74,10 +74,12 @@ Each version ends with something flashable and usable.
 
 ## v0.7: File portal
 
-- Toggle in SYSTEM starts a web file manager on the LAN: `http://deck.local` (mDNS) plus the IP shown on screen
-- Browse, upload (drag and drop), download, rename, delete on the SD card; folders for notes and music
-- Access PIN shown on the deck while the portal is on; auto-off after idle
-- Checkpoint: drop 20 MP3s and a few notes from the Mac's browser, they show up in NOTES and the player
+- [x] PORTAL module (05): ENGAGE starts a web file manager on the LAN at `http://deck.local` (mDNS) and the IP, with a QR code for phones
+- [x] Browse, upload (drag and drop), download, rename, delete, new folder; `/notes` and `/music` created on first start
+- [x] One-time 6 digit PIN per session, lockout after 5 wrong tries, auto-off after 15 min idle, LINK in the status bar while up
+- [x] Security review fixes: Host/Origin checks (DNS rebinding), stalled uploads dropped, failed logins don't keep it alive, safe file replace, `/ssh` (private key, known_hosts) never exposed
+- [x] `tools/portal_mock.py` serves the real page from the Mac for development and screenshots
+- [ ] Checkpoint: drop 20 MP3s and a few notes from the Mac's browser, they show up in NOTES and the player
 
 ## v0.8: Audio player (MP3)
 
@@ -93,6 +95,13 @@ Audio goes to the built-in speaker and the 3.5 mm jack for now. The ESP32-C6
 is Bluetooth LE only, so Bluetooth headphones would need external hardware
 (a transmitter on the jack, a USB Bluetooth audio dongle, or a classic ESP32
 add-on). Revisit after v1.0.
+
+## Later: Space weather
+
+- SPACE module (or a WEATHER tab): planetary Kp index, geomagnetic storm level (G1 to G5), solar wind speed and Bz, X-ray flux and flare class, aurora chance for your latitude
+- Data from NOAA SWPC's free JSON feeds over HTTPS (no API key), refreshed every 15 min
+- Alerts in the status bar when a storm or a strong flare is in progress
+- Checkpoint: numbers match the SWPC dashboard; an alert shows during an active storm
 
 ## Later: RF watch (receive-only)
 

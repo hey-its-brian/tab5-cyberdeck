@@ -58,7 +58,7 @@ static lv_obj_t *build_tile(lv_obj_t *parent, deck_app_t *app, int index, int32_
     lv_obj_set_style_pad_all(t, 18, 0);
     lv_obj_add_event_cb(t, tile_clicked, LV_EVENT_CLICKED, app);
 
-    char num[4];
+    char num[12];
     snprintf(num, sizeof(num), "%02d", index + 1);
     lv_obj_t *n = deck_label(t, g_font.disp_l, g_pal.accent2, num);
     lv_obj_align(n, LV_ALIGN_TOP_LEFT, 4, 10);
@@ -75,7 +75,7 @@ static lv_obj_t *build_tile(lv_obj_t *parent, deck_app_t *app, int index, int32_
     lv_obj_t *tag = deck_label(t, g_font.mono_s, g_pal.dim, app->tagline);
     lv_obj_align(tag, LV_ALIGN_CENTER, 0, 84);
 
-    char hot[12];
+    char hot[16];
     snprintf(hot, sizeof(hot), "ALT+%d", index + 1);
     lv_obj_t *h = deck_label(t, g_font.mono_s, g_pal.dim, hot);
     lv_obj_align(h, LV_ALIGN_BOTTOM_LEFT, 4, -18);

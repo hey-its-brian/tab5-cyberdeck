@@ -2,8 +2,8 @@
 
 Cyberdeck firmware for the **M5Stack Tab5** (ESP32-P4, 5" 1280x720) with the
 official **Tab5 Keyboard**. A touch-first, keyboard-friendly launcher with a
-cyberpunk HUD, hosting modules for SSH, markdown notes, a calculator and
-weather.
+cyberpunk HUD, hosting modules for SSH, markdown notes, a calculator,
+weather and a LAN file portal.
 
 ![Home](docs/screenshots/home.png)
 
@@ -11,7 +11,29 @@ weather.
 |---|---|---|
 | ![Boot](docs/screenshots/boot.png) | ![System](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
-## Status: v0.6.0 (SSH terminal)
+## Status: v0.7.0 (file portal)
+
+| On the deck | In your browser |
+|---|---|
+| ![Portal](docs/screenshots/portal.png) | ![Portal web UI](docs/screenshots/portal_web.png) |
+
+**v0.7:** PORTAL (module 05) shares the deck's storage with any browser on
+your network. ENGAGE shows `http://deck.local`, the IP, a QR code for phones
+and a one-time 6 digit PIN. From the browser: browse, drag and drop uploads,
+download, rename, delete and new folders. `/notes` feeds NOTES and `/music`
+is ready for the player. The portal keeps running while you use other
+modules (LINK in the status bar), switches itself off after 15 minutes idle,
+locks for 30 s after 5 wrong PINs, and never exposes the SSH key folder.
+It is plain HTTP on your LAN, so use it on networks you trust.
+
+| PIN screen | Link down |
+|---|---|
+| ![Portal login](docs/screenshots/portal_login.png) | ![Portal off](docs/screenshots/portal_off.png) |
+
+**v0.6.1:** SYSTEM > KBD LIGHT (OFF / LOW / HIGH) and KBD THEME COLOR (keyboard
+LEDs follow the accent). `Alt+0` or a tap on the clock sleeps the screen.
+
+### v0.6.0: SSH terminal
 
 **v0.6:** TERMINAL is an SSH client with an xterm-compatible screen (256
 colors, full-screen apps like htop and vim, 2000 lines of scrollback). Hosts
@@ -83,11 +105,11 @@ See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
 
 | Keys | Action |
 |---|---|
-| `Alt+1..5` | Launch module 01..05 |
+| `Alt+1..6` | Launch module 01..06 |
 | `Alt+Esc` | Return to the deck from anywhere (reserved for when SSH owns `Esc`) |
 | `Alt+0`, or tap the clock | Sleep the screen (backlight and keyboard light off); any key or touch wakes it |
 | `Esc` | Back / close, or home if the module does not use it |
-| `Left` `Right` `Enter`, or `1..5` | Pick a tile on the home screen |
+| `Left` `Right` `Enter`, or `1..6` | Pick a tile on the home screen |
 | `Tab`, arrows | Move focus inside a module |
 
 Everything is also reachable by touch: tiles, the `< DECK` button and on-screen controls.
@@ -97,6 +119,8 @@ Everything is also reachable by touch: tiles, the `< DECK` button and on-screen 
 [**hey-its-brian.github.io/tab5-cyberdeck**](https://hey-its-brian.github.io/tab5-cyberdeck/): plug the
 Tab5 in over USB-C, click INSTALL in Chrome or Edge. After that, updates come
 over Wi-Fi (SYSTEM > UPDATE).
+
+![Web flasher](docs/screenshots/web_flasher.png)
 
 ## Releasing
 
@@ -153,6 +177,10 @@ Headless mode renders scripted screenshots on a virtual clock:
 `--key MS:SPEC` (e.g. `esc`, `enter`, `left`, `a`, `alt+2`, `ctrl+s`), `--tap MS:X,Y` and
 `--shot MS:FILE.ppm` can repeat. Convert with `sips -s format png in.ppm --out out.png`.
 
+The portal's browser side runs on the Mac too: `tools/portal_mock.py` serves
+the real page backed by `sim/sdcard` at `http://127.0.0.1:8080` (PIN `271828`,
+`--open` skips it, `--root DIR` picks another folder).
+
 ## Layout
 
 ```
@@ -163,6 +191,7 @@ components/
   deck_core/          app registry, key routing, shell, status bar, launcher, boot POST, modals
   deck_md/            markdown to LVGL renderer (md4c)
   deck_net/           Wi-Fi over the ESP32-C6 (ESP-Hosted), SNTP, HTTPS fetch
+  deck_portal/        LAN file portal: HTTP server, JSON API, PIN login, mDNS, web page (www/)
   md4c/               md4c markdown parser (vendored, MIT)
   m5_tab5_component/  M5Stack Tab5 BSP (vendored, MIT)
   m5_tab5_keyboard_component/  M5Stack Tab5 Keyboard driver (vendored, MIT)

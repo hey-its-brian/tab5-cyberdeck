@@ -11,6 +11,10 @@
  *
  * Paths are relative to the storage root, start with "/", and may not
  * contain ".." or backslashes. Every /api call except login needs the cookie.
+ *
+ * Every request must name the deck in its Host header (deck.local or the IP),
+ * which stops DNS rebinding; POSTs from another page's Origin are refused.
+ * Only authenticated requests count as activity for the idle shutdown.
  */
 #include "deck_portal.h"
 
@@ -21,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -44,13 +49,14 @@ extern const char index_html_end[] asm("_binary_index_html_end");
 #define IO_BUF (32 * 1024)
 #define EVENTS 32
 #define MAX_PIN_FAILS 5
+#define MAX_STALLS 3   /* consecutive receive timeouts before an upload is dropped */
 
 static httpd_handle_t s_server;
 static char s_pin[7];
 static char s_token[33];
 static int s_pin_fails;
 static int64_t s_lock_until;
-static volatile int64_t s_last_req;
+static volatile uint32_t s_last_req_s; /* 32-bit: read atomically from the LVGL task */
 static volatile bool s_busy;
 static bool s_mdns_up;
 
@@ -88,7 +94,8 @@ int portal_events(portal_event_t *out, int max, uint32_t *cursor)
 
 /* ---- Helpers ------------------------------------------------------------- */
 
-static void touch(void) { s_last_req = esp_timer_get_time(); }
+static uint32_t now_s(void) { return (uint32_t)(esp_timer_get_time() / 1000000); }
+static void touch(void) { s_last_req_s = now_s(); }
 
 static void url_decode(char *s)
 {
@@ -117,12 +124,24 @@ static bool query(httpd_req_t *req, const char *key, char *out, size_t n)
     return true;
 }
 
+/* True if the path's first component is the SSH folder (private key and
+ * known_hosts), which the portal never exposes. FAT ignores case and
+ * trailing dots and spaces, so "/SSH./id_ecdsa" must count too. */
+static bool is_private(const char *rel)
+{
+    const char *c = rel + 1;
+    size_t n      = strcspn(c, "/");
+    while (n > 0 && (c[n - 1] == '.' || c[n - 1] == ' ')) n--;
+    return n == 3 && strncasecmp(c, "ssh", 3) == 0;
+}
+
 /* Validate a client path and map it under the storage root. */
 static bool full_path(const char *rel, char *out, size_t n)
 {
     const char *root = hal_storage_root();
     if (root == NULL || rel[0] != '/' || strlen(rel) >= PATH_MAX_LEN) return false;
     if (strstr(rel, "..") || strchr(rel, '\\') || strstr(rel, "//")) return false;
+    if (is_private(rel)) return false; /* covers list, download, upload, rename (both ends), delete */
     size_t len = strlen(rel);
     snprintf(out, n, "%s%.*s", root, (int)(len > 1 && rel[len - 1] == '/' ? len - 1 : len), rel);
     return true;
@@ -148,33 +167,75 @@ static esp_err_t fail(httpd_req_t *req, const char *status, const char *msg)
     return httpd_resp_sendstr(req, buf);
 }
 
-static bool authed(httpd_req_t *req)
+/* "deck.local" or the IP, optionally with ":80". */
+static bool our_host(const char *h)
 {
-    char cookie[128];
-    if (httpd_req_get_hdr_value_str(req, "Cookie", cookie, sizeof(cookie)) != ESP_OK) return false;
-    char want[48];
-    snprintf(want, sizeof(want), "deck=%s", s_token);
-    return strstr(cookie, want) != NULL;
+    size_t n         = strcspn(h, ":");
+    const char *port = h + n;
+    if (*port && strcmp(port, ":80") != 0) return false;
+    const char *ip = net_ip();
+    return (n == strlen("deck.local") && strncasecmp(h, "deck.local", n) == 0) ||
+           (ip && n == strlen(ip) && strncmp(h, ip, n) == 0);
 }
 
-#define REQUIRE_AUTH(req)                                       \
-    do {                                                        \
-        touch();                                                \
-        if (!authed(req)) return fail(req, "401 Unauthorized", "login"); \
+/* Refuse requests addressed to another name (DNS rebinding) and POSTs sent
+ * by a page from another origin. */
+static bool trusted(httpd_req_t *req)
+{
+    char v[80];
+    if (httpd_req_get_hdr_value_str(req, "Host", v, sizeof(v)) != ESP_OK || !our_host(v)) return false;
+    if (req->method == HTTP_POST && httpd_req_get_hdr_value_str(req, "Origin", v, sizeof(v)) == ESP_OK) {
+        if (strncmp(v, "http://", 7) != 0 || !our_host(v + 7)) return false;
+    }
+    return true;
+}
+
+static bool authed(httpd_req_t *req)
+{
+    if (s_token[0] == '\0') return false;
+    char cookie[256];
+    if (httpd_req_get_hdr_value_str(req, "Cookie", cookie, sizeof(cookie)) != ESP_OK) return false;
+    /* Find the "deck" pair exactly (not as the tail of another name). */
+    for (char *p = cookie; p && *p;) {
+        while (*p == ' ' || *p == ';') p++;
+        if (strncmp(p, "deck=", 5) == 0) {
+            const char *v = p + 5;
+            size_t n      = strcspn(v, ";");
+            if (n != strlen(s_token)) return false;
+            uint8_t diff = 0;
+            for (size_t i = 0; i < n; i++) diff |= (uint8_t)(v[i] ^ s_token[i]);
+            return diff == 0;
+        }
+        p = strchr(p, ';');
+    }
+    return false;
+}
+
+#define REQUIRE_AUTH(req)                                                         \
+    do {                                                                          \
+        if (!trusted(req)) return fail(req, "421 Misdirected Request", "wrong host"); \
+        if (!authed(req)) return fail(req, "401 Unauthorized", "login");          \
+        touch();                                                                  \
     } while (0)
 
 /* ---- Handlers ------------------------------------------------------------ */
 
 static esp_err_t h_index(httpd_req_t *req)
 {
-    touch();
+    if (!trusted(req)) return fail(req, "421 Misdirected Request", "wrong host");
     httpd_resp_set_type(req, "text/html; charset=utf-8");
+    httpd_resp_set_hdr(req, "X-Content-Type-Options", "nosniff");
+    httpd_resp_set_hdr(req, "X-Frame-Options", "DENY");
+    httpd_resp_set_hdr(req, "Content-Security-Policy",
+                       "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
+                       "img-src 'self' data:; frame-ancestors 'none'");
     return httpd_resp_send(req, index_html_start, index_html_end - index_html_start - 1);
 }
 
 static esp_err_t h_login(httpd_req_t *req)
 {
-    touch();
+    /* No touch() here: failed guesses must not keep the portal alive. */
+    if (!trusted(req)) return fail(req, "421 Misdirected Request", "wrong host");
     if (esp_timer_get_time() < s_lock_until) return fail(req, "429 Too Many Requests", "locked, wait 30 s");
     char body[32] = {0};
     int n         = httpd_req_recv(req, body, sizeof(body) - 1);
@@ -183,6 +244,7 @@ static esp_err_t h_login(httpd_req_t *req)
     const char *pin = strstr(body, "pin=");
     if (pin && strncmp(pin + 4, s_pin, 6) == 0 && strlen(pin + 4) >= 6) {
         s_pin_fails = 0;
+        touch();
         char cookie[96];
         snprintf(cookie, sizeof(cookie), "deck=%s; Path=/; HttpOnly; SameSite=Strict", s_token);
         httpd_resp_set_hdr(req, "Set-Cookie", cookie);
@@ -222,6 +284,7 @@ static esp_err_t h_list(httpd_req_t *req)
     char child[512];
     while ((e = readdir(d)) != NULL) {
         if (e->d_name[0] == '.') continue;
+        if (strcmp(rel, "/") == 0 && strcasecmp(e->d_name, "ssh") == 0) continue;
         snprintf(child, sizeof(child), "%s/%s", path, e->d_name);
         struct stat st;
         if (stat(child, &st) != 0) continue;
@@ -248,8 +311,14 @@ static esp_err_t h_file(httpd_req_t *req)
     if (f == NULL) return fail(req, "404 Not Found", "no such file");
 
     const char *name = strrchr(rel, '/') + 1;
+    char safe[PATH_MAX_LEN];
+    size_t k = 0;
+    for (const char *c = name; *c && k < sizeof(safe) - 1; c++) {
+        safe[k++] = ((unsigned char)*c < 0x20 || *c == '"' || *c == '\\') ? '_' : *c; /* no header injection */
+    }
+    safe[k] = '\0';
     char disp[PATH_MAX_LEN + 48];
-    snprintf(disp, sizeof(disp), "attachment; filename=\"%s\"", name);
+    snprintf(disp, sizeof(disp), "attachment; filename=\"%s\"", safe);
     httpd_resp_set_type(req, "application/octet-stream");
     httpd_resp_set_hdr(req, "Content-Disposition", disp);
 
@@ -278,8 +347,12 @@ static esp_err_t h_upload(httpd_req_t *req)
     if (!query(req, "path", rel, sizeof(rel)) || !full_path(rel, path, sizeof(path)) || strlen(rel) < 2) {
         return fail(req, "400 Bad Request", "bad path");
     }
+    size_t rl = strlen(rel);
+    if (rl > 5 && strcmp(rel + rl - 5, ".part") == 0) return fail(req, "400 Bad Request", "reserved name");
     uint64_t free_b = hal_sd_free_bytes();
-    if (free_b && req->content_len + 65536 > free_b) return fail(req, "507 Insufficient Storage", "storage full");
+    if (free_b && (uint64_t)req->content_len + 65536 > free_b) {
+        return fail(req, "507 Insufficient Storage", "storage full");
+    }
 
     snprintf(tmp, sizeof(tmp), "%s.part", path);
     FILE *f = fopen(tmp, "wb");
@@ -290,10 +363,17 @@ static esp_err_t h_upload(httpd_req_t *req)
     size_t left    = req->content_len;
     bool ok        = buf != NULL;
     const char *name = strrchr(rel, '/') + 1;
+    int stalls     = 0;
     s_busy         = true;
     while (ok && left > 0) {
         int r = httpd_req_recv(req, buf, left < IO_BUF ? left : IO_BUF);
-        if (r == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (r == HTTPD_SOCK_ERR_TIMEOUT) {
+            /* A client that stops sending would otherwise hold the (single)
+             * server task and the busy flag forever. */
+            if (++stalls >= MAX_STALLS) ok = false;
+            continue;
+        }
+        stalls = 0;
         if (r <= 0 || fwrite(buf, 1, (size_t)r, f) != (size_t)r) ok = false;
         left -= r > 0 ? (size_t)r : 0;
         touch();
@@ -307,8 +387,24 @@ static esp_err_t h_upload(httpd_req_t *req)
         event(true, "upload failed: %s", name);
         return fail(req, "500 Internal Server Error", "write failed");
     }
-    unlink(path); /* FAT rename will not replace */
-    rename(tmp, path);
+    /* FAT rename will not replace, so move the old file aside first and put
+     * it back if the swap fails. */
+    char bak[272];
+    snprintf(bak, sizeof(bak), "%s.old", path);
+    struct stat st;
+    bool had_old = stat(path, &st) == 0;
+    if (had_old && (S_ISDIR(st.st_mode) || rename(path, bak) != 0)) {
+        unlink(tmp);
+        event(true, "upload failed: %s", name);
+        return fail(req, "409 Conflict", "cannot replace existing item");
+    }
+    if (rename(tmp, path) != 0) {
+        if (had_old) rename(bak, path);
+        unlink(tmp);
+        event(true, "upload failed: %s", name);
+        return fail(req, "500 Internal Server Error", "rename failed");
+    }
+    if (had_old) unlink(bak);
     event(false, "received %s (%u KB)", name, (unsigned)(req->content_len / 1024));
     return httpd_resp_sendstr(req, "{\"ok\":true}");
 }
@@ -448,7 +544,7 @@ void portal_stop(void)
 bool portal_running(void) { return s_server != NULL; }
 const char *portal_pin(void) { return s_pin; }
 const char *portal_host(void) { return "deck.local"; }
-uint32_t portal_idle_s(void) { return (uint32_t)((esp_timer_get_time() - s_last_req) / 1000000); }
+uint32_t portal_idle_s(void) { return now_s() - s_last_req_s; }
 bool portal_busy(void) { return s_busy; }
 
 bool portal_tick(void)

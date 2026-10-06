@@ -120,7 +120,8 @@ bool wx_parse(const char *json, wx_t *out)
         }
         for (int i = start; i < n && out->hours < WX_HOURS; i++) {
             int h                          = 0;
-            sscanf(arr_str(ht, i) + 11, "%d", &h);
+            const char *ts                 = arr_str(ht, i);
+            if (strlen(ts) >= 13) sscanf(ts + 11, "%d", &h); /* "YYYY-MM-DDTHH:MM" */
             out->hour_of_day[out->hours]   = h;
             out->hour_temp[out->hours]     = (float)arr_num(tt, i, 0);
             out->hour_pop[out->hours]      = (int)arr_num(pp, i, 0);
