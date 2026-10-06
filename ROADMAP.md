@@ -117,6 +117,14 @@ add-on). Revisit after v1.0.
 - [x] SYSTEM > UPDATE and the popup share one install screen
 - [ ] Checkpoint: release v1.0.0, the deck on the 1.0 beta pops up at startup or within the hour and installs it
 
+## Next: Screen timeout and clock screensaver
+
+- SYSTEM > SCREEN TIMEOUT: off, 1, 2, 5, 10 or 30 minutes without a key or touch
+- When it runs out, a clock screensaver takes over: big time and date, slowly drifting so nothing burns in, dimmed backlight; after a further while the screen sleeps fully (the existing Alt+0 sleep)
+- Music keeps playing and the status shows on the screensaver (track, play/pause); a portal transfer or an SSH session with output keeps the screen awake
+- Any key or touch wakes it, and that press is swallowed (like screen sleep)
+- Checkpoint: idle for the timeout, the clock appears and drifts, a key brings the deck back exactly where it was
+
 ## Later: Space weather
 
 - SPACE module (or a WEATHER tab): planetary Kp index, geomagnetic storm level (G1 to G5), solar wind speed and Bz, X-ray flux and flare class, aurora chance for your latitude
