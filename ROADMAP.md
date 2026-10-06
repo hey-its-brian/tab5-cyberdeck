@@ -94,11 +94,13 @@ Each version ends with something flashable and usable.
 
 ## v0.8: Audio player (MP3)
 
-- ES8388 codec to the built-in speaker and the 3.5 mm headphone jack (auto-switch on plug)
-- MP3 decode (esp-audio-codec / Helix) streamed from SD, gapless queue
-- PLAYER module: library by folder, now playing, seek, volume, shuffle/repeat
-- Keeps playing in the background while you use other modules; mini controls in the status bar
-- Checkpoint: an hour of playback while using NOTES and SSH, no dropouts
+- [x] ES8388 codec through esp_codec_dev (I2S0), speaker amplifier switched off while headphones are plugged in
+- [x] MP3 decode with minimp3 (CC0) streamed from SD on its own task; Xing/Info VBR durations and seeking; ID3 title and artist
+- [x] PLAYER module (05): library by folder, now playing with a 16-band spectrum, seek (tap the bar or Left/Right), volume, shuffle, repeat off/all/one
+- [x] Keeps playing in the background; PLAY/PAUSE in the status bar (tap opens PLAYER), `Alt+P` pauses from anywhere
+- [x] Simulator plays through the Mac's speakers (SDL audio)
+- [ ] Checkpoint: speaker and headphones on hardware, auto-switch on plug
+- [ ] Checkpoint: an hour of playback while using NOTES and SSH, no dropouts
 
 ### Bluetooth audio (deferred)
 

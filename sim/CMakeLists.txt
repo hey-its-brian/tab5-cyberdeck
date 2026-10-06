@@ -55,6 +55,10 @@ add_executable(deck_sim
     ${ROOT}/components/deck_term/deck_term.c
     ${ROOT}/components/deck_ota/ota_version.c
     portal_sim.c
+    aout_sim.c
+    ${ROOT}/components/deck_audio/player.c
+    ${ROOT}/components/deck_audio/id3.c
+    ${ROOT}/components/minimp3/minimp3.c
     assets_sim.c
     ${ROOT}/components/deck_ui/deck_theme.c
     ${ROOT}/components/deck_ui/deck_widgets.c
@@ -81,6 +85,9 @@ target_include_directories(deck_sim PRIVATE
     ${ROOT}/components/deck_term/include
     ${ROOT}/components/deck_term
     ${ROOT}/components/deck_portal/include
+    ${ROOT}/components/deck_audio/include
+    ${ROOT}/components/deck_audio
+    ${ROOT}/components/minimp3
     ${ROOT}/components/md4c
     ${APP_DIRS}
 )
@@ -88,7 +95,8 @@ target_compile_definitions(deck_sim PRIVATE
     DECK_ASSET_DIR="${ROOT}/assets/fonts"
     DECK_SIM_SDCARD="${CMAKE_CURRENT_SOURCE_DIR}/sdcard")
 target_compile_options(deck_sim PRIVATE -Wall -Wextra -Wno-unused-parameter)
-target_link_libraries(deck_sim PRIVATE lvgl cjson vterm)
+target_link_libraries(deck_sim PRIVATE lvgl cjson vterm pthread m)
+set_source_files_properties(${ROOT}/components/minimp3/minimp3.c PROPERTIES COMPILE_OPTIONS "-w")
 
 # Unit tests for the calculator engine (no LVGL).
 add_executable(calc_test calc_test.c ${ROOT}/apps/app_calc/calc_engine.c)

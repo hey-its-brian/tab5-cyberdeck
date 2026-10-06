@@ -4,6 +4,7 @@
 #include "deck_fx.h"
 #include "deck_hal.h"
 #include "deck_launcher.h"
+#include "deck_audio.h"
 #include "deck_modal.h"
 #include "deck_statusbar.h"
 #include "deck_theme.h"
@@ -165,14 +166,15 @@ void deck_shell_shortcuts(void)
 {
     static const char *const cols[] = {
         "ANYWHERE\n"
-        "  ALT+1..6    open a module\n"
+        "  ALT+1..7    open a module\n"
         "  ALT+ESC     back to the deck\n"
         "  ALT+0       sleep the screen (or tap the clock)\n"
         "  ALT+H       this list\n"
+        "  ALT+P       pause / resume music\n"
         "  ESC         back / close\n"
         "\n"
         "HOME\n"
-        "  LEFT RIGHT ENTER, or 1..6   pick a module\n"
+        "  LEFT RIGHT ENTER, or 1..7   pick a module\n"
         "\n"
         "TERMINAL\n"
         "  every key goes to the server, ESC too\n"
@@ -188,6 +190,10 @@ void deck_shell_shortcuts(void)
         "\n"
         "WEATHER\n"
         "  R refresh  L location  U units\n"
+        "\n"
+        "PLAYER\n"
+        "  ENTER play  SPACE pause  LEFT/RIGHT seek\n"
+        "  [ ] prev/next  - = volume  S shuffle  R repeat\n"
         "\n"
         "PORTAL\n"
         "  ENTER or SPACE engage / disengage",
@@ -251,6 +257,10 @@ bool deck_shell_key(const deck_key_t *k)
         }
         if (k->code == HID_H) {
             deck_shell_shortcuts();
+            return true;
+        }
+        if (k->code == HID_P) {
+            player_toggle(); /* music pause / resume from anywhere */
             return true;
         }
         if (k->code >= HID_1 && k->code <= HID_9) {
