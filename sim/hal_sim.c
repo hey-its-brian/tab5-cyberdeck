@@ -34,6 +34,8 @@ bool hal_lvgl_lock(uint32_t timeout_ms) { return true; }
 void hal_lvgl_unlock(void) {}
 
 void hal_backlight_set(uint8_t percent) { s_backlight = percent; }
+void hal_display_power(bool on) { printf("[sim] display %s\n", on ? "on" : "off"); }
+void hal_kbd_light(uint8_t b, bool c, uint32_t rgb) { printf("[sim] kbd light %u %s %06x\n", b, c ? "theme" : "status", (unsigned)rgb); }
 
 void sim_push_key(uint8_t code, uint8_t mods, bool pressed)
 {

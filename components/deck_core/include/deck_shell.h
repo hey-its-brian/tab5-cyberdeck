@@ -28,6 +28,16 @@ deck_app_t *deck_shell_current(void);
  * running app is restarted in place, without a transition. */
 void deck_shell_rebuild(void);
 
+/* Screen sleep: backlight and keyboard LEDs off, everything keeps running.
+ * Any key or touch wakes it, and that press is swallowed. Alt+0 or a tap
+ * on the status bar clock sleeps. */
+void deck_shell_sleep(void);
+bool deck_shell_sleeping(void);
+
+/* Push the keyboard light settings (kbd_led level, kbd_theme) and the
+ * current accent to the keyboard. */
+void deck_shell_apply_kbd_light(void);
+
 /* Called by the input pump for every key press. Returns true if the shell
  * (or the app's on_key) consumed it. */
 bool deck_shell_key(const deck_key_t *key);

@@ -109,6 +109,24 @@ static void boot_changed(lv_event_t *e)
     hal_cfg_set_i32("boot", on);
 }
 
+static const char *const s_kbd_names[3] = {"OFF", "LOW", "HIGH"};
+
+static void kbd_led_clicked(lv_event_t *e)
+{
+    int level = ((int)hal_cfg_get_i32("kbd_led", 1) + 1) % 3;
+    hal_cfg_set_i32("kbd_led", level);
+    lv_obj_t *b = lv_event_get_target_obj(e);
+    lv_label_set_text(lv_obj_get_child_by_type(b, 0, &lv_label_class), s_kbd_names[level]);
+    deck_shell_apply_kbd_light();
+}
+
+static void kbd_theme_changed(lv_event_t *e)
+{
+    bool on = lv_obj_has_state(lv_event_get_target_obj(e), LV_STATE_CHECKED);
+    hal_cfg_set_i32("kbd_theme", on);
+    deck_shell_apply_kbd_light();
+}
+
 static lv_obj_t *add_switch(lv_obj_t *row, bool on, lv_event_cb_t cb)
 {
     lv_obj_t *sw = lv_switch_create(row);
@@ -601,6 +619,15 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
     add_switch(row, hal_cfg_get_i32("scan", 1) != 0, scan_changed);
     row = setting_row(left, ICON_CHIP, "BOOT POST");
     add_switch(row, hal_cfg_get_i32("boot", 1) != 0, boot_changed);
+
+    row = setting_row(left, ICON_KEYBOARD, "KBD LIGHT");
+    int kbd_level = (int)hal_cfg_get_i32("kbd_led", 1);
+    if (kbd_level < 0 || kbd_level > 2) kbd_level = 1;
+    lv_obj_t *kb = small_button(row, s_kbd_names[kbd_level], kbd_led_clicked, NULL);
+    lv_obj_set_width(kb, 100);
+    lv_obj_align(kb, LV_ALIGN_RIGHT_MID, 0, 0);
+    row = setting_row(left, ICON_PALETTE, "KBD THEME COLOR");
+    add_switch(row, hal_cfg_get_i32("kbd_theme", 0) != 0, kbd_theme_changed);
 
     deck_section(left, "ACCENT");
     lv_obj_t *sw = deck_box(left);

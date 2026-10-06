@@ -115,14 +115,23 @@ static bool display_init(void)
     return true;
 }
 
-void hal_backlight_set(uint8_t percent)
+static uint8_t s_backlight = 80;
+static bool s_display_on   = true;
+
+static void backlight_duty(uint8_t percent)
 {
-    if (percent > 100) percent = 100;
-    if (percent < 3) percent = 3; /* never fully dark: the user could not find the slider */
     /* 12-bit LEDC channel 1, configured by every panel driver in the BSP. */
     uint32_t duty = (4095u * percent) / 100u;
     ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, duty);
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
+}
+
+void hal_backlight_set(uint8_t percent)
+{
+    if (percent > 100) percent = 100;
+    if (percent < 3) percent = 3; /* never fully dark: the user could not find the slider */
+    s_backlight = percent;
+    if (s_display_on) backlight_duty(percent);
 }
 
 bool hal_lvgl_lock(uint32_t timeout_ms) { return lvgl_port_lock(timeout_ms); }
@@ -147,6 +156,36 @@ static void kbd_event_cb(m5_tab5_key_event_t ev, void *arg)
     }
 }
 
+/* ---- Keyboard light ------------------------------------------------------ */
+
+static volatile uint8_t s_kbd_bright = 20; /* keyboard firmware default */
+static volatile bool s_kbd_color;
+static volatile uint32_t s_kbd_rgb;
+
+static void kbd_light_apply(void)
+{
+    if (!s_kbd_present && !s_kbd.isInitialized()) return;
+    uint8_t b = s_display_on ? s_kbd_bright : 0;
+    s_kbd.setBrightness(b);
+    s_kbd.setRGBMode(s_kbd_color ? M5_TAB5_KB_RGB_MODE_CUSTOM : M5_TAB5_KB_RGB_MODE_BINDING);
+    if (s_kbd_color) s_kbd.setBothRGB((s_kbd_rgb >> 16) & 0xFF, (s_kbd_rgb >> 8) & 0xFF, s_kbd_rgb & 0xFF);
+}
+
+void hal_kbd_light(uint8_t brightness, bool use_color, uint32_t rgb)
+{
+    s_kbd_bright = brightness > 100 ? 100 : brightness;
+    s_kbd_color  = use_color;
+    s_kbd_rgb    = rgb;
+    if (s_kbd_present) kbd_light_apply();
+}
+
+void hal_display_power(bool on)
+{
+    s_display_on = on;
+    backlight_duty(on ? s_backlight : 0);
+    if (s_kbd_present) kbd_light_apply();
+}
+
 static bool kbd_try_attach(void)
 {
     m5::M5Tab5Keyboard::setLogLevel(M5_TAB5_KB_LOG_LEVEL_NONE);
@@ -168,6 +207,7 @@ static bool kbd_try_attach(void)
     uint8_t ver = 0;
     s_kbd_fw    = (s_kbd.getVersion(&ver) == M5_TAB5_KB_OK) ? ver : 0;
     ESP_LOGI(TAG, "keyboard attached, fw 0x%02x", s_kbd_fw);
+    kbd_light_apply(); /* the keyboard forgets its light settings when unplugged */
     return true;
 }
 

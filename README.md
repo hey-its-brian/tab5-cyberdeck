@@ -85,6 +85,7 @@ See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
 |---|---|
 | `Alt+1..5` | Launch module 01..05 |
 | `Alt+Esc` | Return to the deck from anywhere (reserved for when SSH owns `Esc`) |
+| `Alt+0`, or tap the clock | Sleep the screen (backlight and keyboard light off); any key or touch wakes it |
 | `Esc` | Back / close, or home if the module does not use it |
 | `Left` `Right` `Enter`, or `1..5` | Pick a tile on the home screen |
 | `Tab`, arrows | Move focus inside a module |

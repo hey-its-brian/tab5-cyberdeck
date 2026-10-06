@@ -65,6 +65,13 @@ Each version ends with something flashable and usable.
 - [x] Host profiles, known_hosts pinning with change warning, device-generated ECDSA P-256 key with the public key on screen
 - [x] Checkpoint: full-screen apps verified in the simulator (top, vim) and SSH verified on hardware
 
+## v0.6.1: Keyboard light and screen sleep (done)
+
+- [x] SYSTEM > KBD LIGHT: OFF / LOW / HIGH (the keyboard default was too bright)
+- [x] SYSTEM > KBD THEME COLOR: keyboard LEDs take the accent color and follow accent changes
+- [x] Screen sleep: `Alt+0` or tap the status bar clock; backlight and keyboard light off, any key or touch wakes (that press is swallowed)
+- [ ] Checkpoint: verified on hardware
+
 ## v0.7: File portal
 
 - Toggle in SYSTEM starts a web file manager on the LAN: `http://deck.local` (mDNS) plus the IP shown on screen
@@ -104,6 +111,6 @@ A passive monitoring suite that listens and alerts, never transmits.
 
 ## v1.0: Polish
 
-- Battery stats, idle sleep, wake on key
+- Battery stats, idle sleep (timed, building on the v0.6.1 screen sleep)
 - More accents, cross-module links (open a note from SSH, send a result to Notes)
 - 24 h soak test for leaks
