@@ -34,6 +34,9 @@ void deck_shell_rebuild(void);
 void deck_shell_sleep(void);
 bool deck_shell_sleeping(void);
 
+/* The shortcut list (Alt+H, or the hint on the home screen). */
+void deck_shell_shortcuts(void);
+
 /* Push the keyboard light settings (kbd_led level, kbd_theme) and the
  * current accent to the keyboard. */
 void deck_shell_apply_kbd_light(void);

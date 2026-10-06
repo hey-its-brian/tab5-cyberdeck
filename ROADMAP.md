@@ -88,7 +88,8 @@ Each version ends with something flashable and usable.
 - [x] Signed OTA updates (RSA-3072, no Secure Boot, no eFuses): signed builds only install updates signed with the same key; USB always works
 - [x] CI: actions pinned to commit SHAs, esp-web-tools tarball integrity check, manifest built with jq, job-scoped permissions
 - [x] Checkpoint: beta installs from v0.7.0, SECURITY shows ENCRYPTED, settings survive restarts
-- [ ] Checkpoint: the next signed update installs over the air
+- [x] Checkpoint: the next signed update installs over the air (beta.1 to beta.2)
+- [x] Discoverability: `Alt+H` shortcut list (also a tappable hint on the home screen), SYSTEM > SLEEP (ALT+0) row
 - Known issue: the one-time move of existing settings into encrypted storage lost them on the test deck (Wi-Fi had to be re-entered). Only decks upgrading from v0.7.0 or earlier run it, so it was left as is
 
 ## v0.8: Audio player (MP3)

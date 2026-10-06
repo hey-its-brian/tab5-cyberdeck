@@ -68,7 +68,7 @@ static lv_obj_t *setting_row(lv_obj_t *parent, const char *icon, const char *nam
 {
     lv_obj_t *row = deck_box(parent);
     lv_obj_set_width(row, LV_PCT(100));
-    lv_obj_set_height(row, 48);
+    lv_obj_set_height(row, 46);
     lv_obj_t *l = deck_icon_text(row, icon, name, g_font.mono_m, g_pal.text);
     lv_obj_align(l, LV_ALIGN_LEFT_MID, 0, 0);
     return row;
@@ -126,6 +126,12 @@ static void kbd_theme_changed(lv_event_t *e)
     bool on = lv_obj_has_state(lv_event_get_target_obj(e), LV_STATE_CHECKED);
     hal_cfg_set_i32("kbd_theme", on);
     deck_shell_apply_kbd_light();
+}
+
+static void sleep_clicked(lv_event_t *e)
+{
+    (void)e;
+    deck_shell_sleep();
 }
 
 static lv_obj_t *add_switch(lv_obj_t *row, bool on, lv_event_cb_t cb)
@@ -622,6 +628,7 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
 
     /* ---- DISPLAY ---- */
     lv_obj_t *left = column_panel(root, 372);
+    lv_obj_set_style_pad_row(left, 9, 0); /* seven rows plus the accent grid */
     deck_section(left, "DISPLAY");
 
     lv_obj_t *row = setting_row(left, ICON_BRIGHTNESS, "BRIGHTNESS");
@@ -652,6 +659,11 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
     lv_obj_align(kb, LV_ALIGN_RIGHT_MID, 0, 0);
     row = setting_row(left, ICON_PALETTE, "KBD THEME COLOR");
     add_switch(row, hal_cfg_get_i32("kbd_theme", 0) != 0, kbd_theme_changed);
+    /* Screen sleep is also Alt+0 or a tap on the clock; this makes it findable. */
+    row = setting_row(left, WX_NIGHT, "SLEEP (ALT+0)");
+    lv_obj_t *sl = small_button(row, "NOW", sleep_clicked, NULL);
+    lv_obj_set_width(sl, 100);
+    lv_obj_align(sl, LV_ALIGN_RIGHT_MID, 0, 0);
 
     deck_section(left, "ACCENT");
     lv_obj_t *sw = deck_box(left);

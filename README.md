@@ -107,7 +107,8 @@ See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
 |---|---|
 | `Alt+1..6` | Launch module 01..06 |
 | `Alt+Esc` | Return to the deck from anywhere (reserved for when SSH owns `Esc`) |
-| `Alt+0`, or tap the clock | Sleep the screen (backlight and keyboard light off); any key or touch wakes it |
+| `Alt+0`, tap the clock, or SYSTEM > SLEEP | Sleep the screen (backlight and keyboard light off); any key or touch wakes it |
+| `Alt+H`, or tap the hint on the home screen | List every shortcut |
 | `Esc` | Back / close, or home if the module does not use it |
 | `Left` `Right` `Enter`, or `1..6` | Pick a tile on the home screen |
 | `Tab`, arrows | Move focus inside a module |

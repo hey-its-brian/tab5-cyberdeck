@@ -25,6 +25,7 @@ extern "C" {
 
 /* HID usage IDs used by the shell and apps. */
 #define HID_A          0x04
+#define HID_H          0x0B
 #define HID_Z          0x1D
 #define HID_1          0x1E
 #define HID_9          0x26

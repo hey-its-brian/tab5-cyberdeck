@@ -257,6 +257,23 @@ void deck_modal_confirm(const char *title, const char *message, const char *yes_
     end_build(p, yes_label ? yes_label : "OK");
 }
 
+void deck_modal_info(const char *title, const char *const *columns, int count)
+{
+    lv_obj_t *p    = begin_build(MODAL_CONFIRM, title, NULL);
+    lv_obj_set_width(p, 1040);
+    lv_obj_t *cols = deck_box(p);
+    lv_obj_set_size(cols, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(cols, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_column(cols, 40, 0);
+    for (int i = 0; i < count; i++) {
+        lv_obj_t *l = deck_label(cols, g_font.mono_s, g_pal.text, columns[i]);
+        lv_obj_set_flex_grow(l, 1);
+        lv_obj_set_style_text_line_space(l, 5, 0);
+    }
+    end_build(p, NULL); /* a single button: rename it, Enter and Esc both close */
+    lv_label_set_text(lv_obj_get_child_by_type(s_m.cancel_btn, 0, &lv_label_class), "CLOSE");
+}
+
 void deck_modal_confirm_danger(const char *title, const char *message, const char *yes_label, deck_confirm_cb_t cb,
                                void *user)
 {
