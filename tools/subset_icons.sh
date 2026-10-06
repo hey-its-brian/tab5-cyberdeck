@@ -42,6 +42,7 @@ codepoints=(
     F006E  # backspace
     F02DA  # history
     F097B  # keyboard-outline
+    F048D  # server-network
     F0599  # weather-sunny
     F0594  # weather-night
     F0F31  # weather-night-partly-cloudy

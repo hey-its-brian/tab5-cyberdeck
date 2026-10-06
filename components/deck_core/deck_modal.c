@@ -23,7 +23,11 @@ static struct {
     lv_obj_t *first_row;
     lv_obj_t *cancel_btn;
     void *user;
+    bool danger;     /* CANCEL focused, Enter ignored for DANGER_ARM_MS */
+    uint32_t opened; /* lv_tick at open */
 } s_m;
+
+#define DANGER_ARM_MS 1000
 
 bool deck_modal_active(void) { return s_m.kind != MODAL_NONE; }
 
@@ -65,6 +69,8 @@ static void finish(bool ok)
 void deck_modal_enter(void)
 {
     if (!deck_modal_active()) return;
+    /* Type-ahead or a held Enter must not accept a dangerous dialog. */
+    if (s_m.danger && lv_tick_elaps(s_m.opened) < DANGER_ARM_MS) return;
     lv_obj_t *f = lv_group_get_focused(s_m.group);
     if (f != NULL && f == s_m.cancel_btn) {
         finish(false);
@@ -163,7 +169,8 @@ static void end_build(lv_obj_t *panel, const char *ok_label)
 
     lv_group_set_default(s_m.prev_default);
     deck_input_push_group(s_m.group);
-    lv_obj_t *first = s_m.ta ? s_m.ta : s_m.first_row ? s_m.first_row : ok;
+    lv_obj_t *first = s_m.ta ? s_m.ta : s_m.first_row ? s_m.first_row : s_m.danger ? cancel : ok;
+    s_m.opened      = lv_tick_get();
     lv_group_focus_obj(first);
     lv_obj_add_state(first, LV_STATE_FOCUS_KEY); /* make Enter's target visible */
 }
@@ -246,6 +253,18 @@ void deck_modal_confirm(const char *title, const char *message, const char *yes_
     lv_obj_t *p    = begin_build(MODAL_CONFIRM, title, user);
     s_m.confirm_cb = cb;
     lv_obj_t *msg  = deck_label(p, g_font.mono_m, g_pal.text, message);
+    lv_obj_set_width(msg, LV_PCT(100));
+    end_build(p, yes_label ? yes_label : "OK");
+}
+
+void deck_modal_confirm_danger(const char *title, const char *message, const char *yes_label, deck_confirm_cb_t cb,
+                               void *user)
+{
+    lv_obj_t *p    = begin_build(MODAL_CONFIRM, title, user);
+    s_m.confirm_cb = cb;
+    s_m.danger     = true;
+    deck_panel_set_outline(p, g_pal.accent2);
+    lv_obj_t *msg = deck_label(p, g_font.mono_m, g_pal.text, message);
     lv_obj_set_width(msg, LV_PCT(100));
     end_build(p, yes_label ? yes_label : "OK");
 }

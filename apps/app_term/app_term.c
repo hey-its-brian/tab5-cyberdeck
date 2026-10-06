@@ -190,8 +190,11 @@ static void pump(lv_timer_t *tm)
                                               "someone is intercepting the connection."
                                             : "First connection to this host. Check its fingerprint:",
                      link_fingerprint());
-            deck_modal_confirm(link_hostkey_changed() ? "HOST KEY CHANGED" : "NEW HOST", msg, "TRUST",
-                               hostkey_decided, NULL);
+            if (link_hostkey_changed()) {
+                deck_modal_confirm_danger("HOST KEY CHANGED", msg, "TRUST NEW KEY", hostkey_decided, NULL);
+            } else {
+                deck_modal_confirm("NEW HOST", msg, "TRUST", hostkey_decided, NULL);
+            }
         } else if (st == LINK_CLOSED) {
             const char *m = "\r\n\x1b[1;31m[link closed]\x1b[0m press Enter to return\r\n";
             deck_term_feed(s_t.term, m, strlen(m));
@@ -311,6 +314,10 @@ static void open_term(const host_t *h, const char *password)
     p.port          = h->port;
     s_t.shown_state = (link_state_t)-1;
     link_open(&p, cols, rows);
+    /* link_open keeps its own copy; don't leave the password on the stack.
+     * Called through a volatile pointer so the dead store is not dropped. */
+    static void *(*const volatile wipe)(void *, int, size_t) = memset;
+    wipe(&p, 0, sizeof(p));
     s_t.pump = lv_timer_create(pump, PUMP_MS, NULL);
     pump(s_t.pump);
 }

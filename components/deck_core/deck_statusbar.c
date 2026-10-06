@@ -10,6 +10,7 @@
 #include "deck_hal.h"
 #include "deck_net.h"
 #include "deck_ota.h"
+#include "deck_portal.h"
 #include "deck_icons.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
@@ -19,12 +20,14 @@ static lv_obj_t *s_bar;
 static lv_obj_t *s_left;
 static lv_obj_t *s_clock;
 static lv_obj_t *s_date;
+static lv_obj_t *s_mid, *s_right;
 static lv_obj_t *s_kbd;
 static lv_obj_t *s_sd;
 static lv_obj_t *s_net;
 static lv_obj_t *s_pwr;
 static lv_obj_t *s_upd;
 static bool s_auto_checked; /* one update check per boot, once online */
+static lv_obj_t *s_link;
 static lv_timer_t *s_timer;
 
 static void back_clicked(lv_event_t *e)
@@ -89,8 +92,10 @@ static void refresh(lv_timer_t *t)
     static const char *months[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN",
                                    "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
     lv_label_set_text_fmt(s_clock, "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
-    lv_label_set_text_fmt(s_date, "%s %02d %s %04d", days[tm.tm_wday], tm.tm_mday, months[tm.tm_mon],
-                          tm.tm_year + 1900);
+    char date_full[24], date_short[12];
+    snprintf(date_full, sizeof(date_full), "%s %02d %s %04d", days[tm.tm_wday], tm.tm_mday, months[tm.tm_mon],
+             tm.tm_year + 1900);
+    snprintf(date_short, sizeof(date_short), "%02d %s", tm.tm_mday, months[tm.tm_mon]);
 
     bool kbd = hal_kbd_present();
     set_indicator(s_kbd, kbd ? ICON_KEYBOARD : ICON_KEYBOARD_OFF, "KBD", kbd ? g_pal.accent : g_pal.dim);
@@ -116,6 +121,15 @@ static void refresh(lv_timer_t *t)
         default: set_indicator(s_net, ICON_WIFI_OFF, "NET", g_pal.dim); break;
     }
 
+    /* The portal outlives its module, so its idle shutdown is driven here. */
+    portal_tick();
+    if (portal_running()) {
+        lv_obj_remove_flag(s_link, LV_OBJ_FLAG_HIDDEN);
+        set_indicator(s_link, ICON_SERVER, "LINK", portal_busy() && (tm.tm_sec & 1) ? g_pal.text : g_pal.accent2);
+    } else {
+        lv_obj_add_flag(s_link, LV_OBJ_FLAG_HIDDEN);
+    }
+
     hal_power_t p;
     hal_power_read(&p);
     char buf[32];
@@ -127,6 +141,20 @@ static void refresh(lv_timer_t *t)
         snprintf(buf, sizeof(buf), "%d%%", p.percent);
         set_indicator(s_pwr, p.charging ? ICON_BATTERY_CHG : ICON_BATTERY, buf,
                       p.percent <= 15 && !p.charging ? g_pal.danger : g_pal.accent);
+    }
+
+    /* With UPD and LINK up the indicators reach the centre: shorten the
+     * date, then drop it, rather than overlap. */
+    const char *forms[] = {date_full, date_short, NULL};
+    for (int i = 0; i < 3; i++) {
+        if (forms[i]) {
+            lv_obj_remove_flag(s_date, LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(s_date, forms[i]);
+        } else {
+            lv_obj_add_flag(s_date, LV_OBJ_FLAG_HIDDEN);
+        }
+        lv_obj_update_layout(s_bar);
+        if (lv_obj_get_x2(s_mid) + 24 < lv_obj_get_x(s_right)) break;
     }
 }
 
@@ -174,7 +202,7 @@ void deck_statusbar_create(lv_obj_t *parent)
     lv_obj_set_style_pad_column(s_left, 8, 0);
     lv_obj_align(s_left, LV_ALIGN_LEFT_MID, 16, 0);
 
-    lv_obj_t *mid = deck_box(s_bar);
+    lv_obj_t *mid = s_mid = deck_box(s_bar);
     lv_obj_set_flex_flow(mid, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(mid, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(mid, 14, 0);
@@ -186,13 +214,15 @@ void deck_statusbar_create(lv_obj_t *parent)
     lv_obj_add_event_cb(mid, clock_clicked, LV_EVENT_CLICKED, NULL);
     s_date  = deck_label(mid, g_font.mono_s, g_pal.dim, "");
 
-    lv_obj_t *right = deck_box(s_bar);
+    lv_obj_t *right = s_right = deck_box(s_bar);
     lv_obj_set_flex_flow(right, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(right, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(right, 22, 0);
     lv_obj_align(right, LV_ALIGN_RIGHT_MID, -16, 0);
     s_upd = indicator(right); /* shown only while an update is waiting */
     lv_obj_add_flag(s_upd, LV_OBJ_FLAG_HIDDEN);
+    s_link = indicator(right);
+    lv_obj_add_flag(s_link, LV_OBJ_FLAG_HIDDEN);
     s_kbd = indicator(right);
     s_sd  = indicator(right);
     s_net = indicator(right);

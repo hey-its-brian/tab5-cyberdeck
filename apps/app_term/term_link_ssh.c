@@ -320,6 +320,9 @@ static void worker(void *arg)
     if (fd < 0) goto done;
 
     sess = libssh2_session_init();
+    /* Blocking calls (handshake, auth, channel setup) give up after 15 s
+     * instead of hanging the worker on a server that goes quiet. */
+    if (sess) libssh2_session_set_timeout(sess, 15000);
     if (sess == NULL || libssh2_session_handshake(sess, fd) != 0) {
         status("SSH handshake failed");
         goto done;
@@ -376,10 +379,12 @@ static void worker(void *arg)
     size_t pending = 0, sent = 0;
     while (!s_stop) {
         ssize_t n;
-        while ((n = libssh2_channel_read(ch, buf, sizeof(buf))) > 0) {
+        /* Bounded reads, so a flood of output (`yes`) cannot starve the
+         * keystroke writes below (Ctrl-C) or the stop check. */
+        for (int i = 0; i < 8 && (n = libssh2_channel_read(ch, buf, sizeof(buf))) > 0; i++) {
             xStreamBufferSend(s_rx, buf, (size_t)n, pdMS_TO_TICKS(100));
         }
-        while ((n = libssh2_channel_read_stderr(ch, buf, sizeof(buf))) > 0) {
+        for (int i = 0; i < 8 && (n = libssh2_channel_read_stderr(ch, buf, sizeof(buf))) > 0; i++) {
             xStreamBufferSend(s_rx, buf, (size_t)n, pdMS_TO_TICKS(100));
         }
         if (n < 0 && n != LIBSSH2_ERROR_EAGAIN) {
@@ -412,6 +417,7 @@ static void worker(void *arg)
     }
 
 done:
+    memset(s_p.password, 0, sizeof(s_p.password)); /* early exits skip the wipe after auth */
     if (ch) {
         libssh2_session_set_blocking(sess, 1);
         libssh2_channel_close(ch);

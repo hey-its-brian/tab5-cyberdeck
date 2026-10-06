@@ -21,6 +21,7 @@ static const char *TAG = "ota";
 #define REPO "hey-its-brian/tab5-cyberdeck"
 #define URL_LATEST "https://api.github.com/repos/" REPO "/releases/latest"
 #define URL_LIST "https://api.github.com/repos/" REPO "/releases?per_page=8"
+#define ASSET_PREFIX "https://github.com/" REPO "/releases/download/" /* only ever download from here */
 #define NOTES_MAX 2048
 
 static volatile ota_state_t s_state = OTA_IDLE;
@@ -92,7 +93,8 @@ static bool read_release(const cJSON *rel)
         const cJSON *url  = cJSON_GetObjectItemCaseSensitive(a, "browser_download_url");
         if (cJSON_IsString(name) && cJSON_IsString(url)) {
             size_t n = strlen(name->valuestring);
-            if (n > 8 && strcmp(name->valuestring + n - 8, "-ota.bin") == 0) {
+            if (n > 8 && strcmp(name->valuestring + n - 8, "-ota.bin") == 0 &&
+                strncmp(url->valuestring, ASSET_PREFIX, strlen(ASSET_PREFIX)) == 0) {
                 snprintf(s_asset_url, sizeof(s_asset_url), "%s", url->valuestring);
                 break;
             }
@@ -178,6 +180,14 @@ static void install_task(void *arg)
     if (esp_https_ota_get_img_desc(h, &desc) != ESP_OK || strcmp(desc.project_name, self->project_name) != 0) {
         esp_https_ota_abort(h);
         fail("image is not DECK//OS firmware");
+        vTaskDelete(NULL);
+        return;
+    }
+    /* The image must be the release it claims to be, and newer than us:
+     * a tag pointing at an old build cannot downgrade the deck. */
+    if (ota_version_cmp(desc.version, s_latest) != 0 || ota_version_cmp(desc.version, s_running) <= 0) {
+        esp_https_ota_abort(h);
+        fail("image version does not match the release");
         vTaskDelete(NULL);
         return;
     }

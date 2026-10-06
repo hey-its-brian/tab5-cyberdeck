@@ -25,6 +25,7 @@
 
 #include "app_calc.h"
 #include "app_notes.h"
+#include "app_portal.h"
 #include "app_sys.h"
 #include "app_term.h"
 #include "app_weather.h"
@@ -291,6 +292,7 @@ int main(int argc, char **argv)
     deck_app_register(app_notes());
     deck_app_register(app_calc());
     deck_app_register(app_weather());
+    deck_app_register(app_portal());
     deck_app_register(app_sys());
     deck_shell_start(boot);
 

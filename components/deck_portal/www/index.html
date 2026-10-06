@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DECK//OS Portal</title>
+<style>
+:root {
+  --bg: #07070d; --panel: #0d0f1c; --panel-hi: #171a30; --line: #2a3050;
+  --text: #d8e1f0; --dim: #5f6884; --accent: #00f0ff; --accent2: #ff2a6d;
+  --warn: #f3e600; --ok: #39ff14; --danger: #ff3b3b;
+  --mono: "Share Tech Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--mono); }
+body {
+  min-height: 100vh;
+  background-color: var(--bg);
+  background-image: linear-gradient(#16182a 1px, transparent 1px), linear-gradient(90deg, #16182a 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
+.cut { clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
+.panel { background: var(--panel); border: 1px solid var(--line); padding: 18px; position: relative; }
+.panel.cut { border: none; box-shadow: inset 0 0 0 1px var(--line); }
+header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 14px;
+         border-bottom: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); padding-bottom: 10px; }
+.brand { font-size: 26px; letter-spacing: 3px; }
+.brand b { color: var(--accent); font-weight: normal; }
+.sub { color: var(--dim); }
+.grow { flex: 1; }
+button, .btn {
+  font: inherit; color: var(--text); background: var(--panel-hi); border: 1px solid var(--line);
+  padding: 8px 14px; cursor: pointer; letter-spacing: 1px; text-transform: uppercase;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+button:hover, .btn:hover { color: var(--accent); border-color: var(--accent); }
+button.danger:hover { color: var(--danger); border-color: var(--danger); }
+input[type=text], input[type=password] {
+  font: inherit; font-size: 28px; letter-spacing: 10px; text-align: center; width: 100%;
+  background: #04050a; color: var(--text); border: 1px solid var(--accent); padding: 10px; outline: none;
+}
+.bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.crumbs { color: var(--dim); }
+.crumbs a { color: var(--accent); text-decoration: none; cursor: pointer; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; color: var(--dim); font-weight: normal; border-bottom: 1px solid var(--line); padding: 6px 8px; }
+td { padding: 8px; border-bottom: 1px solid #151829; }
+tr:hover td { background: #0f1224; }
+td.name { cursor: pointer; word-break: break-all; }
+td.name:hover { color: var(--accent); }
+td.num { text-align: right; color: var(--dim); white-space: nowrap; }
+td.act { text-align: right; white-space: nowrap; }
+td.act button { padding: 3px 9px; font-size: 12px; }
+.tag { display: inline-block; width: 46px; color: var(--accent2); }
+.dir .tag { color: var(--accent); }
+#drop {
+  position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+  background: #000c; border: 3px dashed var(--accent); font-size: 28px; color: var(--accent); z-index: 9;
+}
+#drop.on { display: flex; }
+.q { margin-top: 12px; }
+.qi { display: grid; grid-template-columns: 1fr 70px; gap: 8px; align-items: center; margin: 4px 0; color: var(--dim); }
+.qb { height: 6px; background: #151829; grid-column: 1 / -1; }
+.qb i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+.qi.done .qb i { background: var(--ok); }
+.qi.err .qb i { background: var(--danger); width: 100%; }
+#login { max-width: 380px; margin: 12vh auto 0; }
+#login h2 { font-weight: normal; letter-spacing: 3px; margin: 0 0 6px; }
+#msg { min-height: 22px; color: var(--danger); margin-top: 10px; }
+.empty { color: var(--dim); padding: 24px 8px; text-align: center; }
+.hint { color: var(--dim); font-size: 13px; margin-top: 10px; }
+.ticks { position: absolute; left: 22px; top: -1px; width: 56px; height: 3px; background: var(--accent2); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">DECK<b>//OS</b></div>
+    <div class="sub">FILE PORTAL</div>
+    <div class="grow"></div>
+    <div class="sub" id="store"></div>
+  </header>
+
+  <div id="login" class="panel cut" hidden>
+    <div class="ticks"></div>
+    <h2>// AUTH</h2>
+    <p class="sub">Enter the PIN shown on the deck.</p>
+    <form id="lf"><input id="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" autofocus></form>
+    <div id="msg"></div>
+  </div>
+
+  <div id="app" hidden>
+    <div class="bar">
+      <div class="crumbs grow" id="crumbs"></div>
+      <button id="up">Up</button>
+      <button id="mk">New folder</button>
+      <label class="btn">Upload<input id="pick" type="file" multiple hidden></label>
+    </div>
+    <div class="panel cut">
+      <div class="ticks"></div>
+      <table>
+        <thead><tr><th>Name</th><th style="text-align:right">Size</th><th style="text-align:right">Modified</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="hint">Drop files anywhere to upload them into this folder. Notes go in /notes, music in /music.</div>
+    </div>
+    <div class="q" id="queue"></div>
+  </div>
+</div>
+<div id="drop">DROP TO UPLOAD</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let cwd = "/";
+
+function human(n) {
+  if (n < 1024) return n + " B";
+  if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+  if (n < 1073741824) return (n / 1048576).toFixed(1) + " MB";
+  return (n / 1073741824).toFixed(2) + " GB";
+}
+const join = (dir, name) => (dir.endsWith("/") ? dir : dir + "/") + name;
+const q = (o) => Object.entries(o).map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (r.status === 401) { showLogin(); throw new Error("login"); }
+  const t = await r.text();
+  let j = {};
+  try { j = JSON.parse(t); } catch (e) {}
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function showLogin(msg) {
+  $("app").hidden = true; $("login").hidden = false;
+  $("msg").textContent = msg || ""; $("pin").value = ""; $("pin").focus();
+}
+
+$("lf").onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    await api("/api/login", { method: "POST", body: "pin=" + $("pin").value });
+    $("login").hidden = true; $("app").hidden = false; load("/"); info();
+  } catch (err) { if (err.message !== "login") showLogin(err.message.toUpperCase()); }
+};
+$("pin").oninput = () => { if ($("pin").value.length === 6) $("lf").requestSubmit(); };
+
+async function info() {
+  try {
+    const i = await api("/api/info");
+    $("store").textContent = i.storage + (i.total ? "  //  " + human(i.free) + " FREE" : "");
+  } catch (e) {}
+}
+
+function crumbs() {
+  const el = $("crumbs"), parts = cwd.split("/").filter(Boolean);
+  const link = (text, path) => {
+    const a = document.createElement("a");
+    a.textContent = text; // folder names are data, never markup
+    a.onclick = () => load(path);
+    el.append(a);
+  };
+  el.replaceChildren();
+  link("ROOT", "/");
+  let acc = "";
+  for (const p of parts) { acc += "/" + p; el.append(" / "); link(p, acc); }
+}
+
+async function load(path) {
+  cwd = path; crumbs();
+  let list;
+  try { list = (await api("/api/list?" + q({ path }))).entries; } catch (e) { return; }
+  list.sort((a, b) => (b.dir - a.dir) || a.name.localeCompare(b.name));
+  const rows = $("rows");
+  rows.innerHTML = "";
+  if (!list.length) rows.innerHTML = '<tr><td colspan="4" class="empty">EMPTY</td></tr>';
+  for (const e of list) {
+    const tr = document.createElement("tr");
+    if (e.dir) tr.className = "dir";
+    const ext = e.dir ? "DIR" : (e.name.split(".").pop() || "").slice(0, 4).toUpperCase();
+    const when = e.mtime > 0 ? new Date(e.mtime * 1000).toLocaleString([], { dateStyle: "short", timeStyle: "short" }) : "";
+    tr.innerHTML = '<td class="name"><span class="tag"></span><span class="n"></span></td>' +
+      '<td class="num">' + (e.dir ? "" : human(e.size)) + '</td><td class="num">' + when + "</td>" +
+      '<td class="act"><button class="rn">Ren</button> <button class="danger del">Del</button></td>';
+    tr.querySelector(".tag").textContent = ext;
+    tr.querySelector(".n").textContent = e.name;
+    const full = join(cwd, e.name);
+    tr.querySelector(".name").onclick = () => e.dir ? load(full) : (location.href = "/api/file?" + q({ path: full }));
+    tr.querySelector(".rn").onclick = async () => {
+      const to = prompt("Rename to", e.name);
+      if (!to || to === e.name) return;
+      try { await api("/api/rename?" + q({ from: full, to: join(cwd, to) }), { method: "POST" }); } catch (err) { alert(err.message); }
+      load(cwd);
+    };
+    tr.querySelector(".del").onclick = async () => {
+      if (!confirm("Delete " + e.name + (e.dir ? " and everything in it" : "") + "?")) return;
+      try { await api("/api/delete?" + q({ path: full }), { method: "POST" }); } catch (err) { alert(err.message); }
+      load(cwd); info();
+    };
+    rows.appendChild(tr);
+  }
+}
+
+$("up").onclick = () => { if (cwd !== "/") load(cwd.replace(/\/[^/]+\/?$/, "") || "/"); };
+$("mk").onclick = async () => {
+  const name = prompt("Folder name");
+  if (!name) return;
+  try { await api("/api/mkdir?" + q({ path: join(cwd, name) }), { method: "POST" }); } catch (err) { alert(err.message); }
+  load(cwd);
+};
+
+/* Uploads go one at a time: the deck writes to SD at its own pace. */
+const pending = [];
+let uploading = false;
+
+function enqueue(files) {
+  for (const f of files) {
+    const el = document.createElement("div");
+    el.className = "qi";
+    el.innerHTML = '<span class="n"></span><span class="p">0%</span><div class="qb"><i></i></div>';
+    el.querySelector(".n").textContent = f.name + "  (" + human(f.size) + ")";
+    $("queue").prepend(el);
+    pending.push({ f, el, dir: cwd });
+  }
+  pump();
+}
+
+function pump() {
+  if (uploading || !pending.length) return;
+  uploading = true;
+  const { f, el, dir } = pending.shift();
+  const x = new XMLHttpRequest();
+  x.open("POST", "/api/upload?" + q({ path: join(dir, f.name) }));
+  const t0 = performance.now();
+  x.upload.onprogress = (e) => {
+    if (!e.lengthComputable) return;
+    const pct = Math.round((e.loaded / e.total) * 100);
+    const rate = e.loaded / ((performance.now() - t0) / 1000);
+    el.querySelector("i").style.width = pct + "%";
+    el.querySelector(".p").textContent = pct + "%  " + human(rate) + "/s";
+  };
+  x.onload = () => {
+    const ok = x.status === 200;
+    el.classList.add(ok ? "done" : "err");
+    el.querySelector(".p").textContent = ok ? "DONE" : "FAILED";
+    if (x.status === 401) showLogin();
+    uploading = false;
+    if (dir === cwd) load(cwd);
+    info();
+    pump();
+  };
+  x.onerror = () => { el.classList.add("err"); el.querySelector(".p").textContent = "FAILED"; uploading = false; pump(); };
+  x.send(f);
+}
+
+$("pick").onchange = (e) => { enqueue(e.target.files); e.target.value = ""; };
+let depth = 0;
+window.addEventListener("dragenter", (e) => { e.preventDefault(); if (!$("app").hidden) { depth++; $("drop").classList.add("on"); } });
+window.addEventListener("dragleave", () => { if (--depth <= 0) { depth = 0; $("drop").classList.remove("on"); } });
+window.addEventListener("dragover", (e) => e.preventDefault());
+window.addEventListener("drop", (e) => {
+  e.preventDefault(); depth = 0; $("drop").classList.remove("on");
+  if (!$("app").hidden && e.dataTransfer.files.length) enqueue(e.dataTransfer.files);
+});
+
+(async () => {
+  try { await api("/api/info"); $("app").hidden = false; load("/"); info(); } catch (e) {}
+})();
+</script>
+</body>
+</html>
