@@ -35,7 +35,11 @@ void hal_lvgl_unlock(void);
 #define HAL_SCREEN_W 1280
 #define HAL_SCREEN_H 720
 
-void hal_backlight_set(uint8_t percent);   /* 0..100 */
+void hal_backlight_set(uint8_t percent);   /* 3..100 (never fully dark) */
+
+/* Screen sleep: off turns the backlight fully off and the keyboard LEDs
+ * out; on restores the saved brightness and keyboard light. */
+void hal_display_power(bool on);
 
 /* ---- Keyboard ------------------------------------------------------------ */
 
@@ -54,6 +58,11 @@ bool hal_key_poll(hal_key_t *out);
 
 bool    hal_kbd_present(void);
 uint8_t hal_kbd_fw_version(void);          /* 0 if unknown */
+
+/* Keyboard LEDs. brightness 0..100 (0 = off). With use_color the LEDs show
+ * `rgb` (0xRRGGBB); otherwise the keyboard's own status colors (Caps/Sym).
+ * Remembered and re-applied whenever the keyboard is (re)attached. */
+void hal_kbd_light(uint8_t brightness, bool use_color, uint32_t rgb);
 
 /* ---- Power --------------------------------------------------------------- */
 

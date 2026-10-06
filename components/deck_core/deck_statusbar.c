@@ -33,6 +33,12 @@ static void back_clicked(lv_event_t *e)
     deck_shell_home();
 }
 
+static void clock_clicked(lv_event_t *e)
+{
+    (void)e;
+    deck_shell_sleep();
+}
+
 static void build_left(deck_app_t *app)
 {
     lv_obj_clean(s_left);
@@ -174,6 +180,10 @@ void deck_statusbar_create(lv_obj_t *parent)
     lv_obj_set_style_pad_column(mid, 14, 0);
     lv_obj_align(mid, LV_ALIGN_CENTER, 0, 0);
     s_clock = deck_label(mid, g_font.disp_m, g_pal.text, "--:--:--");
+    /* Tap the clock to sleep the screen. */
+    lv_obj_add_flag(mid, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(mid, 12);
+    lv_obj_add_event_cb(mid, clock_clicked, LV_EVENT_CLICKED, NULL);
     s_date  = deck_label(mid, g_font.mono_s, g_pal.dim, "");
 
     lv_obj_t *right = deck_box(s_bar);

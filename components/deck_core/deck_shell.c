@@ -111,6 +111,54 @@ deck_app_t *deck_shell_current(void) { return s_current; }
 
 /* Deferred: rebuild is usually requested from an event handler of a widget
  * that the rebuild deletes. */
+/* ---- Sleep and keyboard light -------------------------------------------- */
+
+static lv_obj_t *s_sleep;
+
+static void wake_async(void *u)
+{
+    (void)u;
+    if (s_sleep) {
+        lv_obj_delete(s_sleep);
+        s_sleep = NULL;
+    }
+    hal_display_power(true);
+}
+
+static void sleep_pressed(lv_event_t *e)
+{
+    (void)e;
+    lv_async_call(wake_async, NULL); /* not from inside the overlay's own event */
+}
+
+void deck_shell_sleep(void)
+{
+    if (s_sleep) return;
+    /* A black, clickable layer above everything (modals included) so the
+     * waking touch lands here instead of on a control. */
+    s_sleep = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(s_sleep);
+    lv_obj_set_size(s_sleep, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_color(s_sleep, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(s_sleep, LV_OPA_COVER, 0);
+    lv_obj_add_flag(s_sleep, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(s_sleep, sleep_pressed, LV_EVENT_PRESSED, NULL);
+    hal_display_power(false);
+}
+
+bool deck_shell_sleeping(void) { return s_sleep != NULL; }
+
+static const uint8_t s_kbd_levels[3] = {0, 3, 20}; /* OFF, LOW, HIGH (20 = keyboard default) */
+
+void deck_shell_apply_kbd_light(void)
+{
+    int level = (int)hal_cfg_get_i32("kbd_led", 1);
+    if (level < 0 || level > 2) level = 1;
+    bool theme   = hal_cfg_get_i32("kbd_theme", 0) != 0;
+    uint32_t rgb = lv_color_to_u32(g_pal.accent) & 0xFFFFFF;
+    hal_kbd_light(s_kbd_levels[level], theme, rgb);
+}
+
 static void rebuild_async(void *u)
 {
     (void)u;
@@ -119,6 +167,7 @@ static void rebuild_async(void *u)
     deck_statusbar_destroy();
     lv_obj_delete(s_root);
     deck_input_reset();
+    deck_shell_apply_kbd_light(); /* accent may have changed */
     build_root();
     if (app) {
         start_app_now(app);
@@ -133,6 +182,10 @@ void deck_shell_rebuild(void) { lv_async_call(rebuild_async, NULL); }
 
 bool deck_shell_key(const deck_key_t *k)
 {
+    if (s_sleep) {
+        wake_async(NULL); /* the waking key does nothing else */
+        return true;
+    }
     if (deck_boot_active()) {
         deck_boot_skip();
         return true;
@@ -154,6 +207,10 @@ bool deck_shell_key(const deck_key_t *k)
     if (k->mods & DECK_MOD_ALT) {
         if (k->code == HID_ESC) {
             deck_shell_home();
+            return true;
+        }
+        if (k->code == HID_0) {
+            deck_shell_sleep();
             return true;
         }
         if (k->code >= HID_1 && k->code <= HID_9) {
@@ -184,5 +241,6 @@ void deck_shell_start(bool boot_anim)
     build_root();
     show_home_now();
     deck_fx_scanlines(hal_cfg_get_i32("scan", 1) != 0);
+    deck_shell_apply_kbd_light();
     if (boot_anim) deck_boot_run();
 }
