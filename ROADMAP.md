@@ -125,6 +125,12 @@ add-on). Revisit after v1.0.
 - Any key or touch wakes it, and that press is swallowed (like screen sleep)
 - Checkpoint: idle for the timeout, the clock appears and drifts, a key brings the deck back exactly where it was
 
+## Next: Startup sound
+
+- A short boot chime through the speaker (or headphones) while the POST runs, stored as a small embedded clip and played by the audio driver
+- SYSTEM > STARTUP SOUND on/off (and it follows the music volume); silent when headphones are in only if you choose so
+- Checkpoint: power on, the chime plays once over the boot screen; switched off, the boot is silent
+
 ## Later: Space weather
 
 - SPACE module (or a WEATHER tab): planetary Kp index, geomagnetic storm level (G1 to G5), solar wind speed and Bz, X-ray flux and flare class, aurora chance for your latitude
