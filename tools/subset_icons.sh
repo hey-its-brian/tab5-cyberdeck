@@ -43,6 +43,20 @@ codepoints=(
     F02DA  # history
     F097B  # keyboard-outline
     F048D  # server-network
+    F040A  # play
+    F03E4  # pause
+    F04AD  # skip-next
+    F04AE  # skip-previous
+    F049D  # shuffle
+    F0456  # repeat
+    F0457  # repeat-off
+    F0458  # repeat-once
+    F057E  # volume-high
+    F02CB  # headphones
+    F04C3  # speaker
+    F024B  # folder
+    F0387  # music-note
+    F075A  # music
     F0599  # weather-sunny
     F0594  # weather-night
     F0F31  # weather-night-partly-cloudy

@@ -25,6 +25,13 @@ typedef void (*deck_list_cb_t)(int index, void *user);
 void deck_modal_list(const char *title, const char *const *items, int count, deck_list_cb_t cb, void *user);
 void deck_modal_confirm(const char *title, const char *message, const char *yes_label, deck_confirm_cb_t cb,
                         void *user);
+/* Three-way question: `later_label` (also Esc) gives -1, `alt_label` 0,
+ * `ok_label` 1. The first button has focus and Enter waits a second, since
+ * these can appear unprompted. */
+typedef void (*deck_choice_cb_t)(int choice, void *user);
+void deck_modal_choice(const char *title, const char *message, const char *later_label, const char *alt_label,
+                       const char *ok_label, deck_choice_cb_t cb, void *user);
+
 /* Read-only text in `count` side-by-side columns with a CLOSE button. */
 void deck_modal_info(const char *title, const char *const *columns, int count);
 /* Same, for a risky "yes": CANCEL has focus and Enter does nothing for the

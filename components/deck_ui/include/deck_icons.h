@@ -33,6 +33,20 @@
 #define ICON_HISTORY        "\xF3\xB0\x8B\x9A" /* F02DA */
 #define ICON_SERVER         "\xF3\xB0\x92\x8D" /* F048D */
 #define ICON_KEYPAD         "\xF3\xB0\xA5\xBB" /* F097B */
+#define ICON_PLAY           "\xF3\xB0\x90\x8A" /* F040A */
+#define ICON_PAUSE          "\xF3\xB0\x8F\xA4" /* F03E4 */
+#define ICON_NEXT           "\xF3\xB0\x92\xAD" /* F04AD */
+#define ICON_PREV           "\xF3\xB0\x92\xAE" /* F04AE */
+#define ICON_SHUFFLE        "\xF3\xB0\x92\x9D" /* F049D */
+#define ICON_REPEAT         "\xF3\xB0\x91\x96" /* F0456 */
+#define ICON_REPEAT_OFF     "\xF3\xB0\x91\x97" /* F0457 */
+#define ICON_REPEAT_ONE     "\xF3\xB0\x91\x98" /* F0458 */
+#define ICON_VOLUME         "\xF3\xB0\x95\xBE" /* F057E */
+#define ICON_HEADPHONES     "\xF3\xB0\x8B\x8B" /* F02CB */
+#define ICON_SPEAKER        "\xF3\xB0\x93\x83" /* F04C3 */
+#define ICON_FOLDER         "\xF3\xB0\x89\x8B" /* F024B */
+#define ICON_NOTE           "\xF3\xB0\x8E\x87" /* F0387 */
+#define ICON_MUSIC          "\xF3\xB0\x9D\x9A" /* F075A */
 
 /* Weather */
 #define WX_SUNNY            "\xF3\xB0\x96\x99" /* F0599 */

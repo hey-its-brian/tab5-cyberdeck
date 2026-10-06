@@ -35,6 +35,8 @@
 #include "lvgl_port.h"
 #include "m5_tab5_component.h"
 #include "m5_tab5_keyboard.h"
+#include "m5tab5_extio_pi4ioe5v6408.h"
+#include "driver/i2c_master.h"
 
 static const char *TAG = "hal";
 
@@ -405,6 +407,39 @@ uint64_t hal_sd_free_bytes(void)
     uint64_t total = 0, free_b = 0;
     if (s_sd_ok) esp_vfs_fat_info(HAL_SD_MOUNT, &total, &free_b);
     return free_b;
+}
+
+/* ---- Audio board control -------------------------------------------------- */
+
+namespace m5::tab5 {
+i2c_master_bus_handle_t m5tab5_get_sys_i2c_master_bus_handle(); /* m5tab5_driver_common.h (private) */
+}
+
+void *hal_tab5_sys_i2c(void) { return (void *)m5::tab5::m5tab5_get_sys_i2c_master_bus_handle(); }
+
+static m5::tab5::m5tab5_extio_pi4ioe5v6408_t *extio(void)
+{
+    return (m5::tab5::m5tab5_extio_pi4ioe5v6408_t *)s_board.runtime().ioexpander_handle;
+}
+
+void hal_speaker_amp(bool on)
+{
+    if (extio()) {
+        using namespace m5::tab5;
+        m5tab5_extio_pi4ioe5v6408_write_pin(extio(), (M5TAB5_ExtIo_PI4IOE5V6408_Pin)M5TAB5_EXTIO_ADDR_LOW_SPK_EN, on);
+    }
+}
+
+bool hal_headphones(void)
+{
+    using namespace m5::tab5;
+    bool level = false;
+    if (extio() == nullptr ||
+        m5tab5_extio_pi4ioe5v6408_read_pin(extio(), (M5TAB5_ExtIo_PI4IOE5V6408_Pin)M5TAB5_EXTIO_ADDR_LOW_HP_DET,
+                                           &level) != ESP_OK) {
+        return false;
+    }
+    return level; /* HP_DET reads high with a plug in the jack */
 }
 
 /* ---- Settings ------------------------------------------------------------ */

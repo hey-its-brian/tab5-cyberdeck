@@ -11,6 +11,8 @@
 
 #include "app_calc.h"
 #include "app_notes.h"
+#include "app_player.h"
+#include "deck_audio.h"
 #include "app_portal.h"
 #include "app_sys.h"
 #include "app_term.h"
@@ -28,15 +30,18 @@ void app_main(void)
     net_init(); /* brings up the C6 link in the background */
     ota_init(DECK_VERSION); /* arms the rollback countdown on a fresh OTA build */
 
+    player_init(); /* music task; idle until something plays */
+
     hal_lvgl_lock(0);
     deck_theme_init();
     deck_input_init();
 
-    /* Launcher order: tile 01..06, Alt+1..6. SYSTEM stays last. */
+    /* Launcher order: tile 01..07, Alt+1..7. SYSTEM stays last. */
     deck_app_register(app_term());
     deck_app_register(app_notes());
     deck_app_register(app_calc());
     deck_app_register(app_weather());
+    deck_app_register(app_player());
     deck_app_register(app_portal());
     deck_app_register(app_sys());
 

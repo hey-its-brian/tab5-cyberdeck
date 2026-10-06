@@ -3,7 +3,7 @@
 Cyberdeck firmware for the **M5Stack Tab5** (ESP32-P4, 5" 1280x720) with the
 official **Tab5 Keyboard**. A touch-first, keyboard-friendly launcher with a
 cyberpunk HUD, hosting modules for SSH, markdown notes, a calculator,
-weather and a LAN file portal.
+weather, a music player and a LAN file portal.
 
 ![Home](docs/screenshots/home.png)
 
@@ -11,7 +11,30 @@ weather and a LAN file portal.
 |---|---|---|
 | ![Boot](docs/screenshots/boot.png) | ![System](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
-## Status: v0.7.0 (file portal)
+## Status: v1.0.0
+
+Seven modules: TERMINAL (SSH), NOTES (markdown), CALC, WEATHER, PLAYER
+(music), PORTAL (LAN file manager) and SYSTEM. It updates itself over Wi-Fi
+with signed builds and tells you when a new one is out.
+
+**v1.0:** the deck checks for updates at startup and every hour, and offers a
+new build in a popup: INSTALL, IGNORE (skip that version) or LATER. It waits
+for a good moment: not while the screen sleeps, in TERMINAL, or during a
+portal transfer.
+
+### v0.8.0: music player
+
+![Player](docs/screenshots/player.png)
+
+**v0.8:** PLAYER (module 05) plays MP3s from `/music` on the SD card through
+the speaker, or the headphone jack when something is plugged in. Browse by
+folder, pick a track, and the folder becomes the queue. You get a 16-band
+spectrum, ID3 titles, seek (tap the bar or `Left`/`Right`), volume, shuffle and
+repeat. Music keeps playing while you use other modules: PLAY in the status bar
+(tap it to come back), and `Alt+P` pauses from anywhere. Fill `/music` from your
+Mac with PORTAL.
+
+### v0.7.0: file portal
 
 | On the deck | In your browser |
 |---|---|
@@ -105,12 +128,13 @@ See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
 
 | Keys | Action |
 |---|---|
-| `Alt+1..6` | Launch module 01..06 |
+| `Alt+1..7` | Launch module 01..07 |
 | `Alt+Esc` | Return to the deck from anywhere (reserved for when SSH owns `Esc`) |
 | `Alt+0`, tap the clock, or SYSTEM > SLEEP | Sleep the screen (backlight and keyboard light off); any key or touch wakes it |
 | `Alt+H`, or tap the hint on the home screen | List every shortcut |
+| `Alt+P` | Pause or resume music from anywhere |
 | `Esc` | Back / close, or home if the module does not use it |
-| `Left` `Right` `Enter`, or `1..6` | Pick a tile on the home screen |
+| `Left` `Right` `Enter`, or `1..7` | Pick a tile on the home screen |
 | `Tab`, arrows | Move focus inside a module |
 
 Everything is also reachable by touch: tiles, the `< DECK` button and on-screen controls.
@@ -216,6 +240,8 @@ components/
   deck_md/            markdown to LVGL renderer (md4c)
   deck_net/           Wi-Fi over the ESP32-C6 (ESP-Hosted), SNTP, HTTPS fetch
   deck_portal/        LAN file portal: HTTP server, JSON API, PIN login, mDNS, web page (www/)
+  deck_audio/         music player: minimp3 decode task, queue, ID3, ES8388 output (aout_tab5.c)
+  minimp3/            minimp3 MP3 decoder (vendored, CC0)
   md4c/               md4c markdown parser (vendored, MIT)
   m5_tab5_component/  M5Stack Tab5 BSP (vendored, MIT)
   m5_tab5_keyboard_component/  M5Stack Tab5 Keyboard driver (vendored, MIT)

@@ -29,6 +29,7 @@ idf_component_register(
     SRCS ${m5_tab5_component_srcs}
     INCLUDE_DIRS
         "include"
+        "src/drivers/extio_pi4ioe5v6408"  # DECK//OS: the HAL drives SPK_EN and reads HP_DET
     PRIV_INCLUDE_DIRS
         "src"
         "src/drivers"

@@ -94,11 +94,13 @@ Each version ends with something flashable and usable.
 
 ## v0.8: Audio player (MP3)
 
-- ES8388 codec to the built-in speaker and the 3.5 mm headphone jack (auto-switch on plug)
-- MP3 decode (esp-audio-codec / Helix) streamed from SD, gapless queue
-- PLAYER module: library by folder, now playing, seek, volume, shuffle/repeat
-- Keeps playing in the background while you use other modules; mini controls in the status bar
-- Checkpoint: an hour of playback while using NOTES and SSH, no dropouts
+- [x] ES8388 codec through esp_codec_dev (I2S0), speaker amplifier switched off while headphones are plugged in
+- [x] MP3 decode with minimp3 (CC0) streamed from SD on its own task; Xing/Info VBR durations and seeking; ID3 title and artist
+- [x] PLAYER module (05): library by folder, now playing with a 16-band spectrum, seek (tap the bar or Left/Right), volume, shuffle, repeat off/all/one
+- [x] Keeps playing in the background; PLAY/PAUSE in the status bar (tap opens PLAYER), `Alt+P` pauses from anywhere
+- [x] Simulator plays through the Mac's speakers (SDL audio)
+- [ ] Checkpoint: speaker and headphones on hardware, auto-switch on plug
+- [ ] Checkpoint: an hour of playback while using NOTES and SSH, no dropouts
 
 ### Bluetooth audio (deferred)
 
@@ -107,13 +109,21 @@ is Bluetooth LE only, so Bluetooth headphones would need external hardware
 (a transmitter on the jack, a USB Bluetooth audio dongle, or a classic ESP32
 add-on). Revisit after v1.0.
 
-## v0.9: Update notifications
+## v1.0: Update notifications, release
 
-- Check for updates at startup (once online) and then every hour, on the channel the BETA switch picks
-- When a newer build is found, a popup offers INSTALL or IGNORE, with the release notes
-- IGNORE skips that version (no more popups for it); a newer release asks again, and SYSTEM > UPDATE can still install it
-- Never interrupts: no popup during a transfer, an SSH session in the foreground, or while the screen sleeps (it waits)
-- Checkpoint: publish a release, the deck pops up within the hour; ignore it, no more popups until the next release
+- [x] Checks for updates at startup (once online) and then hourly, on the channel the BETA switch picks
+- [x] A popup offers LATER / IGNORE / INSTALL with the release notes; IGNORE skips that version (SYSTEM > UPDATE can still install it); LATER (or Esc) asks after the next check
+- [x] Never interrupts: waits while the screen sleeps, a dialog is open, TERMINAL is in front, or the portal is moving a file; LATER has focus and Enter waits a second, so typing can't install
+- [x] SYSTEM > UPDATE and the popup share one install screen
+- [ ] Checkpoint: release v1.0.0, the deck on the 1.0 beta pops up at startup or within the hour and installs it
+
+## Next: Screen timeout and clock screensaver
+
+- SYSTEM > SCREEN TIMEOUT: off, 1, 2, 5, 10 or 30 minutes without a key or touch
+- When it runs out, a clock screensaver takes over: big time and date, slowly drifting so nothing burns in, dimmed backlight; after a further while the screen sleeps fully (the existing Alt+0 sleep)
+- Music keeps playing and the status shows on the screensaver (track, play/pause); a portal transfer or an SSH session with output keeps the screen awake
+- Any key or touch wakes it, and that press is swallowed (like screen sleep)
+- Checkpoint: idle for the timeout, the clock appears and drifts, a key brings the deck back exactly where it was
 
 ## Later: Space weather
 
@@ -137,7 +147,7 @@ A passive monitoring suite that listens and alerts, never transmits.
 - Open question: CSI may not be reachable through ESP-Hosted on the built-in C6; may need a dedicated ESP32 module
 - Radar-style view: presence, motion intensity, history
 
-## v1.0: Polish
+## Later: Polish
 
 - Battery stats, idle sleep (timed, building on the v0.6.1 screen sleep)
 - More accents, cross-module links (open a note from SSH, send a result to Notes)

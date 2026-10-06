@@ -25,6 +25,8 @@
 
 #include "app_calc.h"
 #include "app_notes.h"
+#include "app_player.h"
+#include "deck_audio.h"
 #include "app_portal.h"
 #include "app_sys.h"
 #include "app_term.h"
@@ -288,10 +290,12 @@ int main(int argc, char **argv)
     if (accent >= 0) hal_cfg_set_i32("accent", accent);
     deck_theme_init();
     deck_input_init();
+    player_init();
     deck_app_register(app_term());
     deck_app_register(app_notes());
     deck_app_register(app_calc());
     deck_app_register(app_weather());
+    deck_app_register(app_player());
     deck_app_register(app_portal());
     deck_app_register(app_sys());
     deck_shell_start(boot);

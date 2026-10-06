@@ -59,6 +59,13 @@ bool hal_key_poll(hal_key_t *out);
 bool    hal_kbd_present(void);
 uint8_t hal_kbd_fw_version(void);          /* 0 if unknown */
 
+/* Audio board control. The speaker amplifier is off unless audio is
+ * playing through the speaker; headphones are detected on the jack. */
+void hal_speaker_amp(bool on);
+bool hal_headphones(void);
+/* Tab5 only: the system I2C bus (i2c_master_bus_handle_t) for the codec. */
+void *hal_tab5_sys_i2c(void);
+
 /* Keyboard LEDs. brightness 0..100 (0 = off). With use_color the LEDs show
  * `rgb` (0xRRGGBB); otherwise the keyboard's own status colors (Caps/Sym).
  * Remembered and re-applied whenever the keyboard is (re)attached. */

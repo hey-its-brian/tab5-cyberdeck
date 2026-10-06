@@ -1,0 +1,4 @@
+dependencies:
+  idf: ">=5.4"
+  # ES8388 driver and I2S data path, as used by Espressif's Tab5 BSP.
+  espressif/esp_codec_dev: "~1.5"

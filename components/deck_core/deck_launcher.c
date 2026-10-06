@@ -69,8 +69,12 @@ static lv_obj_t *build_tile(lv_obj_t *parent, deck_app_t *app, int index, int32_
     lv_obj_t *n = deck_label(t, g_font.disp_l, g_pal.accent2, num);
     lv_obj_align(n, LV_ALIGN_TOP_LEFT, 4, 10);
 
-    lv_obj_t *chip = app->eta ? deck_chip(t, app->eta, g_pal.warn) : deck_chip(t, "ONLINE", g_pal.ok);
-    lv_obj_align(chip, LV_ALIGN_TOP_RIGHT, 0, 14);
+    /* The ONLINE chip needs room beside the number; narrow tiles (seven
+     * modules) only flag the ones that are not built yet. */
+    if (app->eta || tile_w >= 200) {
+        lv_obj_t *chip = app->eta ? deck_chip(t, app->eta, g_pal.warn) : deck_chip(t, "ONLINE", g_pal.ok);
+        lv_obj_align(chip, LV_ALIGN_TOP_RIGHT, 0, 14);
+    }
 
     lv_obj_t *icon = deck_label(t, g_font.icon_l, app->eta ? g_pal.dim : g_pal.accent, app->icon);
     lv_obj_align(icon, LV_ALIGN_CENTER, 0, -40);
