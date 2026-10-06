@@ -17,6 +17,7 @@
 #include "deck_icons.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
+#include "deck_update.h"
 #include "deck_widgets.h"
 
 static lv_obj_t *s_bar;
@@ -29,7 +30,6 @@ static lv_obj_t *s_sd;
 static lv_obj_t *s_net;
 static lv_obj_t *s_pwr;
 static lv_obj_t *s_upd;
-static bool s_auto_checked; /* one update check per boot, once online */
 static lv_obj_t *s_link;
 static lv_obj_t *s_music;
 static lv_timer_t *s_timer;
@@ -113,10 +113,7 @@ static void refresh(lv_timer_t *t)
     bool kbd = hal_kbd_present();
     set_indicator(s_kbd, kbd ? ICON_KEYBOARD : ICON_KEYBOARD_OFF, "KBD", kbd ? g_pal.accent : g_pal.dim);
     set_indicator(s_sd, ICON_SD, "SD", hal_sd_mounted() ? g_pal.accent : g_pal.dim);
-    if (!s_auto_checked && net_state() == NET_CONNECTED && net_time_synced()) {
-        s_auto_checked = true;
-        ota_check(hal_cfg_get_i32("ota_beta", 0) != 0);
-    }
+    deck_update_tick(); /* startup and hourly update checks, and the popup */
     if (ota_state() == OTA_AVAILABLE) {
         lv_obj_remove_flag(s_upd, LV_OBJ_FLAG_HIDDEN);
         set_indicator(s_upd, ICON_BOLT, "UPD", (tm.tm_sec & 1) ? g_pal.accent2 : g_pal.dim);

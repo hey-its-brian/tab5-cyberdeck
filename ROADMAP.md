@@ -109,13 +109,13 @@ is Bluetooth LE only, so Bluetooth headphones would need external hardware
 (a transmitter on the jack, a USB Bluetooth audio dongle, or a classic ESP32
 add-on). Revisit after v1.0.
 
-## v0.9: Update notifications
+## v1.0: Update notifications, release
 
-- Check for updates at startup (once online) and then every hour, on the channel the BETA switch picks
-- When a newer build is found, a popup offers INSTALL or IGNORE, with the release notes
-- IGNORE skips that version (no more popups for it); a newer release asks again, and SYSTEM > UPDATE can still install it
-- Never interrupts: no popup during a transfer, an SSH session in the foreground, or while the screen sleeps (it waits)
-- Checkpoint: publish a release, the deck pops up within the hour; ignore it, no more popups until the next release
+- [x] Checks for updates at startup (once online) and then hourly, on the channel the BETA switch picks
+- [x] A popup offers LATER / IGNORE / INSTALL with the release notes; IGNORE skips that version (SYSTEM > UPDATE can still install it); LATER (or Esc) asks after the next check
+- [x] Never interrupts: waits while the screen sleeps, a dialog is open, TERMINAL is in front, or the portal is moving a file; LATER has focus and Enter waits a second, so typing can't install
+- [x] SYSTEM > UPDATE and the popup share one install screen
+- [ ] Checkpoint: release v1.0.0, the deck on the 1.0 beta pops up at startup or within the hour and installs it
 
 ## Later: Space weather
 
@@ -139,7 +139,7 @@ A passive monitoring suite that listens and alerts, never transmits.
 - Open question: CSI may not be reachable through ESP-Hosted on the built-in C6; may need a dedicated ESP32 module
 - Radar-style view: presence, motion intensity, history
 
-## v1.0: Polish
+## Later: Polish
 
 - Battery stats, idle sleep (timed, building on the v0.6.1 screen sleep)
 - More accents, cross-module links (open a note from SSH, send a result to Notes)

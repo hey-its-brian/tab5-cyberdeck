@@ -8,7 +8,7 @@
 #include "deck_theme.h"
 #include "deck_widgets.h"
 
-typedef enum { MODAL_NONE, MODAL_PROMPT, MODAL_CONFIRM, MODAL_LIST } modal_kind_t;
+typedef enum { MODAL_NONE, MODAL_PROMPT, MODAL_CONFIRM, MODAL_LIST, MODAL_CHOICE } modal_kind_t;
 
 static struct {
     modal_kind_t kind;
@@ -19,7 +19,9 @@ static struct {
     deck_prompt_cb_t prompt_cb;
     deck_confirm_cb_t confirm_cb;
     deck_list_cb_t list_cb;
+    deck_choice_cb_t choice_cb;
     int list_choice;
+    lv_obj_t *alt_btn; /* the middle button of a choice */
     lv_obj_t *first_row;
     lv_obj_t *cancel_btn;
     void *user;
@@ -54,6 +56,7 @@ static void finish(bool ok)
     deck_prompt_cb_t pcb   = s_m.prompt_cb;
     deck_confirm_cb_t ccb  = s_m.confirm_cb;
     deck_list_cb_t lcb     = s_m.list_cb;
+    deck_choice_cb_t chcb  = s_m.choice_cb;
     int choice             = ok ? s_m.list_choice : -1;
     void *user             = s_m.user;
     char *text             = NULL;
@@ -63,6 +66,7 @@ static void finish(bool ok)
     if (kind == MODAL_PROMPT && pcb) pcb(text, user);
     if (kind == MODAL_CONFIRM && ccb) ccb(ok, user);
     if (kind == MODAL_LIST && lcb) lcb(choice, user);
+    if (kind == MODAL_CHOICE && chcb) chcb(choice, user);
     free(text);
 }
 
@@ -74,6 +78,9 @@ void deck_modal_enter(void)
     lv_obj_t *f = lv_group_get_focused(s_m.group);
     if (f != NULL && f == s_m.cancel_btn) {
         finish(false);
+    } else if (s_m.kind == MODAL_CHOICE) {
+        s_m.list_choice = (f != NULL && f == s_m.alt_btn) ? 0 : 1;
+        finish(true);
     } else if (s_m.kind == MODAL_LIST) {
         intptr_t i = f ? (intptr_t)lv_obj_get_user_data(f) : 0;
         if (i > 0) {
@@ -98,6 +105,14 @@ void deck_modal_discard(void)
 static void ok_clicked(lv_event_t *e)
 {
     (void)e;
+    s_m.list_choice = 1; /* a choice's OK; ignored by the other kinds */
+    finish(true);
+}
+
+static void alt_clicked(lv_event_t *e)
+{
+    (void)e;
+    s_m.list_choice = 0;
     finish(true);
 }
 
@@ -255,6 +270,23 @@ void deck_modal_confirm(const char *title, const char *message, const char *yes_
     lv_obj_t *msg  = deck_label(p, g_font.mono_m, g_pal.text, message);
     lv_obj_set_width(msg, LV_PCT(100));
     end_build(p, yes_label ? yes_label : "OK");
+}
+
+void deck_modal_choice(const char *title, const char *message, const char *later_label, const char *alt_label,
+                       const char *ok_label, deck_choice_cb_t cb, void *user)
+{
+    lv_obj_t *p   = begin_build(MODAL_CHOICE, title, user);
+    s_m.choice_cb = cb;
+    s_m.danger    = true; /* it can pop up mid-typing: LATER focused, Enter held off */
+    lv_obj_t *msg = deck_label(p, g_font.mono_m, g_pal.text, message);
+    lv_obj_set_width(msg, LV_PCT(100));
+    end_build(p, ok_label);
+    lv_obj_t *btns = lv_obj_get_parent(s_m.cancel_btn);
+    s_m.alt_btn    = deck_button(btns, alt_label, NULL);
+    lv_obj_move_to_index(s_m.alt_btn, 1); /* LATER  IGNORE  INSTALL */
+    lv_obj_add_event_cb(s_m.alt_btn, alt_clicked, LV_EVENT_CLICKED, NULL);
+    lv_group_add_obj(s_m.group, s_m.alt_btn);
+    lv_label_set_text(lv_obj_get_child_by_type(s_m.cancel_btn, 0, &lv_label_class), later_label);
 }
 
 void deck_modal_info(const char *title, const char *const *columns, int count)

@@ -11,7 +11,18 @@ weather, a music player and a LAN file portal.
 |---|---|---|
 | ![Boot](docs/screenshots/boot.png) | ![System](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
-## Status: v0.8.0 (music player)
+## Status: v1.0.0
+
+Seven modules: TERMINAL (SSH), NOTES (markdown), CALC, WEATHER, PLAYER
+(music), PORTAL (LAN file manager) and SYSTEM. It updates itself over Wi-Fi
+with signed builds and tells you when a new one is out.
+
+**v1.0:** the deck checks for updates at startup and every hour, and offers a
+new build in a popup: INSTALL, IGNORE (skip that version) or LATER. It waits
+for a good moment: not while the screen sleeps, in TERMINAL, or during a
+portal transfer.
+
+### v0.8.0: music player
 
 ![Player](docs/screenshots/player.png)
 

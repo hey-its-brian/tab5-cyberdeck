@@ -14,6 +14,7 @@
 #include "deck_hal.h"
 #include "deck_icons.h"
 #include "deck_modal.h"
+#include "deck_update.h"
 #include "deck_net.h"
 #include "deck_ota.h"
 #include "deck_shell.h"
@@ -396,68 +397,10 @@ static void refresh_net(void)
 
 /* ---- Firmware updates ---------------------------------------------------- */
 
-/* The install screen lives on the top layer so it survives leaving SYSTEM;
- * a timer of its own keeps it current until the deck reboots. */
-static lv_obj_t *s_flash;
-static lv_obj_t *s_flash_bar;
-static lv_obj_t *s_flash_pct;
-static lv_obj_t *s_flash_msg;
-
-static void flash_tick(lv_timer_t *t)
-{
-    ota_state_t st = ota_state();
-    lv_bar_set_value(s_flash_bar, ota_progress(), LV_ANIM_ON);
-    lv_label_set_text_fmt(s_flash_pct, "%d%%", ota_progress());
-    if (st == OTA_REBOOTING) {
-        lv_label_set_text(s_flash_msg, "VERIFIED // REBOOTING INTO NEW BUILD");
-        lv_obj_set_style_text_color(s_flash_msg, g_pal.ok, 0);
-    } else if (st == OTA_ERROR) {
-        /* Nothing was switched; the running build stays. */
-        lv_timer_delete(t);
-        lv_obj_delete(s_flash);
-        s_flash = NULL;
-        char msg[128];
-        snprintf(msg, sizeof(msg), "Update failed: %s. Nothing was changed.", ota_error());
-        deck_modal_confirm("UPDATE", msg, "OK", NULL, NULL);
-    }
-}
-
-static void show_flash_screen(void)
-{
-    s_flash = lv_obj_create(lv_layer_top());
-    lv_obj_remove_style_all(s_flash);
-    lv_obj_set_size(s_flash, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_style_bg_color(s_flash, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(s_flash, LV_OPA_COVER, 0);
-    lv_obj_add_flag(s_flash, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_move_background(s_flash); /* under the scanlines */
-
-    lv_obj_t *col = deck_box(s_flash);
-    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(col, 18, 0);
-    lv_obj_center(col);
-    lv_obj_t *t = deck_label(col, g_font.disp_l, g_pal.accent, "");
-    lv_label_set_text_fmt(t, "FLASHING v%s", ota_latest());
-    deck_label(col, g_font.mono_m, g_pal.dim, "WRITING TO THE IDLE SLOT // THE RUNNING BUILD STAYS UNTIL VERIFIED");
-    s_flash_bar = lv_bar_create(col);
-    lv_obj_set_size(s_flash_bar, 760, 22);
-    lv_bar_set_range(s_flash_bar, 0, 100);
-    lv_obj_set_style_radius(s_flash_bar, 0, 0);
-    lv_obj_set_style_radius(s_flash_bar, 0, LV_PART_INDICATOR);
-    lv_obj_set_style_bg_color(s_flash_bar, g_pal.panel_hi, 0);
-    lv_obj_set_style_bg_color(s_flash_bar, g_pal.accent, LV_PART_INDICATOR);
-    s_flash_pct = deck_label(col, g_font.disp_xl, g_pal.text, "0%");
-    s_flash_msg = deck_label(col, g_font.mono_m, g_pal.warn, "DO NOT POWER OFF");
-    lv_timer_create(flash_tick, 200, NULL);
-}
-
 static void install_confirmed(bool yes, void *ud)
 {
     (void)ud;
-    if (!yes || ota_state() != OTA_AVAILABLE) return;
-    ota_install();
-    show_flash_screen();
+    if (yes) deck_update_install();
 }
 
 static void offer_install(void)
