@@ -115,7 +115,7 @@ add-on). Revisit after v1.0.
 - [x] A popup offers LATER / IGNORE / INSTALL with the release notes; IGNORE skips that version (SYSTEM > UPDATE can still install it); LATER (or Esc) asks after the next check
 - [x] Never interrupts: waits while the screen sleeps, a dialog is open, TERMINAL is in front, or the portal is moving a file; LATER has focus and Enter waits a second, so typing can't install
 - [x] SYSTEM > UPDATE and the popup share one install screen
-- [ ] Checkpoint: release v1.0.0, the deck on the 1.0 beta pops up at startup or within the hour and installs it
+- [x] Checkpoint: released v1.0.0; the deck on the 1.0 beta offered it in the popup and installed it
 
 ## Next: Screen timeout and clock screensaver
 
