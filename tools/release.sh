@@ -22,7 +22,7 @@ cd "$root"
 
 sed -i '' -E "s/set\(PROJECT_VER \"[^\"]*\"\)/set(PROJECT_VER \"$ver\")/" CMakeLists.txt
 sed -i '' -E "s/#define DECK_VERSION \"[^\"]*\"/#define DECK_VERSION \"$ver\"/" components/deck_core/include/deck_shell.h
-git commit -qam "v$ver"
+git diff --quiet || git commit -qam "v$ver"   # re-runs after a failed attempt keep the commit
 
 # shellcheck disable=SC1091
 . "${IDF_PATH:-$HOME/esp/esp-idf}/export.sh" >/dev/null 2>&1
@@ -32,7 +32,8 @@ idf.py merge-bin -o "tab5-cyberdeck-v$ver-full.bin" >/dev/null
 out="$(mktemp -d)"
 cp "build/tab5-cyberdeck-v$ver-full.bin" "$out/"
 cp build/tab5_cyberdeck.bin "$out/tab5-cyberdeck-v$ver-ota.bin"
-strings "$out/tab5-cyberdeck-v$ver-ota.bin" | grep -qx "$ver" || { echo "image does not carry version $ver"; exit 1; }
+# (grep without -q: with pipefail, -q exiting early makes the pipeline "fail")
+strings "$out/tab5-cyberdeck-v$ver-ota.bin" | grep -x "$ver" >/dev/null || { echo "image does not carry version $ver"; exit 1; }
 
 git push -q origin main
 git tag -a "v$ver" -m "v$ver"
