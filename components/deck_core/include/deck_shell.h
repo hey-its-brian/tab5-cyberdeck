@@ -13,7 +13,7 @@
 extern "C" {
 #endif
 
-#define DECK_VERSION "0.7.0"
+#define DECK_VERSION "0.7.1-beta.2"
 
 #define DECK_STATUSBAR_H 56
 
@@ -33,6 +33,9 @@ void deck_shell_rebuild(void);
  * on the status bar clock sleeps. */
 void deck_shell_sleep(void);
 bool deck_shell_sleeping(void);
+
+/* The shortcut list (Alt+H, or the hint on the home screen). */
+void deck_shell_shortcuts(void);
 
 /* Push the keyboard light settings (kbd_led level, kbd_theme) and the
  * current accent to the keyboard. */

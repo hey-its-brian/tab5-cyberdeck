@@ -122,6 +122,35 @@ void hal_cfg_set_str(const char *key, const char *value)
     }
 }
 
+/* One blob slot is enough for the simulator (nothing uses more). */
+static char s_blob_key[16];
+static unsigned char s_blob[4096];
+static size_t s_blob_len;
+
+bool hal_cfg_get_blob(const char *key, void *out, size_t *len)
+{
+    if (!s_blob_key[0] || strcmp(s_blob_key, key) != 0) return false;
+    if (out) {
+        if (*len < s_blob_len) return false;
+        memcpy(out, s_blob, s_blob_len);
+    }
+    *len = s_blob_len;
+    return true;
+}
+
+void hal_cfg_set_blob(const char *key, const void *data, size_t len)
+{
+    if (data == NULL || len > sizeof(s_blob)) {
+        if (strcmp(s_blob_key, key) == 0) s_blob_key[0] = '\0';
+        return;
+    }
+    snprintf(s_blob_key, sizeof(s_blob_key), "%s", key);
+    memcpy(s_blob, data, len);
+    s_blob_len = len;
+}
+
+bool hal_cfg_encrypted(void) { return false; }
+
 /* Notes live in sim/sdcard (created on demand). */
 const char *hal_storage_root(void) { return DECK_SIM_SDCARD; }
 bool hal_storage_is_sd(void) { return true; }

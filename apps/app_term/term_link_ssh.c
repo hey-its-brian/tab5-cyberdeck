@@ -149,39 +149,109 @@ static bool make_pubkey(const char *pem, size_t pem_len)
     return ok;
 }
 
-/* Load the key, generating it the first time. Returns PEM (caller frees). */
+#define KEY_NVS "ssh_key"
+
+/* Free a private key buffer, zeroing it first. */
+static void free_key(char *pem, size_t n)
+{
+    if (pem == NULL) return;
+    memset(pem, 0, n);
+    free(pem);
+}
+
+/* The key as a NUL-terminated PEM from settings storage (encrypted NVS). */
+static char *key_from_nvs(size_t *len)
+{
+    size_t n = 0;
+    if (!hal_cfg_get_blob(KEY_NVS, NULL, &n) || n == 0 || n > 4096) return NULL;
+    char *pem = malloc(n + 1);
+    if (pem == NULL || !hal_cfg_get_blob(KEY_NVS, pem, &n)) {
+        free_key(pem, n);
+        return NULL;
+    }
+    pem[n] = '\0';
+    if (len) *len = n;
+    return pem;
+}
+
+/* Store in NVS and read it back; false if settings storage is not usable. */
+static bool key_to_nvs(const char *pem, size_t n)
+{
+    hal_cfg_set_blob(KEY_NVS, pem, n);
+    size_t m  = 0;
+    char *chk = key_from_nvs(&m);
+    bool ok   = chk && m == n && memcmp(chk, pem, n) == 0;
+    free_key(chk, m);
+    return ok;
+}
+
+/* Overwrite a file with zeros before deleting it (the old SD copy of the key). */
+static void shred(const char *path, size_t n)
+{
+    FILE *f = fopen(path, "r+b");
+    if (f) {
+        static const char zero[256];
+        for (size_t done = 0; done < n; done += sizeof(zero)) fwrite(zero, 1, sizeof(zero), f);
+        fflush(f);
+        fsync(fileno(f));
+        fclose(f);
+    }
+    unlink(path);
+}
+
+/* Load the key, generating it the first time. Returns PEM (caller frees).
+ * It lives in settings storage, not on the SD card; a key left on the card
+ * by v0.6 to v0.7 is moved in (same key, so authorized_keys still match)
+ * and the file is wiped. The card is only used if settings storage fails. */
 static char *device_key(size_t *len)
 {
-    char path[96];
-    ssh_path(path, sizeof(path), "id_ecdsa");
-    char *pem = read_file(path, len);
+    char *pem = key_from_nvs(len);
     if (pem) return pem;
 
-    ssh_dir();
+    char path[96];
+    ssh_path(path, sizeof(path), "id_ecdsa");
+    size_t flen = 0;
+    pem         = read_file(path, &flen);
+    if (pem) {
+        if (key_to_nvs(pem, flen)) {
+            shred(path, flen);
+            ESP_LOGI(TAG, "device key moved from the SD card to settings storage");
+        }
+        if (len) *len = flen;
+        return pem;
+    }
+
     mbedtls_pk_context pk;
     mbedtls_ctr_drbg_context drbg;
     mbedtls_entropy_context ent;
     mbedtls_pk_init(&pk);
     mbedtls_entropy_init(&ent);
     mbedtls_ctr_drbg_init(&drbg);
-    unsigned char *buf = malloc(1024);
+    unsigned char *buf = calloc(1, 1024);
     bool ok            = buf && mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &ent, NULL, 0) == 0 &&
               mbedtls_pk_setup(&pk, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY)) == 0 &&
               mbedtls_ecp_gen_key(MBEDTLS_ECP_DP_SECP256R1, mbedtls_pk_ec(pk), mbedtls_ctr_drbg_random, &drbg) == 0 &&
               mbedtls_pk_write_key_pem(&pk, buf, 1024) == 0;
-    if (ok) {
+    mbedtls_pk_free(&pk);
+    mbedtls_ctr_drbg_free(&drbg);
+    mbedtls_entropy_free(&ent);
+    if (!ok) {
+        free_key((char *)buf, 1024);
+        return NULL;
+    }
+    size_t n = strlen((char *)buf);
+    if (!key_to_nvs((char *)buf, n)) {
+        /* Settings storage unusable: fall back to the card as before. */
+        ssh_dir();
         FILE *f = fopen(path, "w");
         if (f) {
             fputs((char *)buf, f);
             fclose(f);
-            ESP_LOGI(TAG, "generated device key");
         }
     }
-    mbedtls_pk_free(&pk);
-    mbedtls_ctr_drbg_free(&drbg);
-    mbedtls_entropy_free(&ent);
-    free(buf);
-    return ok ? read_file(path, len) : NULL;
+    ESP_LOGI(TAG, "generated device key");
+    if (len) *len = n;
+    return (char *)buf; /* NUL-terminated (calloc) */
 }
 
 const char *link_pubkey(void)
@@ -192,7 +262,7 @@ const char *link_pubkey(void)
         if (pem == NULL || !make_pubkey(pem, len)) {
             snprintf(s_pubkey, sizeof(s_pubkey), "no key: storage unavailable");
         }
-        free(pem);
+        free_key(pem, len);
     }
     return s_pubkey;
 }
@@ -354,7 +424,7 @@ static void worker(void *arg)
         char *pem   = device_key(&klen);
         rc          = pem ? libssh2_userauth_publickey_frommemory(sess, s_p.user, strlen(s_p.user), NULL, 0, pem, klen, NULL)
                           : -1;
-        free(pem);
+        free_key(pem, klen);
     }
     memset(s_p.password, 0, sizeof(s_p.password));
     if (rc != 0) {

@@ -27,6 +27,8 @@
 #include "freertos/task.h"
 #include "nvs.h"
 #include "nvs_flash.h"
+#include "nvs_sec_provider.h"
+#include "esp_efuse.h"
 #include "sd_pwr_ctrl_by_on_chip_ldo.h"
 #include "sdmmc_cmd.h"
 
@@ -51,6 +53,7 @@ static bool s_sd_ok;
 static sdmmc_card_t *s_card;
 static nvs_handle_t s_nvs;
 static bool s_nvs_ok;
+static bool s_nvs_encrypted;
 static char s_board_name[32] = "TAB5";
 static char s_chip_name[32];
 
@@ -406,14 +409,185 @@ uint64_t hal_sd_free_bytes(void)
 
 /* ---- Settings ------------------------------------------------------------ */
 
+/* Settings live in the "deck" namespace of the default NVS partition.
+ *
+ * NVS is encrypted with XTS keys derived (by the HMAC peripheral) from a key
+ * in an eFuse key block. On the first boot of a build with this code there is
+ * no such key: the plain settings are copied to RAM, a random HMAC key is
+ * burned into the first free key block, the partition is erased, re-opened
+ * encrypted and the settings are written back. That burn is the only eFuse
+ * change and it does not restrict flashing.
+ *
+ * Anything going wrong on that path falls back to plain NVS, so settings may
+ * be lost but the deck always boots. */
+
+#define NVS_PART "nvs"
+#define MIGRATE_MAX 48
+
+typedef struct {
+    char key[NVS_KEY_NAME_MAX_SIZE];
+    nvs_type_t type;
+    int32_t i32;
+    void *data; /* str (with NUL) or blob */
+    size_t len;
+} kv_t;
+
+static esp_err_t plain_open(void)
+{
+    esp_err_t err = nvs_flash_init_partition(NVS_PART);
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        nvs_flash_erase_partition(NVS_PART);
+        err = nvs_flash_init_partition(NVS_PART);
+    }
+    return err;
+}
+
+static esp_err_t secure_open(nvs_sec_cfg_t *cfg)
+{
+    esp_err_t err = nvs_flash_secure_init_partition(NVS_PART, cfg);
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        nvs_flash_erase_partition(NVS_PART);
+        err = nvs_flash_secure_init_partition(NVS_PART, cfg);
+    }
+    return err;
+}
+
+/* Copy the plain "deck" namespace (already initialised) into RAM. */
+static int dump_settings(kv_t *kv, int max)
+{
+    int n = 0;
+    nvs_handle_t h;
+    if (nvs_open_from_partition(NVS_PART, "deck", NVS_READONLY, &h) != ESP_OK) return 0;
+    nvs_iterator_t it = NULL;
+    esp_err_t err     = nvs_entry_find(NVS_PART, "deck", NVS_TYPE_ANY, &it);
+    while (err == ESP_OK && n < max) {
+        nvs_entry_info_t info;
+        nvs_entry_info(it, &info);
+        kv_t *e = &kv[n];
+        memset(e, 0, sizeof(*e));
+        snprintf(e->key, sizeof(e->key), "%s", info.key);
+        e->type = info.type;
+        bool ok = false;
+        if (info.type == NVS_TYPE_I32) {
+            ok = nvs_get_i32(h, info.key, &e->i32) == ESP_OK;
+        } else if (info.type == NVS_TYPE_STR || info.type == NVS_TYPE_BLOB) {
+            bool str = info.type == NVS_TYPE_STR;
+            if ((str ? nvs_get_str(h, info.key, NULL, &e->len) : nvs_get_blob(h, info.key, NULL, &e->len)) == ESP_OK &&
+                (e->data = malloc(e->len ? e->len : 1)) != NULL) {
+                ok = (str ? nvs_get_str(h, info.key, (char *)e->data, &e->len)
+                          : nvs_get_blob(h, info.key, e->data, &e->len)) == ESP_OK;
+            }
+        }
+        if (ok) {
+            n++;
+        } else {
+            free(e->data);
+            ESP_LOGW("hal", "settings migration: skipped %s", info.key);
+        }
+        err = nvs_entry_next(&it);
+    }
+    nvs_release_iterator(it);
+    nvs_close(h);
+    return n;
+}
+
+static void restore_settings(kv_t *kv, int n)
+{
+    for (int i = 0; i < n; i++) {
+        kv_t *e = &kv[i];
+        if (e->type == NVS_TYPE_I32) nvs_set_i32(s_nvs, e->key, e->i32);
+        if (e->type == NVS_TYPE_STR) nvs_set_str(s_nvs, e->key, (const char *)e->data);
+        if (e->type == NVS_TYPE_BLOB) nvs_set_blob(s_nvs, e->key, e->data, e->len);
+    }
+    nvs_commit(s_nvs);
+}
+
+static void wipe_settings(kv_t *kv, int n)
+{
+    for (int i = 0; i < n; i++) {
+        if (kv[i].data) {
+            memset(kv[i].data, 0, kv[i].len); /* Wi-Fi password, SSH key */
+            free(kv[i].data);
+        }
+    }
+    memset(kv, 0, sizeof(kv_t) * (size_t)n);
+}
+
+/* Derive the XTS keys from the HMAC key in `blk`; with `generate`, burn a new
+ * random HMAC key into it first (it must be unused). */
+static esp_err_t sec_cfg(esp_efuse_block_t blk, bool generate, nvs_sec_cfg_t *cfg)
+{
+    nvs_sec_config_hmac_t hcfg = {};
+    hcfg.hmac_key_id           = (hmac_key_id_t)(blk - EFUSE_BLK_KEY0);
+    nvs_sec_scheme_t *scheme   = NULL;
+    esp_err_t err              = nvs_sec_provider_register_hmac(&hcfg, &scheme);
+    if (err != ESP_OK) return err;
+    err = generate ? nvs_flash_generate_keys_v2(scheme, cfg) : nvs_flash_read_security_cfg_v2(scheme, cfg);
+    return err;
+}
+
 static void nvs_init(void)
 {
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        nvs_flash_erase();
-        err = nvs_flash_init();
+    static kv_t kv[MIGRATE_MAX];
+    int migrated = -1; /* entries waiting to be written back, or -1 */
+    nvs_sec_cfg_t cfg  = {};
+    esp_err_t err      = ESP_FAIL;
+    esp_efuse_block_t blk;
+
+    if (esp_efuse_find_purpose(ESP_EFUSE_KEY_PURPOSE_HMAC_UP, &blk)) {
+        /* Normal boot: the key exists. */
+        if (sec_cfg(blk, false, &cfg) == ESP_OK) err = secure_open(&cfg);
+        if (err != ESP_OK) ESP_LOGE("hal", "encrypted settings failed (0x%x), using plain NVS", err);
+    } else if ((blk = esp_efuse_find_unused_key_block()) != EFUSE_BLK_KEY_MAX) {
+        /* First boot with encryption: migrate. */
+        int n = 0;
+        if (plain_open() == ESP_OK) {
+            n = dump_settings(kv, MIGRATE_MAX);
+            nvs_flash_deinit_partition(NVS_PART);
+        }
+        ESP_LOGW("hal", "encrypting settings: burning an HMAC key into eFuse key block %d", (int)(blk - EFUSE_BLK_KEY0));
+        if (sec_cfg(blk, true, &cfg) == ESP_OK) {
+            nvs_flash_erase_partition(NVS_PART);
+            err = secure_open(&cfg);
+        } else {
+            ESP_LOGE("hal", "could not create the settings key, keeping plain NVS");
+        }
+        migrated = n;
+    } else {
+        ESP_LOGW("hal", "no free eFuse key block, settings stay unencrypted");
     }
-    s_nvs_ok = (err == ESP_OK) && nvs_open("deck", NVS_READWRITE, &s_nvs) == ESP_OK;
+
+    s_nvs_encrypted = err == ESP_OK;
+    if (err != ESP_OK) err = plain_open(); /* never fail to boot over settings */
+    s_nvs_ok = (err == ESP_OK) && nvs_open_from_partition(NVS_PART, "deck", NVS_READWRITE, &s_nvs) == ESP_OK;
+
+    if (migrated >= 0) {
+        /* If the burn failed the plain partition was never erased, and the
+         * values are already there; writing them again is harmless. */
+        if (s_nvs_ok) restore_settings(kv, migrated);
+        ESP_LOGI("hal", "settings migrated (%d entries, %s)", migrated, s_nvs_encrypted ? "encrypted" : "plain");
+        wipe_settings(kv, migrated);
+    } else if (s_nvs_encrypted) {
+        ESP_LOGI("hal", "settings encrypted (eFuse key block %d)", (int)(blk - EFUSE_BLK_KEY0));
+    }
+}
+
+bool hal_cfg_encrypted(void) { return s_nvs_encrypted; }
+
+bool hal_cfg_get_blob(const char *key, void *out, size_t *len)
+{
+    return s_nvs_ok && nvs_get_blob(s_nvs, key, out, len) == ESP_OK;
+}
+
+void hal_cfg_set_blob(const char *key, const void *data, size_t len)
+{
+    if (!s_nvs_ok) return;
+    if (data) {
+        nvs_set_blob(s_nvs, key, data, len);
+    } else {
+        nvs_erase_key(s_nvs, key);
+    }
+    nvs_commit(s_nvs);
 }
 
 int32_t hal_cfg_get_i32(const char *key, int32_t def)

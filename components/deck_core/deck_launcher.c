@@ -48,6 +48,12 @@ static void show_selection(void)
     }
 }
 
+static void hint_clicked(lv_event_t *e)
+{
+    (void)e;
+    deck_shell_shortcuts();
+}
+
 static lv_obj_t *build_tile(lv_obj_t *parent, deck_app_t *app, int index, int32_t tile_w)
 {
     lv_obj_t *t = deck_panel(parent, DECK_CUT_TL | DECK_CUT_BR, 22);
@@ -216,6 +222,12 @@ void deck_launcher_create(lv_obj_t *parent)
     deck_label(head, g_font.disp_s, g_pal.accent, "// SELECT MODULE");
     s_uptime = deck_label(head, g_font.mono_s, g_pal.dim, "");
     lv_obj_align(s_uptime, LV_ALIGN_RIGHT_MID, 0, 0);
+    /* Shortcut hint; tapping it opens the list too. */
+    lv_obj_t *hint = deck_label(head, g_font.mono_s, g_pal.dim, "SHORTCUTS: ALT+H");
+    lv_obj_align(hint, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_add_flag(hint, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(hint, 14);
+    lv_obj_add_event_cb(hint, hint_clicked, LV_EVENT_CLICKED, NULL);
 
     /* Tiles */
     lv_obj_t *row = deck_box(root);

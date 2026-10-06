@@ -159,6 +159,42 @@ void deck_shell_apply_kbd_light(void)
     hal_kbd_light(s_kbd_levels[level], theme, rgb);
 }
 
+/* ---- Shortcut list (Alt+H) ---------------------------------------------- */
+
+void deck_shell_shortcuts(void)
+{
+    static const char *const cols[] = {
+        "ANYWHERE\n"
+        "  ALT+1..6    open a module\n"
+        "  ALT+ESC     back to the deck\n"
+        "  ALT+0       sleep the screen (or tap the clock)\n"
+        "  ALT+H       this list\n"
+        "  ESC         back / close\n"
+        "\n"
+        "HOME\n"
+        "  LEFT RIGHT ENTER, or 1..6   pick a module\n"
+        "\n"
+        "TERMINAL\n"
+        "  every key goes to the server, ESC too\n"
+        "  ALT+ESC leaves  SHIFT+UP/DOWN scrolls back",
+
+        "NOTES\n"
+        "  CTRL+S save  CTRL+P preview  CTRL+T split\n"
+        "  ESC save and close\n"
+        "\n"
+        "CALC\n"
+        "  ENTER evaluate  UP/DOWN recall\n"
+        "  CTRL+D deg/rad  CTRL+K keypad  CTRL+L clear tape\n"
+        "\n"
+        "WEATHER\n"
+        "  R refresh  L location  U units\n"
+        "\n"
+        "PORTAL\n"
+        "  ENTER or SPACE engage / disengage",
+    };
+    deck_modal_info("SHORTCUTS", cols, 2);
+}
+
 static void rebuild_async(void *u)
 {
     (void)u;
@@ -211,6 +247,10 @@ bool deck_shell_key(const deck_key_t *k)
         }
         if (k->code == HID_0) {
             deck_shell_sleep();
+            return true;
+        }
+        if (k->code == HID_H) {
+            deck_shell_shortcuts();
             return true;
         }
         if (k->code >= HID_1 && k->code <= HID_9) {

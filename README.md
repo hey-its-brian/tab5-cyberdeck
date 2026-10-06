@@ -107,7 +107,8 @@ See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
 |---|---|
 | `Alt+1..6` | Launch module 01..06 |
 | `Alt+Esc` | Return to the deck from anywhere (reserved for when SSH owns `Esc`) |
-| `Alt+0`, or tap the clock | Sleep the screen (backlight and keyboard light off); any key or touch wakes it |
+| `Alt+0`, tap the clock, or SYSTEM > SLEEP | Sleep the screen (backlight and keyboard light off); any key or touch wakes it |
+| `Alt+H`, or tap the hint on the home screen | List every shortcut |
 | `Esc` | Back / close, or home if the module does not use it |
 | `Left` `Right` `Enter`, or `1..6` | Pick a tile on the home screen |
 | `Tab`, arrows | Move focus inside a module |
@@ -122,11 +123,34 @@ over Wi-Fi (SYSTEM > UPDATE).
 
 ![Web flasher](docs/screenshots/web_flasher.png)
 
+## Security
+
+- **Settings are encrypted** (Wi-Fi password, SSH device key, everything in
+  NVS). On its first boot, v0.7.1 or later generates a random key, burns it into
+  one free eFuse key block, and moves the existing settings over. This is the
+  only eFuse change. It does not restrict flashing, and if anything goes wrong the deck
+  falls back to plain settings rather than failing to boot. SYSTEM > SECURITY
+  shows which mode is active.
+- **Updates are signed.** A deck running a signed build only installs
+  over-the-air updates signed with the same key (RSA-3072). Nothing is
+  burned for this, and the bootloader does not check signatures, so USB and the web
+  flasher can always write any image. A board can't be locked out.
+- **The SSH device key** lives in encrypted settings, not on the SD card. A key
+  left on the card by v0.6 to v0.7.0 is moved in (same key, so `authorized_keys`
+  still matches) and the file is wiped. `known_hosts` stays on the card.
+- The file portal is plain HTTP with a one-time PIN. Use it on networks you trust.
+- No Secure Boot or flash encryption: both are one-way and could lock a board
+  to one signing key.
+
 ## Releasing
 
 `tools/release.sh X.Y.Z notes.md "Title"` from a clean `main`: bumps the version,
-builds, attaches the full (USB/web) and OTA images to a GitHub release, and the
-release deploys the web flasher.
+builds, signs the app, attaches the full (USB/web) and OTA images to a GitHub
+release, and the release deploys the web flasher. Betas: `tools/release.sh
+X.Y.Z-beta.N notes.md "Title" --prerelease` from any branch (betas skip the web
+flasher). The signing key is read from `~/.config/deck-os/ota_signing_key.pem`
+(or `DECK_SIGNING_KEY`). Keep it backed up and out of the repo: without it,
+signed decks can only be updated over USB.
 
 ## Build and flash
 
