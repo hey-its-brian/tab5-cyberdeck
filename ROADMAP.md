@@ -128,7 +128,7 @@ add-on). Revisit after v1.0.
 ## Next: Startup sound
 
 - A short boot chime through the speaker (or headphones) while the POST runs, stored as a small embedded clip and played by the audio driver
-- SYSTEM > STARTUP SOUND on/off (and it follows the music volume); silent when headphones are in only if you choose so
+- SYSTEM > STARTUP SOUND on/off; it plays at the music volume
 - Checkpoint: power on, the chime plays once over the boot screen; switched off, the boot is silent
 
 ## Later: Space weather
