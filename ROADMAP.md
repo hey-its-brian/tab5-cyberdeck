@@ -81,6 +81,14 @@ Each version ends with something flashable and usable.
 - [x] `tools/portal_mock.py` serves the real page from the Mac for development and screenshots
 - [x] Checkpoint: verified on hardware (PIN login and lockout, upload, download, engage and disengage); the player side lands with v0.8
 
+## v0.7.1: Security hardening
+
+- [x] Settings (NVS) encrypted with an HMAC key the deck burns into a free eFuse key block on first boot; plain fallback, never blocks boot or flashing
+- [x] SSH device key moved from the SD card into encrypted settings (same key, SD copy wiped)
+- [x] Signed OTA updates (RSA-3072, no Secure Boot, no eFuses): signed builds only install updates signed with the same key; USB always works
+- [x] CI: actions pinned to commit SHAs, esp-web-tools tarball integrity check, manifest built with jq, job-scoped permissions
+- [ ] Checkpoint: beta installs from v0.7.0 with settings intact, SECURITY shows ENCRYPTED, SSH key login still works, the next signed update installs
+
 ## v0.8: Audio player (MP3)
 
 - ES8388 codec to the built-in speaker and the 3.5 mm headphone jack (auto-switch on plug)

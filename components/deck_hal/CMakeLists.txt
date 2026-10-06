@@ -11,5 +11,7 @@ idf_component_register(
         fatfs
         wear_levelling
         nvs_flash
+        nvs_sec_provider
+        efuse
         esp_timer
 )

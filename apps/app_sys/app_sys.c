@@ -43,10 +43,10 @@ typedef struct {
 
 static sys_ui_t s_ui;
 
-enum { INFO_BOARD, INFO_CHIP, INFO_PSRAM, INFO_SRAM, INFO_UPTIME, INFO_KBD, INFO_SD, INFO_PWR, INFO_FW, INFO_COUNT };
+enum { INFO_BOARD, INFO_CHIP, INFO_PSRAM, INFO_SRAM, INFO_UPTIME, INFO_KBD, INFO_SD, INFO_PWR, INFO_FW, INFO_SEC, INFO_COUNT };
 
 static const char *s_info_keys[INFO_COUNT] = {
-    "BOARD", "CHIP", "PSRAM", "SRAM", "UPTIME", "KEYBOARD", "STORAGE", "POWER", "FIRMWARE",
+    "BOARD", "CHIP", "PSRAM", "SRAM", "UPTIME", "KEYBOARD", "STORAGE", "POWER", "FIRMWARE", "SECURITY",
 };
 
 /* ---- Layout helpers ------------------------------------------------------ */
@@ -586,6 +586,8 @@ static void refresh(lv_timer_t *t)
         lv_label_set_text(s_ui.info[INFO_PWR], buf);
     }
     lv_label_set_text(s_ui.info[INFO_FW], "DECK//OS v" DECK_VERSION);
+    /* Settings encryption is per device (eFuse key); update signing is built in. */
+    lv_label_set_text(s_ui.info[INFO_SEC], hal_cfg_encrypted() ? "ENCRYPTED / SIGNED OTA" : "PLAIN / SIGNED OTA");
 
     time_t now = time(NULL);
     struct tm tm;

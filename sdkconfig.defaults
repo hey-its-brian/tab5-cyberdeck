@@ -75,3 +75,21 @@ CONFIG_LCD_DSI_ISR_IRAM_SAFE=y
 
 # ---- SSH ----------------------------------------------------------------------
 CONFIG_LIBSSH2_DEBUG_ENABLE=n
+
+# Signed OTA updates, without Secure Boot: the running app only installs an
+# update signed with the same key as itself. Nothing is burned into eFuses,
+# the bootloader does not check signatures, so USB and the web flasher can
+# always write any image. Binaries are signed by tools/release.sh, not the build.
+CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y
+CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y
+CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT=y
+# CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES is not set
+
+# Encrypted settings (Wi-Fi password, SSH key): XTS keys derived from an HMAC
+# key that the firmware generates and burns into a free eFuse key block on
+# first boot (deck_hal picks the block and falls back to plain NVS on error).
+CONFIG_NVS_ENCRYPTION=y
+CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC=y
+# Required to be valid, but unused: deck_hal picks the block at runtime and
+# nothing calls the stock nvs_flash_init().
+CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID=5

@@ -112,6 +112,11 @@ void    hal_cfg_set_i32(const char *key, int32_t value);
 /* Copies into out (always NUL terminated); returns false if not set. */
 bool    hal_cfg_get_str(const char *key, char *out, size_t n);
 void    hal_cfg_set_str(const char *key, const char *value);   /* NULL erases */
+/* Binary values (the SSH device key). With out == NULL, *len gets the size. */
+bool    hal_cfg_get_blob(const char *key, void *out, size_t *len);
+void    hal_cfg_set_blob(const char *key, const void *data, size_t len); /* NULL erases */
+/* True when settings are stored encrypted (eFuse HMAC key present). */
+bool    hal_cfg_encrypted(void);
 
 /* ---- System info --------------------------------------------------------- */
 
