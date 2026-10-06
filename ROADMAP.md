@@ -79,7 +79,7 @@ Each version ends with something flashable and usable.
 - [x] One-time 6 digit PIN per session, lockout after 5 wrong tries, auto-off after 15 min idle, LINK in the status bar while up
 - [x] Security review fixes: Host/Origin checks (DNS rebinding), stalled uploads dropped, failed logins don't keep it alive, safe file replace, `/ssh` (private key, known_hosts) never exposed
 - [x] `tools/portal_mock.py` serves the real page from the Mac for development and screenshots
-- [ ] Checkpoint: drop 20 MP3s and a few notes from the Mac's browser, they show up in NOTES and the player
+- [x] Checkpoint: verified on hardware (PIN login and lockout, upload, download, engage and disengage); the player side lands with v0.8
 
 ## v0.8: Audio player (MP3)
 
