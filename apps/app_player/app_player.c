@@ -320,7 +320,7 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
     lv_obj_add_flag(s_ui.list, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scroll_dir(s_ui.list, LV_DIR_VER);
     s_ui.empty = deck_label(left, g_font.mono_m, g_pal.dim,
-                            "No music yet.\n\nPut .mp3 files in /music on the SD card, or drop them in with PORTAL.");
+                            "No music yet.\n\nPut .mp3 files in /music on the SD card, or drop them in with FILES > PORTAL.");
     lv_obj_set_width(s_ui.empty, LV_PCT(100));
     lv_label_set_long_mode(s_ui.empty, LV_LABEL_LONG_MODE_WRAP);
 

@@ -117,6 +117,14 @@ add-on). Revisit after v1.0.
 - [x] SYSTEM > UPDATE and the popup share one install screen
 - [x] Checkpoint: released v1.0.0; the deck on the 1.0 beta offered it in the popup and installed it
 
+## v1.1: FILES (file manager)
+
+- [x] PORTAL becomes FILES (module 06): browse the SD card or internal storage, folders first, sizes and dates
+- [x] PREVIEW tab: text files as text (first 12 KB), markdown rendered like NOTES, MP3s with PLAY (starts PLAYER from that track), size and date for anything else
+- [x] Delete files and folders with a CANCEL-first confirmation; refused during a portal transfer; stops the player when its track (or a folder holding it) is deleted, since FAT does not protect open files
+- [x] PORTAL tab: the portal as before, opened by default while the link is up; the list refreshes when the browser uploads, deletes or renames, keeping the selection
+- [ ] Checkpoint: on hardware, preview, play and delete from FILES; portal still works from its tab
+
 ## Next: ESP-IDF 5.5
 
 - Move from IDF 5.4.0 to 5.5: two 5.4.0 bugs have bitten already (the self-delete race in `vTaskDeleteWithCaps` that crashed the portal on DISENGAGE, fixed in 5.5; worked around by never stopping the HTTP server)

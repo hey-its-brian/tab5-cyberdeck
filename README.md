@@ -3,7 +3,7 @@
 Cyberdeck firmware for the **M5Stack Tab5** (ESP32-P4, 5" 1280x720) with the
 official **Tab5 Keyboard**. A touch-first, keyboard-friendly launcher with a
 cyberpunk HUD, hosting modules for SSH, markdown notes, a calculator,
-weather, a music player and a LAN file portal.
+weather, a music player and a file manager with a LAN portal.
 
 ![Home](docs/screenshots/home.png)
 
@@ -11,11 +11,23 @@ weather, a music player and a LAN file portal.
 |---|---|---|
 | ![Boot](docs/screenshots/boot.png) | ![System](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
-## Status: v1.0.0
+## Status: v1.1.0
 
 Seven modules: TERMINAL (SSH), NOTES (markdown), CALC, WEATHER, PLAYER
-(music), PORTAL (LAN file manager) and SYSTEM. It updates itself over Wi-Fi
-with signed builds and tells you when a new one is out.
+(music), FILES (file manager and LAN portal) and SYSTEM. It updates itself over
+Wi-Fi with signed builds and tells you when a new one is out.
+
+![Files](docs/screenshots/files.png)
+
+**v1.1:** FILES (module 06, formerly PORTAL) browses the SD card (or internal
+storage without one). Select a file to preview it: text as text, markdown
+rendered like NOTES, MP3s with a PLAY button that starts PLAYER from that track.
+Delete files or whole folders (it asks first, and stops the player if you
+delete what is playing). The portal lives on the PORTAL tab, unchanged.
+Keys: arrows and `Enter`, `Backspace` up, `Del` or `D` delete, `P` switches
+PREVIEW / PORTAL, `Space` engages the portal.
+
+### v1.0.0
 
 **v1.0:** the deck checks for updates at startup and every hour, and offers a
 new build in a popup: INSTALL, IGNORE (skip that version) or LATER. It waits
@@ -32,7 +44,7 @@ folder, pick a track, and the folder becomes the queue. You get a 16-band
 spectrum, ID3 titles, seek (tap the bar or `Left`/`Right`), volume, shuffle and
 repeat. Music keeps playing while you use other modules: PLAY in the status bar
 (tap it to come back), and `Alt+P` pauses from anywhere. Fill `/music` from your
-Mac with PORTAL.
+Mac with FILES > PORTAL.
 
 ### v0.7.0: file portal
 
@@ -40,7 +52,7 @@ Mac with PORTAL.
 |---|---|
 | ![Portal](docs/screenshots/portal.png) | ![Portal web UI](docs/screenshots/portal_web.png) |
 
-**v0.7:** PORTAL (module 05) shares the deck's storage with any browser on
+**v0.7:** PORTAL (now the PORTAL tab in FILES) shares the deck's storage with any browser on
 your network. ENGAGE shows `http://deck.local`, the IP, a QR code for phones
 and a one-time 6 digit PIN. From the browser: browse, drag and drop uploads,
 download, rename, delete and new folders. `/notes` feeds NOTES and `/music`
