@@ -50,11 +50,13 @@ idf.py merge-bin -o "tab5-cyberdeck-v$ver-full.bin" >/dev/null
 out="$(mktemp -d)"
 cp "build/tab5-cyberdeck-v$ver-full.bin" "$out/"
 cp build/tab5_cyberdeck.bin "$out/tab5-cyberdeck-v$ver-ota.bin"
+# The ELF decodes crash backtraces from the field (no secrets in it; the source is public).
+cp build/tab5_cyberdeck.elf "$out/tab5-cyberdeck-v$ver.elf"
 # (grep without -q: with pipefail, -q exiting early makes the pipeline "fail")
 strings "$out/tab5-cyberdeck-v$ver-ota.bin" | grep -x "$ver" >/dev/null || { echo "image does not carry version $ver"; exit 1; }
 
 git push -q origin "$(git branch --show-current)"
 git tag -a "v$ver" -m "v$ver"
 git push -q origin "v$ver"
-gh release create "v$ver" "$out"/*.bin --title "${3:-v$ver}" --notes-file "$notes" ${pre:+--prerelease}
+gh release create "v$ver" "$out"/*.bin "$out"/*.elf --title "${3:-v$ver}" --notes-file "$notes" ${pre:+--prerelease}
 echo "released v$ver"
