@@ -2,4 +2,4 @@
 
 #include "deck_app.h"
 
-deck_app_t *app_portal(void);
+deck_app_t *app_files(void);

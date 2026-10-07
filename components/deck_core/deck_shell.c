@@ -195,8 +195,9 @@ void deck_shell_shortcuts(void)
         "  ENTER play  SPACE pause  LEFT/RIGHT seek\n"
         "  [ ] prev/next  - = volume  S shuffle  R repeat\n"
         "\n"
-        "PORTAL\n"
-        "  ENTER or SPACE engage / disengage",
+        "FILES\n"
+        "  ENTER open  BACKSPACE up  DEL or D delete\n"
+        "  P preview / portal  SPACE engage / disengage",
     };
     deck_modal_info("SHORTCUTS", cols, 2);
 }

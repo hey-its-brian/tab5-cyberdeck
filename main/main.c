@@ -13,7 +13,7 @@
 #include "app_notes.h"
 #include "app_player.h"
 #include "deck_audio.h"
-#include "app_portal.h"
+#include "app_files.h"
 #include "app_sys.h"
 #include "app_term.h"
 #include "app_weather.h"
@@ -42,7 +42,7 @@ void app_main(void)
     deck_app_register(app_calc());
     deck_app_register(app_weather());
     deck_app_register(app_player());
-    deck_app_register(app_portal());
+    deck_app_register(app_files());
     deck_app_register(app_sys());
 
     deck_shell_start(hal_cfg_get_i32("boot", 1) != 0);
