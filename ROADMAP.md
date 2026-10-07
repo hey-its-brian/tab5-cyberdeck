@@ -123,7 +123,7 @@ add-on). Revisit after v1.0.
 - [x] PREVIEW tab: text files as text (first 12 KB), markdown rendered like NOTES, MP3s with PLAY (starts PLAYER from that track), size and date for anything else
 - [x] Delete files and folders with a CANCEL-first confirmation; refused during a portal transfer; stops the player when its track (or a folder holding it) is deleted, since FAT does not protect open files
 - [x] PORTAL tab: the portal as before, opened by default while the link is up; the list refreshes when the browser uploads, deletes or renames, keeping the selection
-- [ ] Checkpoint: on hardware, preview, play and delete from FILES; portal still works from its tab
+- [x] Checkpoint: on hardware, preview, play and delete from FILES; portal still works from its tab
 
 ## Next: ESP-IDF 5.5
 
