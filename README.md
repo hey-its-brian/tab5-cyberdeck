@@ -199,6 +199,13 @@ idf.py -p /dev/cu.usbmodem* flash monitor
 The panel revision (ILI9881C, ST7123 or ST7121) is detected at runtime, so
 one image works on every Tab5.
 
+Builds from source are unsigned: the signed-update settings live in
+`sdkconfig.release`, which only `tools/release.sh` applies, so a fresh clone
+builds and boots without a signing key. An unsigned build installs the official
+over-the-air updates too (only signed builds check signatures). Note that, like
+the official firmware, any build burns its settings encryption key into a free
+eFuse key block on first boot (see Security).
+
 ## Desktop simulator
 
 `sim/` runs the same UI code (everything above `deck_hal` and `deck_net`) on

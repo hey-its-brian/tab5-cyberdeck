@@ -169,10 +169,30 @@ static void net_task(void *arg)
     vTaskDelete(NULL);
 }
 
+/* Some Tab5s (newer batches, seen with an ST7123 panel) deliver STA_START
+ * twice through ESP-Hosted. The default handler then starts the netif again
+ * and lwIP asserts "netif already added". This handler is registered before
+ * the defaults, and the event loop runs handlers in registration order: on a
+ * duplicate it takes the netif down first, so the default restart is clean. */
+static int s_sta_starts;
+
+static void sta_start_guard(void *arg, esp_event_base_t base, int32_t id, void *data)
+{
+    (void)arg;
+    if (id == WIFI_EVENT_STA_STOP) {
+        s_sta_starts = 0;
+    } else if (id == WIFI_EVENT_STA_START && ++s_sta_starts > 1 && s_sta) {
+        ESP_LOGW(TAG, "duplicate STA_START (%d), restarting the netif", s_sta_starts);
+        esp_netif_action_stop(s_sta, base, id, data);
+    }
+}
+
 void net_init(void)
 {
     esp_netif_init();
     esp_event_loop_create_default();
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_START, sta_start_guard, NULL);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_STOP, sta_start_guard, NULL);
     s_sta = esp_netif_create_default_wifi_sta();
     esp_netif_set_hostname(s_sta, "deck");
 

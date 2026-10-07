@@ -15,6 +15,11 @@
 # up; without it, signed decks can still be updated over USB, not over the air.
 #   DECK_SIGNING_KEY  default ~/.config/deck-os/ota_signing_key.pem
 #   --prerelease      as the 4th argument publishes a beta (version X.Y.Z-beta.N)
+#
+# Signed-update verification lives in sdkconfig.release, not sdkconfig.defaults
+# (so a fresh clone builds without a key). This script applies it to the local
+# sdkconfig when missing and refuses to release without it: an unverifying
+# release would let any image be installed over the air on decks running it.
 set -euo pipefail
 
 ver="${1:?usage: $0 X.Y.Z notes.md}"
@@ -34,12 +39,24 @@ fi
 [[ -z "$(git status --porcelain)" ]] || { echo "working tree not clean"; exit 1; }
 [[ -f "$notes" ]] || { echo "no notes file: $notes"; exit 1; }
 
+# shellcheck disable=SC1091
+. "${IDF_PATH:-$HOME/esp/esp-idf}/export.sh" >/dev/null 2>&1
+signed_config() {
+    grep -qx "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y" sdkconfig 2>/dev/null &&
+        grep -qx "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y" sdkconfig &&
+        grep -qx "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT=y" sdkconfig
+}
+if ! signed_config; then
+    echo "applying sdkconfig.release (signed updates)"
+    [[ -f sdkconfig ]] && sed -i '' -E '/CONFIG_SECURE_SIGNED|CONFIG_SECURE_BOOT_BUILD_SIGNED/d' sdkconfig
+    idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.release" reconfigure >/dev/null
+fi
+signed_config || { echo "sdkconfig still lacks signed-update verification, not releasing"; exit 1; }
+
 sed -i '' -E "s/set\(PROJECT_VER \"[^\"]*\"\)/set(PROJECT_VER \"$ver\")/" CMakeLists.txt
 sed -i '' -E "s/#define DECK_VERSION \"[^\"]*\"/#define DECK_VERSION \"$ver\"/" components/deck_core/include/deck_shell.h
 git diff --quiet || git commit -qam "v$ver"   # re-runs after a failed attempt keep the commit
 
-# shellcheck disable=SC1091
-. "${IDF_PATH:-$HOME/esp/esp-idf}/export.sh" >/dev/null 2>&1
 idf.py build >/dev/null
 # Sign the app in place, then build the full image from the signed app.
 espsecure.py sign_data --version 2 --keyfile "$key" --output build/app-signed.bin build/tab5_cyberdeck.bin >/dev/null
@@ -50,11 +67,13 @@ idf.py merge-bin -o "tab5-cyberdeck-v$ver-full.bin" >/dev/null
 out="$(mktemp -d)"
 cp "build/tab5-cyberdeck-v$ver-full.bin" "$out/"
 cp build/tab5_cyberdeck.bin "$out/tab5-cyberdeck-v$ver-ota.bin"
+# The ELF decodes crash backtraces from the field (no secrets in it; the source is public).
+cp build/tab5_cyberdeck.elf "$out/tab5-cyberdeck-v$ver.elf"
 # (grep without -q: with pipefail, -q exiting early makes the pipeline "fail")
 strings "$out/tab5-cyberdeck-v$ver-ota.bin" | grep -x "$ver" >/dev/null || { echo "image does not carry version $ver"; exit 1; }
 
 git push -q origin "$(git branch --show-current)"
 git tag -a "v$ver" -m "v$ver"
 git push -q origin "v$ver"
-gh release create "v$ver" "$out"/*.bin --title "${3:-v$ver}" --notes-file "$notes" ${pre:+--prerelease}
+gh release create "v$ver" "$out"/*.bin "$out"/*.elf --title "${3:-v$ver}" --notes-file "$notes" ${pre:+--prerelease}
 echo "released v$ver"

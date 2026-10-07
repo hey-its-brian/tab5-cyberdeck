@@ -1,0 +1,12 @@
+# Release-only settings, applied by tools/release.sh on top of sdkconfig.defaults.
+# Kept out of the defaults so a fresh clone builds and boots without a signing
+# key (an unsigned build also accepts the official over-the-air updates).
+#
+# Signed OTA updates, without Secure Boot: the running app only installs an
+# update signed with the same key as itself. Nothing is burned into eFuses,
+# the bootloader does not check signatures, so USB and the web flasher can
+# always write any image. Binaries are signed by tools/release.sh, not the build.
+CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y
+CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y
+CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT=y
+# CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES is not set
