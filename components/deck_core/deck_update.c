@@ -17,6 +17,7 @@
 #include "deck_net.h"
 #include "deck_ota.h"
 #include "deck_portal.h"
+#include "deck_saver.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
 #include "deck_widgets.h"
@@ -103,7 +104,7 @@ static void choice_made(int choice, void *ud)
 
 static bool good_moment(void)
 {
-    if (deck_shell_sleeping() || deck_modal_active() || portal_busy() || s_flash) return false;
+    if (deck_shell_sleeping() || deck_saver_active() || deck_modal_active() || portal_busy() || s_flash) return false;
     deck_app_t *app = deck_shell_current();
     return app == NULL || strcmp(app->name, "TERMINAL") != 0;
 }

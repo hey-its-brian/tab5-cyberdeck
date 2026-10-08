@@ -17,6 +17,7 @@
 #include "deck_hal.h"
 #include "deck_icons.h"
 #include "deck_modal.h"
+#include "deck_saver.h"
 #include "deck_shell.h"
 #include "deck_term.h"
 #include "deck_theme.h"
@@ -179,6 +180,7 @@ static void pump(lv_timer_t *tm)
         deck_term_feed(s_t.term, buf, n);
         total += n;
     }
+    if (total) deck_saver_poke(); /* a session with output keeps the screen on */
     link_state_t st = link_state();
     if (st != s_t.shown_state) {
         s_t.shown_state = st;

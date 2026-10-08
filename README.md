@@ -142,7 +142,8 @@ See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
 |---|---|
 | `Alt+1..7` | Launch module 01..07 |
 | `Alt+Esc` | Return to the deck from anywhere (reserved for when SSH owns `Esc`) |
-| `Alt+0`, tap the clock, or SYSTEM > SLEEP | Sleep the screen (backlight and keyboard light off); any key or touch wakes it |
+| `Alt+0`, tap the clock, or SYSTEM > SAVER > SLEEP | Sleep the screen (backlight and keyboard light off); any key or touch wakes it |
+| (idle) | After SYSTEM > SAVER minutes (default 5) a drifting clock takes over, dimmed; 10 minutes later the screen sleeps. Any key or touch wakes it |
 | `Alt+H`, or tap the hint on the home screen | List every shortcut |
 | `Alt+P` | Pause or resume music from anywhere |
 | `Esc` | Back / close, or home if the module does not use it |

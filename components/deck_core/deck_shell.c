@@ -6,6 +6,7 @@
 #include "deck_launcher.h"
 #include "deck_audio.h"
 #include "deck_modal.h"
+#include "deck_saver.h"
 #include "deck_statusbar.h"
 #include "deck_theme.h"
 #include "deck_widgets.h"
@@ -225,6 +226,11 @@ void deck_shell_rebuild(void) { lv_async_call(rebuild_async, NULL); }
 
 bool deck_shell_key(const deck_key_t *k)
 {
+    deck_saver_poke(); /* every key is activity, even ones the shell consumes */
+    if (deck_saver_active()) {
+        deck_saver_wake(); /* the waking key does nothing else */
+        return true;
+    }
     if (s_sleep) {
         wake_async(NULL); /* the waking key does nothing else */
         return true;
