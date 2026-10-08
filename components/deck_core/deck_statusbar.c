@@ -17,6 +17,7 @@
 #include "deck_icons.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
+#include "deck_saver.h"
 #include "deck_update.h"
 #include "deck_widgets.h"
 
@@ -114,6 +115,7 @@ static void refresh(lv_timer_t *t)
     set_indicator(s_kbd, kbd ? ICON_KEYBOARD : ICON_KEYBOARD_OFF, "KBD", kbd ? g_pal.accent : g_pal.dim);
     set_indicator(s_sd, ICON_SD, "SD", hal_sd_mounted() ? g_pal.accent : g_pal.dim);
     deck_update_tick(); /* startup and hourly update checks, and the popup */
+    deck_saver_tick();  /* screen timeout */
     if (ota_state() == OTA_AVAILABLE) {
         lv_obj_remove_flag(s_upd, LV_OBJ_FLAG_HIDDEN);
         set_indicator(s_upd, ICON_BOLT, "UPD", (tm.tm_sec & 1) ? g_pal.accent2 : g_pal.dim);

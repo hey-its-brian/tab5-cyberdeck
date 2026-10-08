@@ -4,6 +4,7 @@ idf_component_register(
         "deck_input.c"
         "deck_shell.c"
         "deck_update.c"
+        "deck_saver.c"
         "deck_statusbar.c"
         "deck_launcher.c"
         "deck_boot.c"

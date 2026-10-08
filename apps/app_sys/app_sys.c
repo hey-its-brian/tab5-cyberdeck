@@ -14,6 +14,7 @@
 #include "deck_hal.h"
 #include "deck_icons.h"
 #include "deck_modal.h"
+#include "deck_saver.h"
 #include "deck_update.h"
 #include "deck_net.h"
 #include "deck_ota.h"
@@ -127,6 +128,30 @@ static void kbd_theme_changed(lv_event_t *e)
     bool on = lv_obj_has_state(lv_event_get_target_obj(e), LV_STATE_CHECKED);
     hal_cfg_set_i32("kbd_theme", on);
     deck_shell_apply_kbd_light();
+}
+
+static const int s_saver_opts[] = {0, 1, 2, 5, 10, 30};
+#define SAVER_OPTS ((int)(sizeof(s_saver_opts) / sizeof(s_saver_opts[0])))
+
+static void saver_label(lv_obj_t *btn, int minutes)
+{
+    char b[16];
+    if (minutes) {
+        snprintf(b, sizeof(b), "%d MIN", minutes);
+    } else {
+        snprintf(b, sizeof(b), "OFF");
+    }
+    lv_label_set_text(lv_obj_get_child_by_type(btn, 0, &lv_label_class), b);
+}
+
+static void saver_clicked(lv_event_t *e)
+{
+    int cur = deck_saver_timeout(), next = 0;
+    for (int i = 0; i < SAVER_OPTS; i++) {
+        if (s_saver_opts[i] == cur) next = s_saver_opts[(i + 1) % SAVER_OPTS];
+    }
+    deck_saver_set_timeout(next);
+    saver_label(lv_event_get_target_obj(e), next);
 }
 
 static void sleep_clicked(lv_event_t *e)
@@ -602,11 +627,17 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
     lv_obj_align(kb, LV_ALIGN_RIGHT_MID, 0, 0);
     row = setting_row(left, ICON_PALETTE, "KBD THEME COLOR");
     add_switch(row, hal_cfg_get_i32("kbd_theme", 0) != 0, kbd_theme_changed);
-    /* Screen sleep is also Alt+0 or a tap on the clock; this makes it findable. */
-    row = setting_row(left, WX_NIGHT, "SLEEP (ALT+0)");
-    lv_obj_t *sl = small_button(row, "NOW", sleep_clicked, NULL);
-    lv_obj_set_width(sl, 100);
+    /* Screen timeout (a drifting clock after this long idle, then sleep) and
+     * sleep now, which is also Alt+0 or a tap on the clock. One row: the
+     * column has no room for two. */
+    row = setting_row(left, ICON_CLOCK, "SAVER");
+    lv_obj_t *sl = small_button(row, "SLEEP", sleep_clicked, NULL);
+    lv_obj_set_width(sl, 96);
     lv_obj_align(sl, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_t *sv = small_button(row, "", saver_clicked, NULL);
+    lv_obj_set_width(sv, 96);
+    lv_obj_align_to(sv, sl, LV_ALIGN_OUT_LEFT_MID, -10, 0);
+    saver_label(sv, deck_saver_timeout());
 
     deck_section(left, "ACCENT");
     lv_obj_t *sw = deck_box(left);

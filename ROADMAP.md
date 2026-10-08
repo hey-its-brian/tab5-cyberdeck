@@ -131,13 +131,13 @@ add-on). Revisit after v1.0.
 - Re-test display (PPA/DSI), ESP-Hosted Wi-Fi, LVGL port, codec, OTA and NVS encryption on the new IDF before releasing
 - Checkpoint: a beta on 5.5 passes the full module tour on hardware
 
-## Next: Screen timeout and clock screensaver
+## v1.2: Screen timeout and clock screensaver
 
-- SYSTEM > SCREEN TIMEOUT: off, 1, 2, 5, 10 or 30 minutes without a key or touch
-- When it runs out, a clock screensaver takes over: big time and date, slowly drifting so nothing burns in, dimmed backlight; after a further while the screen sleeps fully (the existing Alt+0 sleep)
-- Music keeps playing and the status shows on the screensaver (track, play/pause); a portal transfer or an SSH session with output keeps the screen awake
-- Any key or touch wakes it, and that press is swallowed (like screen sleep)
-- Checkpoint: idle for the timeout, the clock appears and drifts, a key brings the deck back exactly where it was
+- [x] SYSTEM > SAVER: OFF, 1, 2, 5 (default), 10 or 30 minutes without a key or touch
+- [x] A clock screensaver takes over: big time and date, drifting to a new spot every 30 s so nothing burns in, backlight at a quarter of the brightness setting; after 10 more minutes the screen sleeps fully
+- [x] Music keeps playing and the saver shows the track; a portal transfer or SSH output keeps the screen awake; the update popup waits until you are back
+- [x] Any key or touch wakes it, and that press is swallowed
+- [ ] Checkpoint: on hardware, idle for the timeout, the clock appears and drifts, a key brings the deck back exactly where it was
 
 ## Next: Startup sound
 
