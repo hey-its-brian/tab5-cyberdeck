@@ -84,3 +84,9 @@ CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC=y
 # Required to be valid, but unused: deck_hal picks the block at runtime and
 # nothing calls the stock nvs_flash_init().
 CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID=5
+
+# Bootloader logs warnings only: IDF 5.5's bootloader is 0x200 bytes too big
+# for the 0x6000 bytes before the partition table at 0x8000 with INFO logs.
+# The partition table offset must not move (OTA never rewrites it, so decks in
+# the field would lose their partitions).
+CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y

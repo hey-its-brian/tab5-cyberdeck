@@ -789,7 +789,11 @@ lv_display_t *lvgl_port_add_disp_dsi(const lvgl_disp_cfg_t *disp_cfg, const lvgl
     // Register DPI panel callbacks
     esp_lcd_dpi_panel_event_callbacks_t cbs = {};
     if (dsi_cfg->flags.avoid_tearing) {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+        cbs.on_frame_buf_complete = dpi_panel_refresh_done_cb; /* renamed in IDF 5.5, same slot */
+#else
         cbs.on_refresh_done = dpi_panel_refresh_done_cb;
+#endif
     } else {
         cbs.on_color_trans_done = dpi_panel_trans_done_cb;
     }
