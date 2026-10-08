@@ -128,8 +128,10 @@ add-on). Revisit after v1.0.
 ## Next: ESP-IDF 5.5
 
 - Move from IDF 5.4.0 to 5.5: two 5.4.0 bugs have bitten already (the self-delete race in `vTaskDeleteWithCaps` that crashed the portal on DISENGAGE, fixed in 5.5; worked around by never stopping the HTTP server)
-- Re-test display (PPA/DSI), ESP-Hosted Wi-Fi, LVGL port, codec, OTA and NVS encryption on the new IDF before releasing
-- Checkpoint: a beta on 5.5 passes the full module tour on hardware
+- [x] Builds on IDF 5.5.5 (branch `feature/idf-5.5`) with the same components; bootloader logs WARN so it fits before the partition table (which must never move); DPI callback renamed
+- [x] Targets ESP32-P4 rev v0.1 to v1.99 like before: IDF 5.5 defaults to rev v3.01+, which would not boot on Tab5's v1.x chips
+- [ ] First boot over USB with a serial log (display, touch, Wi-Fi, SD, audio, OTA, NVS encryption), then an over-the-air update from the 5.4 bootloader
+- [ ] Checkpoint: a beta on 5.5 passes the full module tour on hardware
 
 ## v1.2: Screen timeout and clock screensaver
 

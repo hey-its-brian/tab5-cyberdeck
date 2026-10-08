@@ -90,3 +90,9 @@ CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID=5
 # The partition table offset must not move (OTA never rewrites it, so decks in
 # the field would lose their partitions).
 CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
+
+# IDF 5.5 targets ESP32-P4 rev v3.01+ by default; Tab5s ship with v1.x chips
+# (v1.3 seen), which would then refuse to boot the app. Same range as 5.4
+# builds (v0.1 to v1.99). Ignored by IDF 5.4, which has no such options.
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
+CONFIG_ESP32P4_REV_MIN_1=y
