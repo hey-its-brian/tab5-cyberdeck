@@ -177,7 +177,9 @@ void deck_shell_shortcuts(void)
         "  LEFT RIGHT ENTER, or 1..7   pick a module\n"
         "\n"
         "TERMINAL\n"
-        "  every key goes to the server, ESC too\n"
+        "  CTRL+N new SSH host  CTRL+O new Ollama server\n"
+        "  SSH: every key goes to the server, ESC too\n"
+        "  OLLAMA: CTRL+C stops a reply, /help commands\n"
         "  ALT+ESC leaves  SHIFT+UP/DOWN scrolls back",
 
         "NOTES\n"
