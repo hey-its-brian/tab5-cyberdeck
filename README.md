@@ -2,7 +2,7 @@
 
 Cyberdeck firmware for the **M5Stack Tab5** (ESP32-P4, 5" 1280x720) with the
 official **Tab5 Keyboard**. A touch-first, keyboard-friendly launcher with a
-cyberpunk HUD, hosting modules for SSH, markdown notes, a calculator,
+cyberpunk HUD, hosting modules for SSH and Ollama chat, markdown notes, a calculator,
 weather, a music player and a file manager with a LAN portal.
 
 ![Home](docs/screenshots/home.png)
@@ -13,7 +13,7 @@ weather, a music player and a file manager with a LAN portal.
 
 ## Status: v1.1.0
 
-Seven modules: TERMINAL (SSH), NOTES (markdown), CALC, WEATHER, PLAYER
+Seven modules: TERMINAL (SSH and Ollama chat), NOTES (markdown), CALC, WEATHER, PLAYER
 (music), FILES (file manager and LAN portal) and SYSTEM. It updates itself over
 Wi-Fi with signed builds and tells you when a new one is out.
 
@@ -26,6 +26,21 @@ Delete files or whole folders (it asks first, and stops the player if you
 delete what is playing). The portal lives on the PORTAL tab, unchanged.
 Keys: arrows and `Enter`, `Backspace` up, `Del` or `D` delete, `P` switches
 PREVIEW / PORTAL, `Space` engages the portal.
+
+### Ollama chat in TERMINAL
+
+TERMINAL also chats with an [Ollama](https://ollama.com) server on your
+network. `+ OLLAMA` (or `Ctrl+O`) in the host list takes `host[:port][/model]`
+(port 11434 by default; without a model the server's first chat model is
+used), and the entry sits next to your SSH hosts, marked OLLAMA. Replies
+stream in as they are generated, a thinking model's reasoning shows dimmed,
+and the conversation is kept until `/clear`. `Ctrl+C` stops a reply,
+`/models` lists the server's models, `/model NAME` switches, `/bye` or
+`Alt+Esc` leaves; the touch bar has STOP, CLEAR, MODELS and HELP.
+
+The server has to listen on the network rather than only localhost: set
+`OLLAMA_HOST=0.0.0.0` where Ollama runs. Ollama has no authentication and the
+deck talks plain HTTP, so use it on networks you trust.
 
 ### v1.0.0
 

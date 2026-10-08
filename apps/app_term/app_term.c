@@ -1,11 +1,15 @@
 /*
- * TERMINAL module: saved SSH hosts and an xterm-compatible terminal.
+ * TERMINAL module: saved SSH hosts and Ollama servers, and an
+ * xterm-compatible terminal. SSH sessions run on term_link, Ollama chats on
+ * term_chat; both feed the same emulator.
  *
- * Host list: Enter / tap connects, Ctrl+N adds, Del removes.
+ * Host list: Enter / tap connects, Ctrl+N adds an SSH host, Ctrl+O an
+ * Ollama server, Del removes.
  * Terminal: every key goes to the remote (Esc included). Alt+Esc returns to
  * the deck and closes the session. Shift+Up/Down scrolls back; dragging on
- * the screen does too. The touch bar supplies Esc, Tab, sticky Ctrl,
- * arrows, PgUp/PgDn, Home/End and F1..F12.
+ * the screen does too. For SSH the touch bar supplies Esc, Tab, sticky Ctrl,
+ * arrows, PgUp/PgDn, Home/End and F1..F12; for Ollama it has the chat's
+ * STOP, CLEAR, MODELS and HELP.
  */
 #include "app_term.h"
 
@@ -21,19 +25,23 @@
 #include "deck_term.h"
 #include "deck_theme.h"
 #include "deck_widgets.h"
+#include "term_chat.h"
 #include "term_link.h"
 #include "vterm_keycodes.h"
 
 #define MAX_HOSTS 24
 #define PUMP_MS 15
 #define HID_N 0x11
+#define HID_O 0x12
 
 typedef struct {
     char name[48];
     char user[32];
     char host[64];
     uint16_t port;
-    bool local; /* simulator-only local shell */
+    bool local;     /* simulator-only local shell */
+    bool ollama;    /* chat with an Ollama server instead of SSH */
+    char model[96]; /* Ollama model, "" for the server's first */
 } host_t;
 
 static host_t s_hosts[MAX_HOSTS];
@@ -43,6 +51,7 @@ static struct {
     lv_obj_t *parent;
     lv_obj_t *screen;
     bool in_term;
+    bool chat; /* the open session is an Ollama chat */
     deck_term_t *term;
     lv_obj_t *info;
     lv_obj_t *bar;
@@ -50,14 +59,15 @@ static struct {
     lv_timer_t *pump;
     int sel;
     link_state_t shown_state;
-    char target[112];
+    char target[176]; /* "OLLAMA model @ host:port" at its longest */
     char cols_rows[16];
     host_t pending;
 } s_t;
 
 static void show_hosts(void);
 
-/* ---- Host store: <storage>/ssh/hosts.txt, one "name\tuser\thost\tport" per line */
+/* ---- Host store: <storage>/ssh/hosts.txt, one "name\tuser\thost\tport" per
+ * line; Ollama servers are "name\tmodel\thost\tport\tollama". */
 
 static void hosts_path(char *out, size_t n)
 {
@@ -79,11 +89,18 @@ static void hosts_load(void)
     hosts_path(path, sizeof(path));
     FILE *f = fopen(path, "r");
     if (f == NULL) return;
-    char line[200];
+    char line[320];
     while (fgets(line, sizeof(line), f) && s_nhosts < MAX_HOSTS) {
         host_t h = {0};
+        char who[96] = "", kind[16] = "";
         unsigned port = 22;
-        if (sscanf(line, "%47[^\t]\t%31[^\t]\t%63[^\t]\t%u", h.name, h.user, h.host, &port) >= 3) {
+        if (sscanf(line, "%47[^\t]\t%95[^\t]\t%63[^\t]\t%u\t%15s", h.name, who, h.host, &port, kind) >= 3) {
+            h.ollama = strcmp(kind, "ollama") == 0;
+            if (h.ollama) {
+                snprintf(h.model, sizeof(h.model), "%s", strcmp(who, "-") ? who : "");
+            } else {
+                snprintf(h.user, sizeof(h.user), "%s", who);
+            }
             h.port               = (uint16_t)port;
             s_hosts[s_nhosts++] = h;
         }
@@ -102,16 +119,39 @@ static void hosts_save(void)
     FILE *f = fopen(path, "w");
     if (f == NULL) return;
     for (int i = 0; i < s_nhosts; i++) {
-        if (s_hosts[i].local) continue;
-        fprintf(f, "%s\t%s\t%s\t%u\n", s_hosts[i].name, s_hosts[i].user, s_hosts[i].host, s_hosts[i].port);
+        const host_t *h = &s_hosts[i];
+        if (h->local) continue;
+        if (h->ollama) {
+            fprintf(f, "%s\t%s\t%s\t%u\tollama\n", h->name, h->model[0] ? h->model : "-", h->host, h->port);
+        } else {
+            fprintf(f, "%s\t%s\t%s\t%u\n", h->name, h->user, h->host, h->port);
+        }
     }
     fclose(f);
 }
 
-/* "user@host[:port]" */
+/* "ollama://host[:port][/model]"; the model may contain ':' (llama3.2:3b). */
+static bool parse_ollama(const char *s, host_t *h)
+{
+    const char *slash = strchr(s, '/');
+    size_t hl         = slash ? (size_t)(slash - s) : strlen(s);
+    const char *colon = memchr(s, ':', hl);
+    size_t nl         = colon ? (size_t)(colon - s) : hl;
+    if (nl == 0 || nl >= sizeof(h->host)) return false;
+    snprintf(h->host, sizeof(h->host), "%.*s", (int)nl, s);
+    h->port = colon ? (uint16_t)atoi(colon + 1) : CHAT_DEFAULT_PORT;
+    if (h->port == 0) return false;
+    snprintf(h->model, sizeof(h->model), "%s", slash ? slash + 1 : "");
+    snprintf(h->name, sizeof(h->name), "%.47s", h->model[0] ? h->model : "OLLAMA");
+    h->ollama = true;
+    return true;
+}
+
+/* "user@host[:port]" or an Ollama URL */
 static bool parse_target(const char *s, host_t *h)
 {
     memset(h, 0, sizeof(*h));
+    if (strncmp(s, "ollama://", 9) == 0) return parse_ollama(s + 9, h);
     const char *at = strchr(s, '@');
     if (at == NULL || at == s || !at[1]) return false;
     snprintf(h->user, sizeof(h->user), "%.*s", (int)(at - s), s);
@@ -141,25 +181,33 @@ static lv_obj_t *page(void)
 
 /* ---- Terminal view ------------------------------------------------------- */
 
+/* The open session's pipe: SSH (or the simulator's shell) or an Ollama chat. */
+static void sess_write(const char *d, size_t n) { s_t.chat ? chat_write(d, n) : link_write(d, n); }
+static void sess_resize(int c, int r) { s_t.chat ? chat_resize(c, r) : link_resize(c, r); }
+static void sess_close(void) { s_t.chat ? chat_close() : link_close(); }
+static size_t sess_read(char *b, size_t n) { return s_t.chat ? chat_read(b, n) : link_read(b, n); }
+static link_state_t sess_state(void) { return s_t.chat ? chat_state() : link_state(); }
+static const char *sess_status(void) { return s_t.chat ? chat_status() : link_status(); }
+
 static void term_output(const char *d, size_t n, void *u)
 {
     (void)u;
-    link_write(d, n);
+    sess_write(d, n);
 }
 
 static void term_resized(int cols, int rows, void *u)
 {
     (void)u;
     snprintf(s_t.cols_rows, sizeof(s_t.cols_rows), "%dx%d", cols, rows);
-    link_resize(cols, rows);
+    sess_resize(cols, rows);
 }
 
 static void update_info(void)
 {
-    link_state_t st = link_state();
+    link_state_t st = sess_state();
     static const char *names[] = {"IDLE", "CONNECTING", "VERIFY HOST", "AUTH", "ONLINE", "CLOSED"};
     lv_label_set_text_fmt(s_t.info, "%s  //  %s  //  %s   %s", s_t.target, names[st], s_t.cols_rows,
-                          st == LINK_OPEN ? "" : link_status());
+                          st == LINK_OPEN ? "" : sess_status());
     lv_obj_set_style_text_color(s_t.info, st == LINK_OPEN ? g_pal.accent : st == LINK_CLOSED ? g_pal.danger : g_pal.warn,
                                 0);
 }
@@ -175,11 +223,11 @@ static void pump(lv_timer_t *tm)
     (void)tm;
     static char buf[4096];
     size_t total = 0, n;
-    while (total < 64 * 1024 && (n = link_read(buf, sizeof(buf))) > 0) {
+    while (total < 64 * 1024 && (n = sess_read(buf, sizeof(buf))) > 0) {
         deck_term_feed(s_t.term, buf, n);
         total += n;
     }
-    link_state_t st = link_state();
+    link_state_t st = sess_state();
     if (st != s_t.shown_state) {
         s_t.shown_state = st;
         update_info();
@@ -206,18 +254,25 @@ static const char *s_bar_main[] = {"ESC", "TAB", "CTRL", "<", "UP", "DN", ">", "
                                    "QUIT", ""};
 static const char *s_bar_fn[] = {"F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "Fn",
                                  ""};
+static const char *s_bar_chat[] = {"STOP", "CLEAR", "MODELS", "HELP", "QUIT", ""};
+
+/* Chat bar buttons type into the chat: Ctrl+C, or Ctrl+U (drop the line
+ * being typed) and a slash command. */
+static const struct {
+    const char *label, *keys;
+} s_chat_keys[] = {{"STOP", "\x03"}, {"CLEAR", "\x15/clear\r"}, {"MODELS", "\x15/models\r"}, {"HELP", "\x15/help\r"}};
 
 static void set_bar_page(bool fn)
 {
     s_t.fn_page = fn;
-    lv_buttonmatrix_set_map(s_t.bar, fn ? s_bar_fn : s_bar_main);
+    lv_buttonmatrix_set_map(s_t.bar, s_t.chat ? s_bar_chat : fn ? s_bar_fn : s_bar_main);
     lv_buttonmatrix_clear_button_ctrl_all(s_t.bar, LV_BUTTONMATRIX_CTRL_CHECKED);
-    if (!fn) lv_buttonmatrix_set_button_ctrl(s_t.bar, 2, LV_BUTTONMATRIX_CTRL_CHECKABLE);
+    if (!fn && !s_t.chat) lv_buttonmatrix_set_button_ctrl(s_t.bar, 2, LV_BUTTONMATRIX_CTRL_CHECKABLE);
 }
 
 static void close_term(void)
 {
-    link_close();
+    sess_close();
     if (s_t.pump) lv_timer_delete(s_t.pump);
     s_t.pump = NULL;
     deck_term_destroy(s_t.term);
@@ -232,6 +287,14 @@ static void bar_clicked(lv_event_t *e)
     uint32_t id  = lv_buttonmatrix_get_selected_button(m);
     const char *l = id == LV_BUTTONMATRIX_BUTTON_NONE ? NULL : lv_buttonmatrix_get_button_text(m, id);
     if (l == NULL) return;
+    if (s_t.chat) {
+        for (size_t i = 0; i < sizeof(s_chat_keys) / sizeof(s_chat_keys[0]); i++) {
+            if (!strcmp(l, s_chat_keys[i].label)) {
+                sess_write(s_chat_keys[i].keys, strlen(s_chat_keys[i].keys));
+                return;
+            }
+        }
+    }
     if (!strcmp(l, "Fn")) {
         set_bar_page(!s_t.fn_page);
     } else if (!strcmp(l, "QUIT")) {
@@ -257,6 +320,7 @@ static void bar_clicked(lv_event_t *e)
 static void open_term(const host_t *h, const char *password)
 {
     s_t.in_term = true;
+    s_t.chat    = h->ollama;
     lv_obj_t *root = page();
     lv_obj_set_style_pad_all(root, 0, 0);
     lv_obj_set_style_pad_row(root, 0, 0);
@@ -274,6 +338,9 @@ static void open_term(const host_t *h, const char *password)
 
     if (h->local) {
         snprintf(s_t.target, sizeof(s_t.target), "LOCAL SHELL");
+    } else if (h->ollama) {
+        snprintf(s_t.target, sizeof(s_t.target), "OLLAMA %s%s%s:%u", h->model, h->model[0] ? " @ " : "", h->host,
+                 h->port);
     } else {
         snprintf(s_t.target, sizeof(s_t.target), "%s@%s:%u", h->user, h->host, h->port);
     }
@@ -306,13 +373,19 @@ static void open_term(const host_t *h, const char *password)
     int cols, rows;
     deck_term_size(s_t.term, &cols, &rows);
     snprintf(s_t.cols_rows, sizeof(s_t.cols_rows), "%dx%d", cols, rows);
+    s_t.shown_state = (link_state_t)-1;
+    if (h->ollama) {
+        chat_open(h->host, h->port, h->model, cols, rows);
+        s_t.pump = lv_timer_create(pump, PUMP_MS, NULL);
+        pump(s_t.pump);
+        return;
+    }
 
     link_params_t p = {0};
     snprintf(p.host, sizeof(p.host), "%s", h->host);
     snprintf(p.user, sizeof(p.user), "%s", h->user);
     snprintf(p.password, sizeof(p.password), "%s", password ? password : "");
-    p.port          = h->port;
-    s_t.shown_state = (link_state_t)-1;
+    p.port = h->port;
     link_open(&p, cols, rows);
     /* link_open keeps its own copy; don't leave the password on the stack.
      * Called through a volatile pointer so the dead store is not dropped. */
@@ -335,7 +408,7 @@ static void connect_host(int i)
 {
     if (i < 0 || i >= s_nhosts) return;
     s_t.pending = s_hosts[i];
-    if (s_hosts[i].local) {
+    if (s_hosts[i].local || s_hosts[i].ollama) {
         open_term(&s_t.pending, NULL);
         return;
     }
@@ -344,14 +417,30 @@ static void connect_host(int i)
     deck_modal_password(title, password_entered, NULL);
 }
 
+static void add_host(const host_t *h)
+{
+    if (s_nhosts >= MAX_HOSTS) return;
+    s_hosts[s_nhosts] = *h;
+    s_t.sel           = s_nhosts++;
+    hosts_save();
+    show_hosts();
+}
+
 static void target_entered(const char *text, void *u)
 {
     (void)u;
     host_t h;
-    if (text == NULL || !parse_target(text, &h) || s_nhosts >= MAX_HOSTS) return;
-    s_hosts[s_nhosts++] = h;
-    hosts_save();
-    show_hosts();
+    if (text != NULL && parse_target(text, &h)) add_host(&h);
+}
+
+/* "host[:port][/model]", with or without the ollama:// prefix. */
+static void ollama_entered(const char *text, void *u)
+{
+    (void)u;
+    host_t h;
+    if (text == NULL) return;
+    memset(&h, 0, sizeof(h));
+    if (parse_ollama(strncmp(text, "ollama://", 9) ? text : text + 9, &h)) add_host(&h);
 }
 
 static void delete_confirmed(bool yes, void *u)
@@ -369,7 +458,12 @@ static void row_clicked(lv_event_t *e) { connect_host((int)(intptr_t)lv_event_ge
 static void new_clicked(lv_event_t *e)
 {
     (void)e;
-    deck_modal_prompt("NEW HOST  user@host[:port]", "", target_entered, NULL);
+    deck_modal_prompt("NEW SSH HOST  user@host[:port]", "", target_entered, NULL);
+}
+static void new_ollama_clicked(lv_event_t *e)
+{
+    (void)e;
+    deck_modal_prompt("NEW OLLAMA SERVER  host[:port][/model]", "", ollama_entered, NULL);
 }
 static void key_clicked(lv_event_t *e)
 {
@@ -402,7 +496,8 @@ static void show_hosts(void)
     lv_obj_t *t = deck_label(head, g_font.disp_s, g_pal.accent, "// HOSTS");
     lv_obj_set_flex_grow(t, 1);
     tool_button(head, "DEVICE KEY", key_clicked);
-    tool_button(head, "+ NEW", new_clicked);
+    tool_button(head, "+ SSH", new_clicked);
+    tool_button(head, "+ OLLAMA", new_ollama_clicked);
 
     lv_obj_t *list = deck_box(root);
     lv_obj_set_width(list, LV_PCT(100));
@@ -413,7 +508,11 @@ static void show_hosts(void)
     lv_obj_add_flag(list, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scroll_dir(list, LV_DIR_VER);
 
-    if (s_nhosts == 0) deck_label(list, g_font.mono_m, g_pal.dim, "No hosts yet. Ctrl+N or + NEW to add user@host.");
+    if (s_nhosts == 0) {
+        deck_label(list, g_font.mono_m, g_pal.dim,
+                   "No hosts yet.\n+ SSH (Ctrl+N) adds a shell: user@host[:port]\n"
+                   "+ OLLAMA (Ctrl+O) adds an AI chat: host[:port][/model]");
+    }
     lv_obj_t *focus = NULL;
     for (int i = 0; i < s_nhosts; i++) {
         lv_obj_t *row = deck_panel(list, DECK_CUT_BR, 12);
@@ -423,19 +522,23 @@ static void show_hosts(void)
         lv_obj_set_user_data(row, (void *)(intptr_t)(i + 1));
         lv_obj_add_event_cb(row, row_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         lv_group_add_obj(deck_input_group(), row);
-        lv_obj_t *n = deck_icon_text(row, ICON_CONSOLE, s_hosts[i].name, g_font.mono_l, g_pal.text);
+        lv_obj_t *n = deck_icon_text(row, s_hosts[i].ollama ? ICON_SERVER : ICON_CONSOLE, s_hosts[i].name,
+                                     g_font.mono_l, g_pal.text);
         lv_obj_align(n, LV_ALIGN_LEFT_MID, 0, 0);
         char where[112];
         if (s_hosts[i].local) {
             snprintf(where, sizeof(where), "simulator: runs your shell");
+        } else if (s_hosts[i].ollama) {
+            snprintf(where, sizeof(where), "OLLAMA  %s:%u", s_hosts[i].host, s_hosts[i].port);
         } else {
-            snprintf(where, sizeof(where), "%s@%s:%u", s_hosts[i].user, s_hosts[i].host, s_hosts[i].port);
+            snprintf(where, sizeof(where), "SSH  %s@%s:%u", s_hosts[i].user, s_hosts[i].host, s_hosts[i].port);
         }
         lv_obj_t *w = deck_label(row, g_font.mono_s, g_pal.dim, where);
         lv_obj_align(w, LV_ALIGN_RIGHT_MID, 0, 0);
         if (i == s_t.sel || focus == NULL) focus = row;
     }
-    deck_label(root, g_font.mono_s, g_pal.dim, "[ENTER] CONNECT    [CTRL+N] NEW    [DEL] REMOVE    [ESC] DECK");
+    deck_label(root, g_font.mono_s, g_pal.dim,
+               "[ENTER] CONNECT    [CTRL+N] NEW SSH    [CTRL+O] NEW OLLAMA    [DEL] REMOVE    [ESC] DECK");
     if (focus) {
         lv_group_focus_obj(focus);
         lv_obj_add_state(focus, LV_STATE_FOCUS_KEY);
@@ -455,7 +558,7 @@ static bool on_key(deck_app_t *self, const deck_key_t *k)
 {
     (void)self;
     if (s_t.in_term) {
-        if (link_state() == LINK_CLOSED && k->code == HID_ENTER) {
+        if (sess_state() == LINK_CLOSED && k->code == HID_ENTER) {
             close_term();
             return true;
         }
@@ -464,6 +567,10 @@ static bool on_key(deck_app_t *self, const deck_key_t *k)
     }
     if ((k->mods & DECK_MOD_CTRL) && k->code == HID_N) {
         new_clicked(NULL);
+        return true;
+    }
+    if ((k->mods & DECK_MOD_CTRL) && k->code == HID_O) {
+        new_ollama_clicked(NULL);
         return true;
     }
     if (k->code == HID_DELETE) {
@@ -499,7 +606,7 @@ static void term_exit(deck_app_t *self)
 {
     (void)self;
     if (s_t.in_term) {
-        link_close();
+        sess_close();
         if (s_t.pump) lv_timer_delete(s_t.pump);
         s_t.pump = NULL;
     }
@@ -514,7 +621,7 @@ static void stop(deck_app_t *self)
 
 static deck_app_t s_app = {
     .name     = "TERMINAL",
-    .tagline  = "SSH UPLINK",
+    .tagline  = "SSH + OLLAMA",
     .icon     = ICON_CONSOLE,
     .eta      = NULL,
     .on_start = start,
