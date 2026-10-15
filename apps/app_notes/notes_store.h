@@ -1,6 +1,8 @@
 /*
- * Markdown files in <storage root>/notes. Plain POSIX I/O, so the same code
- * runs on the SD card, the internal flash partition and the simulator.
+ * Markdown files in <storage root>/notes (the deck's own notes) or
+ * <storage root>/vault (a synced Obsidian vault), chosen by the "notes_src"
+ * setting, with subfolders. Plain POSIX I/O, so the same code runs on the SD
+ * card, the internal flash partition and the simulator.
  */
 #pragma once
 
@@ -8,19 +10,31 @@
 #include <stddef.h>
 #include <time.h>
 
-#define NOTES_NAME_MAX 64
+#define NOTES_NAME_MAX 96
+#define NOTES_SUBDIR_MAX 128
 #define NOTES_FILE_MAX (256 * 1024)
 
 typedef struct {
     char name[NOTES_NAME_MAX];
     long size;
     time_t mtime;
+    bool is_dir;
 } note_entry_t;
 
-/* Directory holding the notes (created if needed), or NULL without storage. */
-const char *notes_dir(void);
+/* Source: the deck's own notes folder, or the synced vault ("notes_src"). */
+bool notes_vault_mode(void);
+void notes_set_vault_mode(bool vault);
 
-/* Up to `max` notes, newest first. Returns the count. */
+/* Top folder of the current source (created if needed), or NULL without
+ * storage. notes_dir() is that plus the subfolder being browsed. */
+const char *notes_root(void);
+const char *notes_dir(void);
+const char *notes_subdir(void);            /* "" at the top */
+bool        notes_enter(const char *name); /* into a child folder */
+bool        notes_up(void);                /* false at the top */
+
+/* Up to `max` entries of the current folder: subfolders first (by name),
+ * then notes newest first. Returns the count. */
 int notes_list(note_entry_t *out, int max);
 
 /* Whole file, NUL terminated, caller frees. NULL on error. */

@@ -27,6 +27,14 @@ if(NOT IDF_DIR)
     set(IDF_DIR "$ENV{HOME}/esp/esp-idf")
 endif()
 set(CJSON_DIR "${IDF_DIR}/components/json/cJSON" CACHE PATH "cJSON source")
+
+# mbedTLS from the same tree, for the sync crypto (AES-GCM, PBKDF2, SHA-256),
+# so the sim decrypts exactly like the device. Built as a plain library.
+set(MBEDTLS_DIR "${IDF_DIR}/components/mbedtls/mbedtls" CACHE PATH "mbedTLS source")
+set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
+set(MBEDTLS_FATAL_WARNINGS OFF CACHE BOOL "" FORCE)
+add_subdirectory(${MBEDTLS_DIR} mbedtls EXCLUDE_FROM_ALL)
 add_library(cjson STATIC ${CJSON_DIR}/cJSON.c)
 target_include_directories(cjson PUBLIC ${CJSON_DIR})
 
@@ -96,6 +104,7 @@ target_include_directories(deck_sim PRIVATE
     ${ROOT}/components/md4c
     ${APP_DIRS}
 )
+target_link_libraries(deck_sim PRIVATE mbedcrypto)
 target_compile_definitions(deck_sim PRIVATE
     DECK_ASSET_DIR="${ROOT}/assets/fonts"
     DECK_SIM_SDCARD="${CMAKE_CURRENT_SOURCE_DIR}/sdcard")

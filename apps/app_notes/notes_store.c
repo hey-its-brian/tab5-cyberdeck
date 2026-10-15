@@ -12,19 +12,77 @@
 
 #include "deck_hal.h"
 
-static char s_dir[96];
+static char s_root[96];
+static char s_dir[96 + NOTES_SUBDIR_MAX];
+static char s_subdir[NOTES_SUBDIR_MAX]; /* "" or "a/b", no leading slash */
+static bool s_subdir_vault;             /* which source s_subdir belongs to */
 
-const char *notes_dir(void)
+bool notes_vault_mode(void) { return hal_cfg_get_i32("notes_src", 0) != 0; }
+
+void notes_set_vault_mode(bool vault)
+{
+    hal_cfg_set_i32("notes_src", vault);
+    s_subdir[0] = '\0';
+}
+
+const char *notes_root(void)
 {
     const char *root = hal_storage_root();
     if (root == NULL) return NULL;
-    snprintf(s_dir, sizeof(s_dir), "%s/notes", root);
+    bool vault = notes_vault_mode();
+    snprintf(s_root, sizeof(s_root), "%s/%s", root, vault ? "vault" : "notes");
+    if (vault != s_subdir_vault) {
+        s_subdir[0]    = '\0'; /* a different tree */
+        s_subdir_vault = vault;
+    }
     struct stat st;
-    if (stat(s_dir, &st) != 0) {
+    if (stat(s_root, &st) != 0) {
         mkdir(root, 0755); /* simulator: sim/sdcard may not exist yet */
-        if (mkdir(s_dir, 0755) != 0 && errno != EEXIST) return NULL;
+        if (mkdir(s_root, 0755) != 0 && errno != EEXIST) return NULL;
+    }
+    return s_root;
+}
+
+const char *notes_dir(void)
+{
+    const char *root = notes_root();
+    if (root == NULL) return NULL;
+    if (s_subdir[0]) {
+        snprintf(s_dir, sizeof(s_dir), "%s/%s", root, s_subdir);
+    } else {
+        snprintf(s_dir, sizeof(s_dir), "%s", root);
+    }
+    struct stat st;
+    if (stat(s_dir, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        s_subdir[0] = '\0'; /* the folder went away (deleted, other card) */
+        snprintf(s_dir, sizeof(s_dir), "%s", root);
     }
     return s_dir;
+}
+
+const char *notes_subdir(void) { return s_subdir; }
+
+bool notes_enter(const char *name)
+{
+    if (name == NULL || name[0] == '\0' || strchr(name, '/')) return false;
+    char next[NOTES_SUBDIR_MAX];
+    int n = s_subdir[0] ? snprintf(next, sizeof(next), "%s/%s", s_subdir, name)
+                        : snprintf(next, sizeof(next), "%s", name);
+    if (n < 0 || (size_t)n >= sizeof(next)) return false;
+    snprintf(s_subdir, sizeof(s_subdir), "%s", next);
+    return true;
+}
+
+bool notes_up(void)
+{
+    if (s_subdir[0] == '\0') return false;
+    char *slash = strrchr(s_subdir, '/');
+    if (slash) {
+        *slash = '\0';
+    } else {
+        s_subdir[0] = '\0';
+    }
+    return true;
 }
 
 static bool path_for(const char *name, char *out, size_t n)
@@ -43,6 +101,8 @@ static bool is_md(const char *name)
 static int by_mtime_desc(const void *a, const void *b)
 {
     const note_entry_t *x = a, *y = b;
+    if (x->is_dir != y->is_dir) return x->is_dir ? -1 : 1; /* folders first, by name */
+    if (x->is_dir) return strcasecmp(x->name, y->name);
     if (x->mtime != y->mtime) return x->mtime < y->mtime ? 1 : -1;
     return strcasecmp(x->name, y->name);
 }
@@ -56,14 +116,17 @@ int notes_list(note_entry_t *out, int max)
     int n = 0;
     struct dirent *e;
     while ((e = readdir(d)) != NULL && n < max) {
-        if (e->d_name[0] == '.' || !is_md(e->d_name) || strlen(e->d_name) >= NOTES_NAME_MAX) continue;
-        char path[192];
+        if (e->d_name[0] == '.' || strlen(e->d_name) >= NOTES_NAME_MAX) continue; /* .obsidian, .trash too */
+        char path[256];
         snprintf(path, sizeof(path), "%s/%s", dir, e->d_name);
         struct stat st;
-        if (stat(path, &st) != 0 || !S_ISREG(st.st_mode)) continue;
+        if (stat(path, &st) != 0) continue;
+        bool dir_entry = S_ISDIR(st.st_mode);
+        if (!dir_entry && (!S_ISREG(st.st_mode) || !is_md(e->d_name))) continue;
         snprintf(out[n].name, NOTES_NAME_MAX, "%s", e->d_name);
-        out[n].size  = (long)st.st_size;
-        out[n].mtime = st.st_mtime;
+        out[n].size   = dir_entry ? 0 : (long)st.st_size;
+        out[n].mtime  = st.st_mtime;
+        out[n].is_dir = dir_entry;
         n++;
     }
     closedir(d);
@@ -73,7 +136,7 @@ int notes_list(note_entry_t *out, int max)
 
 char *notes_read(const char *name, size_t *len)
 {
-    char path[192];
+    char path[256];
     if (!path_for(name, path, sizeof(path))) return NULL;
     FILE *f = fopen(path, "rb");
     if (f == NULL) return NULL;
@@ -95,7 +158,7 @@ char *notes_read(const char *name, size_t *len)
 
 bool notes_write(const char *name, const char *text, size_t len)
 {
-    char path[192], tmp[200];
+    char path[256], tmp[264];
     if (!path_for(name, path, sizeof(path))) return false;
     snprintf(tmp, sizeof(tmp), "%s.tmp", path);
     FILE *f = fopen(tmp, "wb");
@@ -112,13 +175,13 @@ bool notes_write(const char *name, const char *text, size_t len)
 
 bool notes_delete(const char *name)
 {
-    char path[192];
+    char path[256];
     return path_for(name, path, sizeof(path)) && unlink(path) == 0;
 }
 
 bool notes_rename(const char *from, const char *to)
 {
-    char a[192], b[192];
+    char a[256], b[256];
     if (!path_for(from, a, sizeof(a)) || !path_for(to, b, sizeof(b))) return false;
     if (notes_exists(to)) return false;
     return rename(a, b) == 0;
@@ -126,7 +189,7 @@ bool notes_rename(const char *from, const char *to)
 
 bool notes_exists(const char *name)
 {
-    char path[192];
+    char path[256];
     struct stat st;
     return path_for(name, path, sizeof(path)) && stat(path, &st) == 0;
 }
@@ -192,6 +255,7 @@ static const char s_readme[] =
 void notes_seed(void)
 {
     note_entry_t e;
+    if (notes_vault_mode()) return; /* the vault is Obsidian's */
     if (notes_dir() != NULL && notes_list(&e, 1) == 0) {
         notes_write("README.md", s_readme, sizeof(s_readme) - 1);
     }

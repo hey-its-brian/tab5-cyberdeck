@@ -56,6 +56,14 @@ bool net_time_synced(void);
  * frees). Call from a worker task, never the LVGL task. NULL on failure. */
 char *net_http_get(const char *url, size_t *len);
 
+/* Blocking request with a method, optional HTTP basic auth and an optional
+ * JSON body (CouchDB and friends). The response body comes back malloc'd and
+ * NUL-terminated whatever the status (error replies are useful), with the
+ * status in *status. NULL only when the request never got an answer. Worker
+ * task only. */
+char *net_http_request(const char *method, const char *url, const char *user, const char *pass, const char *body,
+                       size_t body_len, int *status, size_t *len);
+
 /* Non-blocking GET for UI code: runs on a worker task and calls `cb` on the
  * LVGL task with the body (NULL on failure). The body is freed after `cb`
  * returns. `alive` lets the caller cancel: if *alive is false by the time

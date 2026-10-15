@@ -330,6 +330,68 @@ void net_fetch(const char *url, net_fetch_cb_t cb, void *user, volatile bool *al
 
 /* ---- HTTP ---------------------------------------------------------------- */
 
+static char *read_body(esp_http_client_handle_t c, size_t *len)
+{
+    size_t cap = 8192, n = 0;
+    char *buf  = malloc(cap);
+    while (buf) {
+        if (n + 1024 >= cap) {
+            if (cap >= HTTP_MAX) break;
+            char *nb = realloc(buf, cap * 2);
+            if (nb == NULL) break;
+            buf = nb;
+            cap *= 2;
+        }
+        int r = esp_http_client_read(c, buf + n, (int)(cap - n - 1));
+        if (r <= 0) break;
+        n += (size_t)r;
+    }
+    if (buf) buf[n] = '\0';
+    if (len) *len = n;
+    return buf;
+}
+
+char *net_http_request(const char *method, const char *url, const char *user, const char *pass, const char *body,
+                       size_t body_len, int *status, size_t *len)
+{
+    if (status) *status = 0;
+    if (s_state != NET_CONNECTED) return NULL;
+    esp_http_client_config_t cfg = {0};
+    cfg.url                      = url;
+    cfg.timeout_ms               = 20000;
+    cfg.crt_bundle_attach        = esp_crt_bundle_attach;
+    cfg.buffer_size              = 2048;
+    cfg.buffer_size_tx           = 2048;
+    if (user && user[0]) {
+        cfg.username  = user;
+        cfg.password  = pass ? pass : "";
+        cfg.auth_type = HTTP_AUTH_TYPE_BASIC;
+    }
+    esp_http_client_handle_t c = esp_http_client_init(&cfg);
+    if (c == NULL) return NULL;
+    esp_http_client_method_t m = HTTP_METHOD_GET;
+    if (strcmp(method, "PUT") == 0) m = HTTP_METHOD_PUT;
+    else if (strcmp(method, "POST") == 0) m = HTTP_METHOD_POST;
+    else if (strcmp(method, "DELETE") == 0) m = HTTP_METHOD_DELETE;
+    else if (strcmp(method, "HEAD") == 0) m = HTTP_METHOD_HEAD;
+    esp_http_client_set_method(c, m);
+    esp_http_client_set_header(c, "Accept", "application/json");
+    if (body) esp_http_client_set_header(c, "Content-Type", "application/json");
+
+    char *buf = NULL;
+    if (esp_http_client_open(c, body ? (int)body_len : 0) == ESP_OK) {
+        if (body && body_len && esp_http_client_write(c, body, (int)body_len) != (int)body_len) {
+            ESP_LOGW(TAG, "%s %s: short write", method, url);
+        } else if (esp_http_client_fetch_headers(c) >= 0) {
+            if (status) *status = esp_http_client_get_status_code(c);
+            buf = read_body(c, len);
+        }
+    }
+    esp_http_client_close(c);
+    esp_http_client_cleanup(c);
+    return buf;
+}
+
 char *net_http_get(const char *url, size_t *len)
 {
     if (s_state != NET_CONNECTED) return NULL;

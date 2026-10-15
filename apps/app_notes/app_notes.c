@@ -24,7 +24,7 @@
 #include "deck_widgets.h"
 #include "notes_store.h"
 
-#define MAX_NOTES 64
+#define MAX_NOTES 128
 #define AUTOSAVE_MS 20000
 #define PREVIEW_DEBOUNCE_MS 350
 
@@ -162,18 +162,38 @@ static void delete_note(const char *name)
 }
 
 /* Which note row has keyboard focus, if any. */
+/* The focused row's note, or NULL when a folder or nothing is focused. */
 static const char *focused_note(void)
 {
     lv_obj_t *f = lv_group_get_focused(deck_input_group());
     if (f == NULL || s_n.doc_open) return NULL;
     intptr_t i = (intptr_t)lv_obj_get_user_data(f);
-    return (i >= 1 && i <= s_n.count) ? s_n.notes[i - 1].name : NULL;
+    return (i >= 1 && i <= s_n.count && !s_n.notes[i - 1].is_dir) ? s_n.notes[i - 1].name : NULL;
 }
 
 static void row_clicked(lv_event_t *e)
 {
     intptr_t i = (intptr_t)lv_event_get_user_data(e);
+    if (s_n.notes[i - 1].is_dir) {
+        if (notes_enter(s_n.notes[i - 1].name)) show_browser(NULL);
+        return;
+    }
     open_doc(s_n.notes[i - 1].name, MODE_VIEW);
+}
+
+static void go_up(void)
+{
+    char was[NOTES_NAME_MAX] = "";
+    const char *slash        = strrchr(notes_subdir(), '/');
+    snprintf(was, sizeof(was), "%s", slash ? slash + 1 : notes_subdir());
+    if (notes_up()) show_browser(was[0] ? was : NULL);
+}
+
+static void source_clicked(lv_event_t *e)
+{
+    (void)e;
+    notes_set_vault_mode(!notes_vault_mode());
+    show_browser(NULL);
 }
 
 static void row_rename(lv_event_t *e) { rename_note(s_n.notes[(intptr_t)lv_event_get_user_data(e) - 1].name); }
@@ -193,18 +213,36 @@ static void show_browser(const char *focus_name)
 
     const char *dir = notes_dir();
     s_n.count       = dir ? notes_list(s_n.notes, MAX_NOTES) : 0;
+    bool vault      = notes_vault_mode();
+    int files = 0, folders = 0;
+    for (int i = 0; i < s_n.count; i++) {
+        if (s_n.notes[i].is_dir) folders++;
+        else files++;
+    }
 
     lv_obj_t *head = deck_box(root);
     lv_obj_set_width(head, LV_PCT(100));
-    lv_obj_t *t = deck_label(head, g_font.disp_s, g_pal.accent, "// DATASTORE");
+    lv_obj_t *t = deck_label(head, g_font.disp_s, g_pal.accent, vault ? "// VAULT" : "// DATASTORE");
     lv_obj_align(t, LV_ALIGN_LEFT_MID, 0, 0);
-    char info[128];
-    snprintf(info, sizeof(info), "%s  ::  %d FILE%s  ::  %s", dir ? dir : "NO STORAGE", s_n.count,
-             s_n.count == 1 ? "" : "S", hal_storage_is_sd() ? "SD" : "INTERNAL FLASH");
+    char info[400], where[160];
+    if (dir == NULL) {
+        snprintf(where, sizeof(where), "NO STORAGE");
+    } else {
+        snprintf(where, sizeof(where), "%s/%s", vault ? "vault" : "notes", notes_subdir());
+    }
+    char fold[40] = "";
+    if (folders) snprintf(fold, sizeof(fold), "%d FOLDER%s  ::  ", folders, folders == 1 ? "" : "S");
+    snprintf(info, sizeof(info), "%s  ::  %s%d FILE%s  ::  %s", where, fold, files, files == 1 ? "" : "S",
+             hal_storage_is_sd() ? "SD" : "INTERNAL FLASH");
     lv_obj_t *path = deck_label(head, g_font.mono_s, g_pal.dim, info);
-    lv_obj_align(path, LV_ALIGN_LEFT_MID, 190, 0);
+    lv_label_set_long_mode(path, LV_LABEL_LONG_MODE_DOTS);
+    lv_obj_set_width(path, 640);
+    lv_obj_align(path, LV_ALIGN_LEFT_MID, 150, 0);
     lv_obj_t *nb = tool_button(head, "+ NEW", new_clicked, NULL);
     lv_obj_align(nb, LV_ALIGN_RIGHT_MID, 0, 0);
+    /* Which tree: the deck's own notes, or the synced Obsidian vault. */
+    lv_obj_t *src = tool_button(head, vault ? "VAULT" : "LOCAL", source_clicked, NULL);
+    lv_obj_align(src, LV_ALIGN_RIGHT_MID, -116, 0);
 
     lv_obj_t *list = deck_box(root);
     lv_obj_set_width(list, LV_PCT(100));
@@ -219,6 +257,8 @@ static void show_browser(const char *focus_name)
     lv_obj_t *focus = NULL;
     if (dir == NULL) {
         deck_label(list, g_font.mono_m, g_pal.warn, "No SD card and no internal storage. Insert a card.");
+    } else if (s_n.count == 0 && vault && notes_subdir()[0] == '\0') {
+        deck_label(list, g_font.mono_m, g_pal.dim, "Empty vault. SYNC pulls your notes in; LOCAL switches back.");
     } else if (s_n.count == 0) {
         deck_label(list, g_font.mono_m, g_pal.dim, "Empty. Ctrl+N or + NEW to start a note.");
     }
@@ -232,8 +272,16 @@ static void show_browser(const char *focus_name)
         lv_obj_add_event_cb(row, row_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)(i + 1));
         lv_group_add_obj(deck_input_group(), row);
 
-        lv_obj_t *nm = deck_icon_text(row, ICON_MARKDOWN, n->name, g_font.mono_l, g_pal.text);
+        lv_obj_t *nm = deck_icon_text(row, n->is_dir ? ICON_FOLDER : ICON_MARKDOWN, n->name, g_font.mono_l,
+                                      n->is_dir ? g_pal.accent : g_pal.text);
         lv_obj_align(nm, LV_ALIGN_LEFT_MID, 0, 0);
+
+        if (n->is_dir) {
+            lv_obj_t *m = deck_label(row, g_font.mono_s, g_pal.dim, "FOLDER");
+            lv_obj_align(m, LV_ALIGN_RIGHT_MID, 0, 0);
+            if (focus == NULL || (focus_name && strcmp(focus_name, n->name) == 0)) focus = row;
+            continue;
+        }
 
         char meta[64], sz[16];
         struct tm tm;
@@ -253,7 +301,8 @@ static void show_browser(const char *focus_name)
     }
 
     deck_label(root, g_font.mono_s, g_pal.dim,
-               "[ENTER] OPEN    [CTRL+N] NEW    [CTRL+R] RENAME    [DEL] DELETE    [ESC] DECK");
+               notes_subdir()[0] ? "[ENTER] OPEN    [BACKSPACE] UP    [CTRL+N] NEW    [CTRL+R] RENAME    [DEL] DELETE    [ESC] DECK"
+                                 : "[ENTER] OPEN    [CTRL+N] NEW    [CTRL+R] RENAME    [DEL] DELETE    [ESC] DECK");
 
     if (focus) {
         lv_group_focus_obj(focus);
@@ -513,6 +562,10 @@ static bool on_key(deck_app_t *self, const deck_key_t *k)
     bool ctrl = (k->mods & DECK_MOD_CTRL) != 0;
     if (ctrl && k->code == HID_N) {
         new_note();
+        return true;
+    }
+    if (k->code == HID_BACKSPACE && !ctrl && notes_subdir()[0]) {
+        go_up();
         return true;
     }
     const char *f = focused_note();

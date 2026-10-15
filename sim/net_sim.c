@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "deck_hal.h"
 #include "lvgl.h"
@@ -121,6 +122,65 @@ void net_fetch(const char *url, net_fetch_cb_t cb, void *user, volatile bool *al
     f->alive   = alive;
     f->body    = net_http_get(url, &f->len); /* the simulator just blocks */
     lv_async_call(fetch_deliver, f);
+}
+
+/* curl does the talking; the body goes through a temp file to stay clear of
+ * shell quoting, and the status code rides on the last line of the output. */
+char *net_http_request(const char *method, const char *url, const char *user, const char *pass, const char *body,
+                       size_t body_len, int *status, size_t *len)
+{
+    if (status) *status = 0;
+    char tmp[] = "/tmp/deck_sim_body_XXXXXX";
+    int fd     = -1;
+    if (body) {
+        fd = mkstemp(tmp);
+        if (fd < 0) return NULL;
+        if (write(fd, body, body_len) != (ssize_t)body_len) {
+            close(fd);
+            unlink(tmp);
+            return NULL;
+        }
+        close(fd);
+    }
+    char auth[256] = "";
+    if (user && user[0]) snprintf(auth, sizeof(auth), "-u '%s:%s'", user, pass ? pass : "");
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd),
+             "curl -s --max-time 20 -X %s %s -H 'Accept: application/json' %s %s %s -w '\\n%%{http_code}' '%s'", method,
+             auth, body ? "-H 'Content-Type: application/json'" : "", body ? "--data-binary @" : "", body ? tmp : "",
+             url);
+    FILE *p = popen(cmd, "r");
+    if (p == NULL) {
+        if (fd >= 0) unlink(tmp);
+        return NULL;
+    }
+    size_t cap = 8192, n = 0;
+    char *buf  = malloc(cap);
+    size_t r;
+    while (buf && (r = fread(buf + n, 1, cap - n - 1, p)) > 0) {
+        n += r;
+        if (n + 1 >= cap) {
+            cap *= 2;
+            buf = realloc(buf, cap);
+        }
+    }
+    pclose(p);
+    if (fd >= 0) unlink(tmp);
+    if (buf == NULL) return NULL;
+    buf[n] = '\0';
+    char *nl = n ? strrchr(buf, '\n') : NULL;
+    if (nl == NULL) {
+        free(buf);
+        return NULL;
+    }
+    if (status) *status = atoi(nl + 1);
+    *nl = '\0';
+    if (len) *len = (size_t)(nl - buf);
+    if (status && *status == 0) {
+        free(buf);
+        return NULL;
+    }
+    return buf;
 }
 
 char *net_http_get(const char *url, size_t *len)
