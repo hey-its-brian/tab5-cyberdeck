@@ -84,3 +84,8 @@ CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC=y
 # Required to be valid, but unused: deck_hal picks the block at runtime and
 # nothing calls the stock nvs_flash_init().
 CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID=5
+
+# Static buffers marked DECK_PSRAM_BSS (deck_attr.h) live in PSRAM, keeping
+# internal RAM for early boot: with too little left, IDF 5.4 puts an idle
+# task's stack in TCM and the stack check asserts at every boot.
+CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y

@@ -16,6 +16,7 @@
  * which stops DNS rebinding; POSTs from another page's Origin are refused.
  * Only authenticated requests count as activity for the idle shutdown.
  */
+#include "deck_attr.h"
 #include "deck_portal.h"
 
 #include <ctype.h>
@@ -66,7 +67,7 @@ static volatile bool s_busy;
 static bool s_mdns_up;
 
 static SemaphoreHandle_t s_ev_lock;
-static portal_event_t s_ev[EVENTS];
+static portal_event_t s_ev[EVENTS] DECK_PSRAM_BSS;
 static uint32_t s_ev_count; /* total ever logged; index = n % EVENTS */
 
 /* ---- Events -------------------------------------------------------------- */
