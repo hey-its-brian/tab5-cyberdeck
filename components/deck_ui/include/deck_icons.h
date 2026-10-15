@@ -70,4 +70,7 @@
 #define ICON_THERMO         "\xF3\xB0\x94\x8F" /* F050F */
 #define ICON_PIN            "\xF3\xB0\x8D\x8E" /* F034E */
 #define ICON_REFRESH        "\xF3\xB0\x91\x90" /* F0450 */
+#define ICON_TOOLS          "\xF3\xB1\x81\xA4" /* F1064 */
+#define ICON_RADAR          "\xF3\xB0\x90\xB7" /* F0437 */
+#define ICON_MEDIA          "\xF3\xB1\xAE\x97" /* F1B97 */
 #define ICON_UMBRELLA       "\xF3\xB0\x95\x8A" /* F054A */

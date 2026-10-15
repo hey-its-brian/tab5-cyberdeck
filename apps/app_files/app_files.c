@@ -752,6 +752,7 @@ static deck_app_t s_app = {
     .tagline  = "STORAGE + UPLINK",
     .icon     = ICON_FOLDER,
     .eta      = NULL,
+    .hotkey   = HID_LETTER('F'),
     .on_start = start,
     .on_stop  = stop,
     .on_key   = on_key,

@@ -24,6 +24,7 @@ extern "C" {
 #define DECK_MOD_ALT    0x44
 
 /* HID usage IDs used by the shell and apps. */
+#define HID_LETTER(c)  ((uint8_t)(HID_A + ((c) - 'A'))) /* HID_LETTER('T') */
 #define HID_A          0x04
 #define HID_H          0x0B
 #define HID_P          0x13

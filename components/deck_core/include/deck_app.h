@@ -13,7 +13,8 @@
  * The shell deletes everything under `parent` between on_exit() and
  * on_stop(), so LVGL children never need freeing by hand. All callbacks run on the LVGL task with the lock held.
  *
- * Esc returns home unless on_key consumes it; Alt+Esc always returns home.
+ * Esc goes back a level unless on_key consumes it; Alt+Esc always returns
+ * home. Where a module sits on the home screen is decided by deck_home.h.
  */
 #pragma once
 
@@ -35,11 +36,16 @@ struct deck_app {
     const char *icon;      /* glyph from deck_icons.h */
     const char *eta;       /* NULL if the module works; else the version it
                               is scheduled for ("v0.5"), shown as OFFLINE */
+    uint8_t hotkey;        /* HID usage: Alt+<key> opens it from anywhere; 0 = none */
 
     bool (*on_start)(deck_app_t *self, lv_obj_t *parent);
     void (*on_exit)(deck_app_t *self);
     void (*on_stop)(deck_app_t *self);
     bool (*on_key)(deck_app_t *self, const deck_key_t *key);
+    /* Optional: the home tile shows live content (a widget) instead of the
+     * icon and name. `body` is the tile's inner box; it is deleted with the
+     * home screen, so hang timers and handles off it. */
+    void (*on_tile)(deck_app_t *self, lv_obj_t *body);
 
     void *user;
 };
@@ -48,6 +54,7 @@ void        deck_app_register(deck_app_t *app);
 size_t      deck_app_count(void);
 deck_app_t *deck_app_get(size_t index);
 int         deck_app_index(const deck_app_t *app);
+deck_app_t *deck_app_by_hotkey(uint8_t code);
 
 #ifdef __cplusplus
 }

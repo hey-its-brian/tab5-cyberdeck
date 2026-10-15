@@ -11,11 +11,30 @@ weather, a music player and a file manager with a LAN portal.
 |---|---|---|
 | ![Boot](docs/screenshots/boot.png) | ![System](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
-## Status: v1.1.0
+## Status: v1.2.0
 
 Seven modules: TERMINAL (SSH and Ollama chat), NOTES (markdown), CALC, WEATHER, PLAYER
 (music), FILES (file manager and LAN portal) and SYSTEM. It updates itself over
 Wi-Fi with signed builds and tells you when a new one is out.
+
+**Next (on main):** the home screen is five tiles instead of one per module.
+TOOLS (TERMINAL, CALC, SYSTEM) and FILES & MEDIA (FILES, PLAYER) are groups:
+the tile lists what is inside and opens a screen of the same tiles. NET TOOLS
+is a placeholder for v1.3. NOTES stays a tile of its own, and WEATHER is a
+widget: current temperature, conditions, location and today's range right on
+the home screen, tap for the full forecast. `Alt+1..5` opens a home tile,
+`Alt+T N C W M F S` jumps to a module from anywhere, `Esc` goes back one
+level and the status bar shows the path (`TOOLS // TERMINAL`).
+
+| Home | TOOLS | FILES & MEDIA |
+|---|---|---|
+| ![Home](docs/screenshots/home.png) | ![Tools](docs/screenshots/tools.png) | ![Files & Media](docs/screenshots/media.png) |
+
+**v1.2:** screen timeout with a drifting clock screensaver (SYSTEM > SAVER),
+Ollama chat in TERMINAL, built on ESP-IDF 5.5, and certificates verified in
+software because the ESP32-P4's ECC accelerator rejects GitHub's new
+certificate (every build before v1.2.0 lost over-the-air updates and needs
+one USB reflash).
 
 ![Files](docs/screenshots/files.png)
 
@@ -28,6 +47,8 @@ Keys: arrows and `Enter`, `Backspace` up, `Del` or `D` delete, `P` switches
 PREVIEW / PORTAL, `Space` engages the portal.
 
 ### Ollama chat in TERMINAL
+
+![Terminal](docs/screenshots/terminal.png)
 
 TERMINAL also chats with an [Ollama](https://ollama.com) server on your
 network. `+ OLLAMA` (or `Ctrl+O`) in the host list takes `host[:port][/model]`
@@ -155,17 +176,18 @@ See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
 
 | Keys | Action |
 |---|---|
-| `Alt+1..7` | Launch module 01..07 |
+| `Alt+1..5` | Open home tile 01..05 (a module or a group) |
+| `Alt+T` `N` `C` `W` `M` `F` `S` | Jump to TERMINAL, NOTES, CALC, WEATHER, PLAYER (music), FILES or SYSTEM from anywhere |
 | `Alt+Esc` | Return to the deck from anywhere (reserved for when SSH owns `Esc`) |
 | `Alt+0`, tap the clock, or SYSTEM > SAVER > SLEEP | Sleep the screen (backlight and keyboard light off); any key or touch wakes it |
 | (idle) | After SYSTEM > SAVER minutes (default 5) a drifting clock takes over, dimmed; 10 minutes later the screen sleeps. Any key or touch wakes it |
 | `Alt+H`, or tap the hint on the home screen | List every shortcut |
 | `Alt+P` | Pause or resume music from anywhere |
-| `Esc` | Back / close, or home if the module does not use it |
-| `Left` `Right` `Enter`, or `1..7` | Pick a tile on the home screen |
+| `Esc` | Back / close, or up one level (a module to its group, a group to the deck) if the module does not use it |
+| `Left` `Right` `Enter`, or `1..5` | Pick a tile on the home screen or in a group |
 | `Tab`, arrows | Move focus inside a module |
 
-Everything is also reachable by touch: tiles, the `< DECK` button and on-screen controls.
+Everything is also reachable by touch: tiles, the `< DECK` / `< TOOLS` back button and on-screen controls.
 
 ## Install from the browser
 
@@ -254,11 +276,13 @@ Mouse is touch; the Mac keyboard acts as the Tab5 Keyboard (Option is Alt).
 Headless mode renders scripted screenshots on a virtual clock:
 
 ```bash
-./sim/build/deck_sim --headless --no-boot --key 500:alt+5 --shot 1500:system.ppm
+./sim/build/deck_sim --headless --no-boot --key 500:alt+s --shot 1500:system.ppm
 ```
 
 `--key MS:SPEC` (e.g. `esc`, `enter`, `left`, `a`, `alt+2`, `ctrl+s`), `--tap MS:X,Y` and
-`--shot MS:FILE.ppm` can repeat. Convert with `sips -s format png in.ppm --out out.png`.
+`--shot MS:FILE.ppm` can repeat; `--set KEY=VALUE` seeds a setting (for example
+`--set wx_name=Raleigh --set wx_lat=35.78 --set wx_lon=-78.64` gives the WEATHER
+widget a location). Convert with `sips -s format png in.ppm --out out.png`.
 
 The portal's browser side runs on the Mac too: `tools/portal_mock.py` serves
 the real page backed by `sim/sdcard` at `http://127.0.0.1:8080` (PIN `271828`,

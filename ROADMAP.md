@@ -142,6 +142,18 @@ add-on). Revisit after v1.0.
 - [x] Any key or touch wakes it, and that press is swallowed
 - [x] Checkpoint: on hardware, idle for the timeout, the clock appears and drifts, a key brings the deck back exactly where it was
 
+## v1.3: Home layout, NET TOOLS, Obsidian sync
+
+Home screen first, then the two modules, one at a time.
+
+- [x] Five home tiles: TOOLS (TERMINAL, CALC, SYSTEM), NET TOOLS, FILES & MEDIA (FILES, PLAYER), NOTES, WEATHER
+- [x] Group tiles list their modules and open a screen of the same tiles; the status bar shows the path and the back button names where it goes
+- [x] WEATHER is a widget on the home screen (temperature, conditions, location, today's range, "tap for full forecast") from the same cache and fetch path as the module
+- [x] Alt+1..5 opens a home tile, 1..n inside a group, Alt+letter jumps to a module from anywhere, Esc goes up one level
+- [ ] Checkpoint on hardware: every module still opens by touch and by keyboard, the weather widget updates on its own, Esc from TERMINAL lands on TOOLS
+- [ ] NET TOOLS: Wi-Fi scanner (networks, channels, signal, security, a channel chart), LAN discovery (mDNS and a ping sweep), ping / DNS / traceroute / port check, speed test
+- [ ] Obsidian sync: SYSTEM > NOTES SOURCE picks local notes (`/notes`) or a synced vault (`/vault`); the vault syncs through Obsidian Self-hosted LiveSync (CouchDB), behind a sync-backend interface so other platforms can follow
+
 ## Next: Startup sound
 
 - A short boot chime through the speaker (or headphones) while the POST runs, stored as a small embedded clip and played by the audio driver

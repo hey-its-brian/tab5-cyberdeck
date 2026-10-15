@@ -64,6 +64,7 @@ enum { KV_HUMID, KV_WIND, KV_PRESS, KV_SUNRISE, KV_SUNSET };
 
 static void render(void);
 static void refresh_now(void);
+static void tile_render(void);
 
 /* ---- Settings and cache -------------------------------------------------- */
 
@@ -138,23 +139,30 @@ static void on_forecast(char *body, size_t len, void *user)
         s_w.failed = true;
     }
     render();
+    tile_render();
 }
 
-static void refresh_now(void)
+/* `alive` is whoever asked (the module or the home tile): the reply is
+ * dropped once that screen is gone. */
+static void refresh_with(volatile bool *alive)
 {
     char name[48];
     double lat, lon;
     if (s_w.loading || !place(name, sizeof(name), &lat, &lon)) return;
     if (net_state() != NET_CONNECTED) {
         render();
+        tile_render();
         return;
     }
     char url[512];
     wx_forecast_url(url, sizeof(url), lat, lon, metric());
     s_w.loading = true;
     render();
-    net_fetch(url, on_forecast, NULL, &s_ui.alive);
+    tile_render();
+    net_fetch(url, on_forecast, NULL, alive);
 }
+
+static void refresh_now(void) { refresh_with(&s_ui.alive); }
 
 /* ---- Location ------------------------------------------------------------ */
 
@@ -522,14 +530,103 @@ static void stop(deck_app_t *self)
     s_w.loading = false;
 }
 
+/* ---- Home tile (widget) --------------------------------------------------
+ * Current conditions on the home screen, from the same cache and fetch
+ * path as the module. Lives as long as the home screen does. */
+
+static struct {
+    volatile bool alive;
+    lv_obj_t *icon, *temp, *cond, *place, *range, *status;
+    lv_timer_t *timer;
+} s_tile;
+
+static void tile_render(void)
+{
+    if (!s_tile.alive) return;
+    char name[48] = "";
+    double lat, lon;
+    bool located = place(name, sizeof(name), &lat, &lon);
+    lv_label_set_text(s_tile.place, located ? name : "NO LOCATION");
+    lv_obj_set_style_text_color(s_tile.place, located ? g_pal.dim : g_pal.warn, 0);
+
+    const wx_t *w = &s_w.wx;
+    char buf[32];
+    if (!s_w.have) {
+        lv_label_set_text(s_tile.icon, WX_CLOUDY);
+        lv_label_set_text(s_tile.temp, "--");
+        lv_label_set_text(s_tile.cond, !located ? "TAP TO SET" : s_w.loading ? "UPLINK..." : "NO DATA");
+        lv_label_set_text(s_tile.range, "");
+    } else {
+        fmt_temp(buf, sizeof(buf), w->temp);
+        lv_label_set_text(s_tile.temp, buf);
+        lv_label_set_text(s_tile.icon, wx_code_icon(w->code, w->is_day));
+        lv_label_set_text(s_tile.cond, wx_code_text(w->code));
+        char hi[12], lo[12];
+        fmt_temp(hi, sizeof(hi), w->day[0].hi);
+        fmt_temp(lo, sizeof(lo), w->day[0].lo);
+        lv_label_set_text_fmt(s_tile.range, "H %s   L %s", hi, lo);
+    }
+    bool stale = s_w.from_cache || s_w.failed || net_state() != NET_CONNECTED;
+    lv_label_set_text(s_tile.status, s_w.loading ? "UPLINK" : !s_w.have ? "" : stale ? "CACHED" : "LIVE");
+    lv_obj_set_style_text_color(s_tile.status, stale ? g_pal.warn : g_pal.dim, 0);
+}
+
+static void tile_tick(lv_timer_t *t)
+{
+    (void)t;
+    if (net_state() == NET_CONNECTED && !s_w.loading &&
+        (!s_w.have || s_w.from_cache || time(NULL) - s_w.fetched > REFRESH_S)) {
+        refresh_with(&s_tile.alive);
+    }
+    tile_render();
+}
+
+static void tile_deleted(lv_event_t *e)
+{
+    (void)e;
+    if (s_tile.timer) lv_timer_delete(s_tile.timer);
+    memset(&s_tile, 0, sizeof(s_tile)); /* alive = false: an in-flight fetch is dropped */
+    s_w.loading = false;
+}
+
+static void on_tile(deck_app_t *self, lv_obj_t *body)
+{
+    (void)self;
+    memset(&s_tile, 0, sizeof(s_tile));
+    s_tile.alive = true;
+    if (!s_w.have) cache_load();
+    lv_obj_add_event_cb(body, tile_deleted, LV_EVENT_DELETE, NULL);
+    lv_obj_set_flex_flow(body, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(body, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(body, 4, 0);
+
+    deck_label(body, g_font.disp_s, g_pal.accent, "WEATHER");
+    s_tile.icon = deck_label(body, g_font.icon_l, g_pal.accent, "");
+    s_tile.temp = deck_label(body, g_font.disp_xl, g_pal.text, "");
+    s_tile.cond = deck_label(body, g_font.mono_m, g_pal.text, "");
+    s_tile.place = deck_label(body, g_font.mono_s, g_pal.dim, "");
+    lv_obj_set_width(s_tile.place, LV_PCT(100));
+    lv_label_set_long_mode(s_tile.place, LV_LABEL_LONG_MODE_DOTS);
+    lv_obj_set_style_text_align(s_tile.place, LV_TEXT_ALIGN_CENTER, 0);
+    s_tile.range  = deck_label(body, g_font.mono_s, g_pal.dim, "");
+    s_tile.status = deck_label(body, g_font.mono_s, g_pal.dim, "");
+    lv_obj_t *hint = deck_label(body, g_font.mono_s, g_pal.accent2, "TAP FOR FULL FORECAST");
+    lv_obj_set_style_pad_top(hint, 6, 0);
+
+    s_tile.timer = lv_timer_create(tile_tick, 5000, NULL);
+    tile_tick(s_tile.timer);
+}
+
 static deck_app_t s_app = {
     .name     = "WEATHER",
     .tagline  = "ATMOS SCAN",
     .icon     = ICON_WEATHER,
     .eta      = NULL,
+    .hotkey   = HID_LETTER('W'),
     .on_start = start,
     .on_stop  = stop,
     .on_key   = on_key,
+    .on_tile  = on_tile,
 };
 
 deck_app_t *app_weather(void) { return &s_app; }

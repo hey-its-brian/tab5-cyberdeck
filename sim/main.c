@@ -5,7 +5,7 @@
  *   mouse = touch, keyboard = Tab5 keyboard (Option/Alt = ALT).
  *
  * Headless mode renders scripted screenshots on a virtual clock:
- *   deck_sim --headless [--no-boot] [--wifi] [--accent N]
+ *   deck_sim --headless [--no-boot] [--wifi] [--accent N] [--set KEY=VALUE]...
  *            [--key MS:SPEC]...   SPEC like esc, enter, left, a, 5, comma, alt+2, ctrl+s, shift+9
  *            [--tap MS:X,Y]...
  *            [--shot MS:FILE.ppm]...
@@ -18,6 +18,8 @@
 
 #include "deck_hal.h"
 #include "deck_input.h"
+#include "deck_home.h"
+#include "deck_icons.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
 #include "lvgl.h"
@@ -28,6 +30,7 @@
 #include "app_player.h"
 #include "deck_audio.h"
 #include "app_files.h"
+#include "app_net.h"
 #include "app_sys.h"
 #include "app_term.h"
 #include "app_weather.h"
@@ -236,6 +239,19 @@ int main(int argc, char **argv)
             hal_cfg_set_str("wifi_ssid", "NIGHTCITY-5G"); /* start "online" */
         } else if (strcmp(a, "--no-boot") == 0) {
             boot = false;
+        } else if (strcmp(a, "--set") == 0) {
+            /* --set KEY=VALUE seeds a setting (both the string and, when
+             * numeric, the integer store), e.g. --set wx_name=Raleigh */
+            const char *eq = strchr(v, '=');
+            if (eq) {
+                char key[16];
+                snprintf(key, sizeof(key), "%.*s", (int)(eq - v), v);
+                hal_cfg_set_str(key, eq + 1);
+                char *end;
+                long n = strtol(eq + 1, &end, 10);
+                if (end != eq + 1 && *end == '\0') hal_cfg_set_i32(key, (int32_t)n);
+            }
+            i++;
         } else if (strcmp(a, "--accent") == 0) {
             accent = atoi(v);
             i++;
@@ -291,13 +307,27 @@ int main(int argc, char **argv)
     deck_theme_init();
     deck_input_init();
     player_init();
+    /* Every module, flat: Alt+letter shortcuts and lookups by name. */
     deck_app_register(app_term());
     deck_app_register(app_notes());
     deck_app_register(app_calc());
     deck_app_register(app_weather());
     deck_app_register(app_player());
     deck_app_register(app_files());
+    deck_app_register(app_net());
     deck_app_register(app_sys());
+
+    /* Home tiles 01..05 (Alt+1..5). Groups open a screen of their own. */
+    deck_group_t *tools = deck_home_add_group("TOOLS", "UTILITY STACK", ICON_TOOLS);
+    deck_group_add(tools, app_term());
+    deck_group_add(tools, app_calc());
+    deck_group_add(tools, app_sys());
+    deck_home_add_app(app_net());
+    deck_group_t *media = deck_home_add_group("FILES & MEDIA", "STORAGE + AUDIO", ICON_MEDIA);
+    deck_group_add(media, app_files());
+    deck_group_add(media, app_player());
+    deck_home_add_app(app_notes());
+    deck_home_add_app(app_weather());
     deck_shell_start(boot);
 
     if (headless) {

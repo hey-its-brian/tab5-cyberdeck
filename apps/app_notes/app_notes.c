@@ -561,6 +561,7 @@ static deck_app_t s_app = {
     .tagline  = "MARKDOWN I/O",
     .icon     = ICON_MARKDOWN,
     .eta      = NULL,
+    .hotkey   = HID_LETTER('N'),
     .on_start = start,
     .on_exit  = notes_exit,
     .on_stop  = stop,

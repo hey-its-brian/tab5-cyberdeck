@@ -104,6 +104,7 @@ bool hal_cfg_get_str(const char *key, char *out, size_t n)
 
 void hal_cfg_set_str(const char *key, const char *value)
 {
+    if (getenv("SIM_CFG_TRACE")) fprintf(stderr, "[sim] cfg %s = %s\n", key, value ? value : "(cleared)");
     int free_slot = -1;
     for (int i = 0; i < 16; i++) {
         if (s_str[i].key[0] && strcmp(s_str[i].key, key) == 0) {

@@ -745,6 +745,7 @@ static deck_app_t s_app = {
     .tagline  = "DECK CONFIG",
     .icon     = ICON_COG,
     .eta      = NULL,
+    .hotkey   = HID_LETTER('S'),
     .on_start = start,
     .on_stop  = stop,
     .on_key   = on_key,

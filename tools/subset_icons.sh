@@ -77,6 +77,9 @@ codepoints=(
     F034E  # map-marker
     F0450  # refresh
     F054A  # umbrella
+    F1064  # tools (TOOLS group)
+    F0437  # radar (NET TOOLS)
+    F1B97  # multimedia (FILES & MEDIA group)
 )
 
 unicodes=$(printf 'U+%s,' "${codepoints[@]}")

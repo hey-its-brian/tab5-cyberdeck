@@ -7,6 +7,7 @@
 #include <stdbool.h>
 
 #include "deck_app.h"
+#include "deck_home.h"
 #include "deck_input.h"
 
 #ifdef __cplusplus
@@ -20,9 +21,14 @@ extern "C" {
 /* Build the shell. With `boot_anim`, play the POST sequence first. */
 void deck_shell_start(bool boot_anim);
 
+/* Navigation. Home is the root; a group screen sits under it; an app sits
+ * under its group (or under home). back() goes up one level. */
 void deck_shell_home(void);
+void deck_shell_back(void);
 void deck_shell_launch(deck_app_t *app);
-deck_app_t *deck_shell_current(void);
+void deck_shell_open_group(deck_group_t *group);
+deck_app_t *deck_shell_current(void);   /* running app, or NULL */
+deck_group_t *deck_shell_group(void);   /* group shown or the running app's group, or NULL */
 
 /* Tear down and rebuild everything visible (after an accent change). The
  * running app is restarted in place, without a transition. */

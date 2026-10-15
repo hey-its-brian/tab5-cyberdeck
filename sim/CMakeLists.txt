@@ -66,6 +66,7 @@ add_executable(deck_sim
     ${ROOT}/components/deck_ui/deck_widgets.c
     ${ROOT}/components/deck_ui/deck_fx.c
     ${ROOT}/components/deck_core/deck_app.c
+    ${ROOT}/components/deck_core/deck_home.c
     ${ROOT}/components/deck_core/deck_input.c
     ${ROOT}/components/deck_core/deck_shell.c
     ${ROOT}/components/deck_core/deck_update.c

@@ -462,6 +462,7 @@ static deck_app_t s_app = {
     .tagline  = "NUMERIC CORE",
     .icon     = ICON_CALCULATOR,
     .eta      = NULL,
+    .hotkey   = HID_LETTER('C'),
     .on_start = start,
     .on_stop  = stop,
     .on_key   = on_key,

@@ -38,7 +38,7 @@ static lv_timer_t *s_timer;
 static void back_clicked(lv_event_t *e)
 {
     (void)e;
-    deck_shell_home();
+    deck_shell_back();
 }
 
 static void music_clicked(lv_event_t *e)
@@ -56,10 +56,10 @@ static void clock_clicked(lv_event_t *e)
     deck_shell_sleep();
 }
 
-static void build_left(deck_app_t *app)
+static void build_left(deck_group_t *group, deck_app_t *app)
 {
     lv_obj_clean(s_left);
-    if (app == NULL) {
+    if (app == NULL && group == NULL) {
         lv_obj_t *brand = deck_box(s_left);
         lv_obj_set_flex_flow(brand, LV_FLEX_FLOW_ROW);
         deck_label(brand, g_font.disp_m, g_pal.text, "DECK");
@@ -68,7 +68,9 @@ static void build_left(deck_app_t *app)
         lv_obj_set_style_pad_left(ver, 10, 0);
         return;
     }
-    lv_obj_t *back = deck_button(s_left, "DECK", g_font.disp_s);
+    /* Inside a group the button goes back to the group screen; the path
+     * beside it already names the group, so keep the button short. */
+    lv_obj_t *back = deck_button(s_left, app && group ? "BACK" : "DECK", g_font.disp_s);
     /* Prepend a chevron icon to the button's label. */
     lv_obj_set_flex_flow(back, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(back, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -83,12 +85,18 @@ static void build_left(deck_app_t *app)
     /* Keyboard users have Esc; keep the back button out of Tab order. */
     lv_group_remove_obj(back);
 
-    lv_obj_t *title = deck_label(s_left, g_font.disp_m, g_pal.text, "");
-    lv_label_set_text_fmt(title, "%02d", deck_app_index(app) + 1);
-    lv_obj_set_style_text_color(title, g_pal.accent, 0);
+    /* Path: "01 // TOOLS" on a group screen or a home tile's app,
+     * "TOOLS // TERMINAL" inside a group. */
+    lv_obj_t *title = deck_label(s_left, g_font.disp_m, g_pal.accent, "");
+    if (app && group) {
+        lv_label_set_text(title, group->name);
+        lv_obj_set_style_text_font(title, g_font.disp_s, 0); /* room for "FILES & MEDIA // PLAYER" before the clock */
+    } else {
+        lv_label_set_text_fmt(title, "%02d", deck_home_index(app, group) + 1);
+    }
     lv_obj_set_style_pad_left(title, 14, 0);
     deck_label(s_left, g_font.disp_m, g_pal.dim, "//");
-    deck_label(s_left, g_font.disp_m, g_pal.text, app->name);
+    deck_label(s_left, g_font.disp_m, g_pal.text, app ? app->name : group->name);
 }
 
 static void set_indicator(lv_obj_t *row, const char *icon, const char *text, lv_color_t color)
@@ -253,14 +261,14 @@ void deck_statusbar_create(lv_obj_t *parent)
     s_net = indicator(right);
     s_pwr = indicator(right);
 
-    build_left(NULL);
+    build_left(NULL, NULL);
     refresh(NULL);
     s_timer = lv_timer_create(refresh, 1000, NULL);
 }
 
-void deck_statusbar_set_app(deck_app_t *app)
+void deck_statusbar_set_path(deck_group_t *group, deck_app_t *app)
 {
-    if (s_left) build_left(app);
+    if (s_left) build_left(group, app);
 }
 
 void deck_statusbar_destroy(void)

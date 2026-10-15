@@ -452,6 +452,7 @@ static deck_app_t s_app = {
     .tagline  = "AUDIO DECK",
     .icon     = ICON_MUSIC,
     .eta      = NULL,
+    .hotkey   = HID_LETTER('M'),
     .on_start = start,
     .on_stop  = stop,
     .on_key   = on_key,

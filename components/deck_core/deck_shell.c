@@ -15,9 +15,11 @@
 
 static lv_obj_t *s_root;
 static lv_obj_t *s_content;
-static deck_app_t *s_current;
-static deck_app_t *s_next;   /* app to start at the midpoint of a transition */
-static bool s_busy;          /* a transition is running */
+static deck_app_t *s_current;    /* running app, NULL on the home or a group screen */
+static deck_group_t *s_group;    /* group screen shown, or the group the running app sits in */
+static deck_app_t *s_next;       /* what to show at the midpoint of a transition */
+static deck_group_t *s_next_group;
+static bool s_busy;              /* a transition is running */
 
 /* ---- Building blocks ----------------------------------------------------- */
 
@@ -53,26 +55,29 @@ static void teardown(void)
     if (app && app->on_stop) app->on_stop(app);
 }
 
-static void show_home_now(void)
+/* The home screen (group NULL) or a group screen. */
+static void show_launcher_now(deck_group_t *group)
 {
     teardown();
-    deck_launcher_create(s_content);
-    deck_statusbar_set_app(NULL);
+    s_group = group;
+    deck_launcher_create(s_content, group);
+    deck_statusbar_set_path(group, NULL);
 }
 
 static void start_app_now(deck_app_t *app)
 {
     teardown();
+    s_group = deck_app_group(app);
     if (!app->on_start(app, s_content)) {
         LV_LOG_ERROR("module %s failed to start", app->name);
         lv_group_remove_all_objs(deck_input_group());
         lv_obj_clean(s_content);
-        deck_launcher_create(s_content);
-        deck_statusbar_set_app(NULL);
+        deck_launcher_create(s_content, s_group);
+        deck_statusbar_set_path(s_group, NULL);
         return;
     }
     s_current = app;
-    deck_statusbar_set_app(app);
+    deck_statusbar_set_path(s_group, app);
 }
 
 /* ---- Transitions --------------------------------------------------------- */
@@ -83,7 +88,7 @@ static void transition_mid(void *u)
     if (s_next) {
         start_app_now(s_next);
     } else {
-        show_home_now();
+        show_launcher_now(s_next_group);
     }
 }
 
@@ -93,26 +98,45 @@ static void transition_done(void *u)
     s_busy = false;
 }
 
+static void go(deck_app_t *app, deck_group_t *group)
+{
+    s_busy       = true;
+    s_next       = app;
+    s_next_group = group;
+    deck_fx_glitch(TRANSITION_MS, transition_mid, transition_done, NULL);
+}
+
 void deck_shell_launch(deck_app_t *app)
 {
     if (app == NULL || s_busy || app == s_current) return;
-    s_busy = true;
-    s_next = app;
-    deck_fx_glitch(TRANSITION_MS, transition_mid, transition_done, NULL);
+    go(app, NULL);
+}
+
+void deck_shell_open_group(deck_group_t *group)
+{
+    if (group == NULL || s_busy || (s_current == NULL && s_group == group)) return;
+    go(NULL, group);
 }
 
 void deck_shell_home(void)
 {
-    if (s_busy || s_current == NULL) return;
-    s_busy = true;
-    s_next = NULL;
-    deck_fx_glitch(TRANSITION_MS, transition_mid, transition_done, NULL);
+    if (s_busy || (s_current == NULL && s_group == NULL)) return;
+    go(NULL, NULL);
+}
+
+void deck_shell_back(void)
+{
+    if (s_busy) return;
+    if (s_current) {
+        go(NULL, s_group); /* the app's group, or home */
+    } else if (s_group) {
+        go(NULL, NULL);
+    }
 }
 
 deck_app_t *deck_shell_current(void) { return s_current; }
+deck_group_t *deck_shell_group(void) { return s_group; }
 
-/* Deferred: rebuild is usually requested from an event handler of a widget
- * that the rebuild deletes. */
 /* ---- Sleep and keyboard light -------------------------------------------- */
 
 static lv_obj_t *s_sleep;
@@ -167,15 +191,17 @@ void deck_shell_shortcuts(void)
 {
     static const char *const cols[] = {
         "ANYWHERE\n"
-        "  ALT+1..7    open a module\n"
+        "  ALT+1..5    open a home tile\n"
+        "  ALT+T N C W M F S   jump to a module\n"
         "  ALT+ESC     back to the deck\n"
         "  ALT+0       sleep the screen (or tap the clock)\n"
         "  ALT+H       this list\n"
         "  ALT+P       pause / resume music\n"
         "  ESC         back / close\n"
         "\n"
-        "HOME\n"
-        "  LEFT RIGHT ENTER, or 1..7   pick a module\n"
+        "HOME AND GROUPS\n"
+        "  LEFT RIGHT ENTER, or 1..5   pick a tile\n"
+        "  in a group: 1..n opens, ESC goes back\n"
         "\n"
         "TERMINAL\n"
         "  CTRL+N new SSH host  CTRL+O new Ollama server\n"
@@ -205,10 +231,13 @@ void deck_shell_shortcuts(void)
     deck_modal_info("SHORTCUTS", cols, 2);
 }
 
+/* Deferred: rebuild is usually requested from an event handler of a widget
+ * that the rebuild deletes. */
 static void rebuild_async(void *u)
 {
     (void)u;
-    deck_app_t *app = s_current;
+    deck_app_t *app     = s_current;
+    deck_group_t *group = s_group;
     teardown();
     deck_statusbar_destroy();
     lv_obj_delete(s_root);
@@ -218,7 +247,7 @@ static void rebuild_async(void *u)
     if (app) {
         start_app_now(app);
     } else {
-        show_home_now();
+        show_launcher_now(group);
     }
 }
 
@@ -273,20 +302,34 @@ bool deck_shell_key(const deck_key_t *k)
             return true;
         }
         if (k->code >= HID_1 && k->code <= HID_9) {
-            deck_app_t *app = deck_app_get((size_t)(k->code - HID_1));
-            if (app) deck_shell_launch(app);
+            const deck_tile_t *t = deck_home_tile((size_t)(k->code - HID_1));
+            if (t && t->group) {
+                deck_shell_open_group(t->group);
+            } else if (t) {
+                deck_shell_launch(t->app);
+            }
+            return true;
+        }
+        deck_app_t *app = deck_app_by_hotkey(k->code);
+        if (app) {
+            deck_shell_launch(app);
             return true;
         }
     }
 
     if (s_current == NULL) {
-        return deck_launcher_key(k);
+        if (deck_launcher_key(k)) return true;
+        if (k->code == HID_ESC && s_group) {
+            deck_shell_back();
+            return true;
+        }
+        return false;
     }
     if (s_current->on_key && s_current->on_key(s_current, k)) {
         return true;
     }
     if (k->code == HID_ESC) {
-        deck_shell_home();
+        deck_shell_back();
         return true;
     }
     return false;
@@ -298,7 +341,7 @@ void deck_shell_start(bool boot_anim)
 {
     deck_grid_bg(lv_screen_active());
     build_root();
-    show_home_now();
+    show_launcher_now(NULL);
     deck_fx_scanlines(hal_cfg_get_i32("scan", 1) != 0);
     deck_shell_apply_kbd_light();
     if (boot_anim) deck_boot_run();

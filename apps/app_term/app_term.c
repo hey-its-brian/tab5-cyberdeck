@@ -550,7 +550,7 @@ static void show_hosts(void)
         if (i == s_t.sel || focus == NULL) focus = row;
     }
     deck_label(root, g_font.mono_s, g_pal.dim,
-               "[ENTER] CONNECT    [CTRL+N] NEW SSH    [CTRL+O] NEW OLLAMA    [DEL] REMOVE    [ESC] DECK");
+               "[ENTER] CONNECT    [CTRL+N] NEW SSH    [CTRL+O] NEW OLLAMA    [DEL] REMOVE    [ESC] BACK");
     if (focus) {
         lv_group_focus_obj(focus);
         lv_obj_add_state(focus, LV_STATE_FOCUS_KEY);
@@ -636,6 +636,7 @@ static deck_app_t s_app = {
     .tagline  = "SSH + OLLAMA",
     .icon     = ICON_CONSOLE,
     .eta      = NULL,
+    .hotkey   = HID_LETTER('T'),
     .on_start = start,
     .on_exit  = term_exit,
     .on_stop  = stop,
