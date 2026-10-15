@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "deck_attr.h"
 #include "deck_hal.h"
 #include "deck_icons.h"
 #include "deck_md.h"
@@ -58,7 +59,7 @@ static struct {
     lv_timer_t *debounce;
     uint32_t status_until;
     uint32_t dirty_since;
-} s_n;
+} s_n DECK_PSRAM_BSS;
 
 static void show_browser(const char *focus_name);
 static void open_doc(const char *name, mode_t_ mode);

@@ -14,6 +14,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "deck_attr.h"
 #include "deck_hal.h"
 #include "deck_icons.h"
 #include "deck_modal.h"
@@ -36,7 +37,7 @@ typedef struct {
     bool local; /* simulator-only local shell */
 } host_t;
 
-static host_t s_hosts[MAX_HOSTS];
+static host_t s_hosts[MAX_HOSTS] DECK_PSRAM_BSS;
 static int s_nhosts;
 
 static struct {
@@ -53,7 +54,7 @@ static struct {
     char target[112];
     char cols_rows[16];
     host_t pending;
-} s_t;
+} s_t DECK_PSRAM_BSS;
 
 static void show_hosts(void);
 
@@ -173,7 +174,7 @@ static void hostkey_decided(bool yes, void *u)
 static void pump(lv_timer_t *tm)
 {
     (void)tm;
-    static char buf[4096];
+    static char buf[4096] DECK_PSRAM_BSS;
     size_t total = 0, n;
     while (total < 64 * 1024 && (n = link_read(buf, sizeof(buf))) > 0) {
         deck_term_feed(s_t.term, buf, n);
