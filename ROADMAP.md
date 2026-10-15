@@ -125,13 +125,14 @@ add-on). Revisit after v1.0.
 - [x] PORTAL tab: the portal as before, opened by default while the link is up; the list refreshes when the browser uploads, deletes or renames, keeping the selection
 - [x] Checkpoint: on hardware, preview, play and delete from FILES; portal still works from its tab
 
-## Next: ESP-IDF 5.5
+## v1.2: ESP-IDF 5.5
 
 - Move from IDF 5.4.0 to 5.5: two 5.4.0 bugs have bitten already (the self-delete race in `vTaskDeleteWithCaps` that crashed the portal on DISENGAGE, fixed in 5.5; worked around by never stopping the HTTP server)
 - [x] Builds on IDF 5.5.5 (branch `feature/idf-5.5`) with the same components; bootloader logs WARN so it fits before the partition table (which must never move); DPI callback renamed
 - [x] Targets ESP32-P4 rev v0.1 to v1.99 like before: IDF 5.5 defaults to rev v3.01+, which would not boot on Tab5's v1.x chips
-- [ ] First boot over USB with a serial log (display, touch, Wi-Fi, SD, audio, OTA, NVS encryption), then an over-the-air update from the 5.4 bootloader
-- [ ] Checkpoint: a beta on 5.5 passes the full module tour on hardware
+- [x] First boot over USB with a serial log (display, touch, Wi-Fi, SD, audio, OTA, NVS encryption), then an over-the-air update from the 5.4 bootloader
+- [x] Checkpoint: a beta on 5.5 passes the full module tour on hardware
+- [x] Update checks verify ECDSA in software: the P4 ECC accelerator rejected GitHub's new P-256 certificate, so every deck up to v1.2.0-beta.2 lost over-the-air updates (reflash once over USB)
 
 ## v1.2: Screen timeout and clock screensaver
 
@@ -139,7 +140,7 @@ add-on). Revisit after v1.0.
 - [x] A clock screensaver takes over: big time and date, drifting to a new spot every 30 s so nothing burns in, backlight at a quarter of the brightness setting; after 10 more minutes the screen sleeps fully
 - [x] Music keeps playing and the saver shows the track; a portal transfer or SSH output keeps the screen awake; the update popup waits until you are back
 - [x] Any key or touch wakes it, and that press is swallowed
-- [ ] Checkpoint: on hardware, idle for the timeout, the clock appears and drifts, a key brings the deck back exactly where it was
+- [x] Checkpoint: on hardware, idle for the timeout, the clock appears and drifts, a key brings the deck back exactly where it was
 
 ## Next: Startup sound
 

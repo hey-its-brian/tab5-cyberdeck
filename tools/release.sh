@@ -40,7 +40,7 @@ fi
 [[ -f "$notes" ]] || { echo "no notes file: $notes"; exit 1; }
 
 # shellcheck disable=SC1091
-. "${IDF_PATH:-$HOME/esp/esp-idf}/export.sh" >/dev/null 2>&1
+. "${IDF_PATH:-$HOME/esp/esp-idf-v5.5}/export.sh" >/dev/null 2>&1
 signed_config() {
     grep -qx "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y" sdkconfig 2>/dev/null &&
         grep -qx "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y" sdkconfig &&
