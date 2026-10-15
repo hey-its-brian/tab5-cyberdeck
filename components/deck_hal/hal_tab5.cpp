@@ -334,11 +334,23 @@ void hal_tz_set(int index)
 
 /* ---- Storage ------------------------------------------------------------- */
 
+/* The SDMMC host is shared with the ESP-Hosted SDIO link to the C6 (slot 1),
+ * which brings the host up before us but only claims its slot later. When the
+ * mount fails (no card), the VFS layer deinits slot 0; as the only slot
+ * registered so far, that tears down the whole host, and the Wi-Fi link then
+ * asserts on its first transaction. Keep the host up on that path. */
+static esp_err_t sd_host_keep(int slot)
+{
+    (void)slot;
+    return ESP_OK;
+}
+
 static void sd_mount(void)
 {
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
     host.slot         = SDMMC_HOST_SLOT_0; /* IOMUX pins 39..44 on the P4 */
     host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
+    host.deinit_p     = &sd_host_keep;
 
     /* Slot 0 IO is powered from on-chip LDO channel 4. */
     sd_pwr_ctrl_ldo_config_t ldo_cfg = {};

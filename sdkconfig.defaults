@@ -96,3 +96,8 @@ CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
 # builds (v0.1 to v1.99). Ignored by IDF 5.4, which has no such options.
 CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
 CONFIG_ESP32P4_REV_MIN_1=y
+
+# Static buffers marked DECK_PSRAM_BSS (deck_attr.h) live in PSRAM, keeping
+# internal RAM for early boot: with too little left, IDF 5.4 puts an idle
+# task's stack in TCM and the stack check asserts at every boot.
+CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y

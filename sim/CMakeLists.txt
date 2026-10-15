@@ -39,6 +39,7 @@ target_compile_options(lvgl PRIVATE -w)
 
 file(GLOB APP_SRCS "${ROOT}/apps/*/*.c")
 list(FILTER APP_SRCS EXCLUDE REGEX "term_link_ssh\\.c$")   # device link; the sim uses term_link_pty.c
+list(FILTER APP_SRCS EXCLUDE REGEX "term_chat_ollama\\.c$") # device chat; the sim uses term_chat_sim.c
 file(GLOB VTERM_SRCS "${ROOT}/components/libvterm/src/*.c")
 add_library(vterm STATIC ${VTERM_SRCS})
 target_include_directories(vterm PUBLIC ${ROOT}/components/libvterm/include PRIVATE ${ROOT}/components/libvterm/src)
@@ -52,6 +53,7 @@ add_executable(deck_sim
     net_sim.c
     ota_sim.c
     term_link_pty.c
+    term_chat_sim.c
     ${ROOT}/components/deck_term/deck_term.c
     ${ROOT}/components/deck_ota/ota_version.c
     portal_sim.c

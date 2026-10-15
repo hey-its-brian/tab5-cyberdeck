@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include "calc_engine.h"
+#include "deck_attr.h"
 #include "deck_hal.h"
 #include "deck_icons.h"
 #include "deck_shell.h"
@@ -37,7 +38,7 @@ static struct {
     calc_ctx_t ctx;
     bool prog_page;
     bool keypad_hidden;
-} s_c;
+} s_c DECK_PSRAM_BSS; /* 14 KB tape */
 
 /* UI handles, valid while the module is open. */
 static struct {
