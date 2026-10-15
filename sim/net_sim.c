@@ -146,7 +146,7 @@ char *net_http_request(const char *method, const char *url, const char *user, co
     if (user && user[0]) snprintf(auth, sizeof(auth), "-u '%s:%s'", user, pass ? pass : "");
     char cmd[2048];
     snprintf(cmd, sizeof(cmd),
-             "curl -s --max-time 20 -X %s %s -H 'Accept: application/json' %s %s %s -w '\\n%%{http_code}' '%s'", method,
+             "curl -s --max-time 20 -X %s %s -H 'Accept: application/json' %s %s%s -w '\\n%%{http_code}' '%s'", method,
              auth, body ? "-H 'Content-Type: application/json'" : "", body ? "--data-binary @" : "", body ? tmp : "",
              url);
     FILE *p = popen(cmd, "r");

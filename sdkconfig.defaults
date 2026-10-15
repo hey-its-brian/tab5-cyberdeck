@@ -66,6 +66,8 @@ CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
 CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN=y
 # The P4 ECC accelerator rejects valid P-256 signatures (GitHub's 2026 cert), so verify in software
 # CONFIG_MBEDTLS_HARDWARE_ECC is not set
+# HKDF for the vault sync (LiveSync E2EE v2)
+CONFIG_MBEDTLS_HKDF_C=y
 
 # ---- OTA ---------------------------------------------------------------------
 # A new build must confirm itself (deck_ota, OTA_CONFIRM_S) or the bootloader

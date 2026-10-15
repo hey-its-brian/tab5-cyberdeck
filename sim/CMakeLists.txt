@@ -85,6 +85,11 @@ add_executable(deck_sim
     ${ROOT}/components/deck_core/deck_stub.c
     ${ROOT}/components/deck_core/deck_modal.c
     ${ROOT}/components/deck_md/deck_md.c
+    ${ROOT}/components/deck_sync/deck_sync.c
+    ${ROOT}/components/deck_sync/ls_sync.c
+    ${ROOT}/components/deck_sync/ls_couch.c
+    ${ROOT}/components/deck_sync/ls_hash.c
+    ${ROOT}/components/deck_sync/ls_crypto.c
     ${ROOT}/components/md4c/md4c.c
     ${APP_SRCS}
 )
@@ -100,6 +105,7 @@ target_include_directories(deck_sim PRIVATE
     ${ROOT}/components/deck_portal/include
     ${ROOT}/components/deck_audio/include
     ${ROOT}/components/deck_audio
+    ${ROOT}/components/deck_sync/include
     ${ROOT}/components/minimp3
     ${ROOT}/components/md4c
     ${APP_DIRS}
@@ -118,6 +124,10 @@ target_include_directories(calc_test PRIVATE ${ROOT}/apps/app_calc)
 target_compile_options(calc_test PRIVATE -Wall -Wextra)
 enable_testing()
 add_test(NAME calc_engine COMMAND calc_test)
+
+add_executable(ls_test ls_test.c ${ROOT}/components/deck_sync/ls_hash.c ${ROOT}/components/deck_sync/ls_crypto.c)
+target_include_directories(ls_test PRIVATE ${ROOT}/components/deck_sync/include)
+target_link_libraries(ls_test PRIVATE mbedcrypto m)
 
 add_executable(weather_test weather_test.c ${ROOT}/apps/app_weather/weather_data.c)
 target_include_directories(weather_test PRIVATE ${ROOT}/apps/app_weather ${ROOT}/components/deck_ui/include)

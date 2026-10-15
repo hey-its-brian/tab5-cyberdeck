@@ -210,6 +210,7 @@ void deck_shell_shortcuts(void)
         "  ALT+ESC leaves  SHIFT+UP/DOWN scrolls back",
 
         "NOTES\n"
+        "  ENTER open  BACKSPACE up a folder  S sync (panel)\n"
         "  CTRL+S save  CTRL+P preview  CTRL+T split\n"
         "  ESC save and close\n"
         "\n"

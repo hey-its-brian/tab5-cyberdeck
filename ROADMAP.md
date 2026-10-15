@@ -152,7 +152,10 @@ Home screen first, then the two modules, one at a time.
 - [x] Alt+1..5 opens a home tile, 1..n inside a group, Alt+letter jumps to a module from anywhere, Esc goes up one level
 - [ ] Checkpoint on hardware: every module still opens by touch and by keyboard, the weather widget updates on its own, Esc from TERMINAL lands on TOOLS
 - [ ] NET TOOLS: Wi-Fi scanner (networks, channels, signal, security, a channel chart), LAN discovery (mDNS and a ping sweep), ping / DNS / traceroute / port check, speed test
-- [ ] Obsidian sync: SYSTEM > NOTES SOURCE picks local notes (`/notes`) or a synced vault (`/vault`); the vault syncs through Obsidian Self-hosted LiveSync (CouchDB), behind a sync-backend interface so other platforms can follow
+- [x] Obsidian sync: NOTES picks LOCAL (`/notes`) or VAULT (`/vault`); the vault syncs with Obsidian Self-hosted LiveSync (CouchDB) in the plugin's own format (chunks, E2EE v2, matching chunk ids), behind a sync-backend interface so other platforms can follow
+- [x] NOTES browses folders (Enter opens, Backspace goes up)
+- [x] Checkpoint in the simulator: pull, push, delete and a two-sided conflict against a seeded database, verified by the plugin's own JavaScript (chunks decrypt, ids match)
+- [ ] Checkpoint on hardware: the deck syncs with a real vault, edits made on the deck show up in Obsidian and the other way round
 
 ## Next: Startup sound
 

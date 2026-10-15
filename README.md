@@ -30,6 +30,22 @@ level and the status bar shows the path (`TOOLS // TERMINAL`).
 |---|---|---|
 | ![Home](docs/screenshots/home.png) | ![Tools](docs/screenshots/tools.png) | ![Files & Media](docs/screenshots/media.png) |
 
+**Obsidian vault sync (on main):** NOTES has two sources, LOCAL (the deck's
+own `/notes`) and VAULT (`/vault`, an Obsidian vault kept in sync with
+[Self-hosted LiveSync](https://github.com/vrtmrz/obsidian-livesync) through its
+CouchDB). The deck speaks the plugin's database format directly: chunked notes,
+end-to-end encryption (PBKDF2 and HKDF, AES-256-GCM) and the same chunk ids,
+so what the deck writes dedupes and decrypts like anything the plugin wrote.
+NOTES > VAULT > SYNC holds the server, database, login and passphrase, an AUTO
+SYNC interval and SYNC NOW with a log. Markdown notes go both ways, with
+folders; attachments stay in Obsidian. A note changed on both sides keeps the
+Obsidian version at its path and the deck's text beside it as
+`name (deck conflict).md`. Supported plugin settings are the defaults: E2EE
+"v2" or off, xxhash64 ids, no path obfuscation, no compression; the sync
+checks the database's settings first and says what it cannot handle. The
+backend sits behind a small interface (`components/deck_sync/deck_sync.h`) so
+other sync services can follow.
+
 **v1.2:** screen timeout with a drifting clock screensaver (SYSTEM > SAVER),
 Ollama chat in TERMINAL, built on ESP-IDF 5.5, and certificates verified in
 software because the ESP32-P4's ECC accelerator rejects GitHub's new
@@ -136,6 +152,8 @@ to the RTC, 17 timezones, and the WEATHER module: Open-Meteo by city search,
 current conditions, 24 h temperature and rain trace, 7-day strip, offline
 cache. Keys in WEATHER: `R` refresh, `L` location, `U` units.
 Parser tests: `cmake --build sim/build --target weather_test && sim/build/weather_test`.
+LiveSync hash and crypto ports: `cmake --build sim/build --target ls_test && sim/build/ls_test`
+(vectors in `sim/ls_vectors.h` were generated with the plugin's own JavaScript).
 
 ### v0.3.0 (released)
 

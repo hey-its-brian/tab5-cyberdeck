@@ -21,6 +21,7 @@
 #include "deck_home.h"
 #include "deck_icons.h"
 #include "deck_shell.h"
+#include "deck_sync.h"
 #include "deck_theme.h"
 #include "lvgl.h"
 #include "sim.h"
@@ -316,6 +317,7 @@ int main(int argc, char **argv)
     deck_app_register(app_files());
     deck_app_register(app_net());
     deck_app_register(app_sys());
+    deck_sync_set_backend(&g_sync_livesync); /* vault sync for NOTES */
 
     /* Home tiles 01..05 (Alt+1..5). Groups open a screen of their own. */
     deck_group_t *tools = deck_home_add_group("TOOLS", "UTILITY STACK", ICON_TOOLS);
