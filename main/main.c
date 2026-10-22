@@ -22,7 +22,13 @@
 #include "app_term.h"
 #include "app_weather.h"
 
+#include "cJSON.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
+
+/* Parsed JSON (weather, releases, a vault sync's pages) lives in PSRAM so
+ * internal RAM stays free for the TLS and DMA buffers that need it. */
+static void *json_malloc(size_t n) { return heap_caps_malloc(n, MALLOC_CAP_SPIRAM); }
 
 void app_main(void)
 {
@@ -30,6 +36,9 @@ void app_main(void)
         ESP_LOGE("main", "display bring-up failed, halting");
         return;
     }
+
+    cJSON_Hooks hooks = {.malloc_fn = json_malloc, .free_fn = free};
+    cJSON_InitHooks(&hooks);
 
     net_init(); /* brings up the C6 link in the background */
     ota_init(DECK_VERSION); /* arms the rollback countdown on a fresh OTA build */

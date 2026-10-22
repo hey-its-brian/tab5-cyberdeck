@@ -25,6 +25,7 @@ static char s_lines[LOG_LINES][96];
 static int s_count;
 static time_t s_last_ok;
 static char s_dir[128];
+static bool s_full;
 
 void deck_sync_set_backend(const deck_sync_backend_t *backend) { s_backend = backend; }
 const deck_sync_backend_t *deck_sync_backend(void) { return s_backend; }
@@ -47,7 +48,8 @@ static void log_line(const char *line)
 
 static void run(void)
 {
-    bool ok = s_backend->sync(s_dir, log_line, &s_cancel);
+    bool ok = s_backend->sync(s_dir, log_line, &s_cancel, s_full);
+    net_http_idle();
     if (ok) s_last_ok = time(NULL);
     s_state = ok ? SYNC_DONE : SYNC_FAILED;
 }
@@ -68,9 +70,15 @@ static void *worker(void *arg)
 }
 #endif
 
-bool deck_sync_start(void)
+static bool start(bool full);
+
+bool deck_sync_start(void) { return start(false); }
+bool deck_sync_start_full(void) { return start(true); }
+
+static bool start(bool full)
 {
     if (s_state == SYNC_RUNNING || !deck_sync_configured()) return false;
+    s_full = full;
     if (net_state() != NET_CONNECTED) {
         log_line("no network");
         s_state = SYNC_FAILED;
@@ -86,8 +94,10 @@ bool deck_sync_start(void)
     s_cancel = false;
     s_state  = SYNC_RUNNING;
 #ifdef ESP_PLATFORM
-    /* TLS, JSON and a note's chunks in flight: a roomy stack. */
-    if (xTaskCreatePinnedToCore(worker, "sync", 20480, NULL, 3, NULL, 0) != pdPASS) {
+    /* TLS, JSON and a note's chunks in flight: a roomy stack. It has to be
+     * internal RAM: the task reads settings, and flash access from a PSRAM
+     * stack trips the cache-disabled assert. */
+    if (xTaskCreatePinnedToCore(worker, "sync", 24576, NULL, 3, NULL, 0) != pdPASS) {
         log_line("could not start the sync task");
         s_state = SYNC_FAILED;
         return false;

@@ -64,6 +64,10 @@ char *net_http_get(const char *url, size_t *len);
 char *net_http_request(const char *method, const char *url, const char *user, const char *pass, const char *body,
                        size_t body_len, int *status, size_t *len);
 
+/* Drop the connection net_http_request keeps open between calls to the same
+ * server (call when a run of requests is over). */
+void net_http_idle(void);
+
 /* Non-blocking GET for UI code: runs on a worker task and calls `cb` on the
  * LVGL task with the body (NULL on failure). The body is freed after `cb`
  * returns. `alive` lets the caller cancel: if *alive is false by the time

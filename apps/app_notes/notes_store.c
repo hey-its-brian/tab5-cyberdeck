@@ -17,10 +17,19 @@ static char s_dir[96 + NOTES_SUBDIR_MAX];
 static char s_subdir[NOTES_SUBDIR_MAX]; /* "" or "a/b", no leading slash */
 static bool s_subdir_vault;             /* which source s_subdir belongs to */
 
-bool notes_vault_mode(void) { return hal_cfg_get_i32("notes_src", 0) != 0; }
+/* Read once and kept: a settings read can fail when internal RAM is tight
+ * (during a sync), and a failed read must not flip the browser to LOCAL. */
+static int s_vault = -1;
+
+bool notes_vault_mode(void)
+{
+    if (s_vault < 0) s_vault = hal_cfg_get_i32("notes_src", 0) != 0;
+    return s_vault != 0;
+}
 
 void notes_set_vault_mode(bool vault)
 {
+    s_vault = vault;
     hal_cfg_set_i32("notes_src", vault);
     s_subdir[0] = '\0';
 }

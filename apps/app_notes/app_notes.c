@@ -294,6 +294,12 @@ static void sync_back_clicked(lv_event_t *e)
     show_browser(NULL);
 }
 
+static void rescan_clicked(lv_event_t *e)
+{
+    (void)e;
+    if (deck_sync_state() != SYNC_RUNNING && deck_sync_configured()) deck_sync_start_full();
+}
+
 static void sync_refresh(lv_timer_t *t)
 {
     (void)t;
@@ -424,6 +430,11 @@ static void show_sync(void)
     lv_obj_set_style_min_height(s_n.sync_btn, 46, 0);
     lv_obj_align(s_n.sync_btn, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_add_event_cb(s_n.sync_btn, sync_now_clicked, LV_EVENT_CLICKED, NULL);
+    /* Walk the whole database again: picks up anything a past run missed. */
+    lv_obj_t *rescan = deck_button(srow, "RESCAN", g_font.disp_s);
+    lv_obj_set_style_min_height(rescan, 46, 0);
+    lv_obj_align_to(rescan, s_n.sync_btn, LV_ALIGN_OUT_LEFT_MID, -10, 0);
+    lv_obj_add_event_cb(rescan, rescan_clicked, LV_EVENT_CLICKED, NULL);
     deck_section(right, "LOG");
     lv_obj_t *logbox = deck_box(right);
     lv_obj_set_width(logbox, LV_PCT(100));

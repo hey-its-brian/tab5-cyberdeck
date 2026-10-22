@@ -358,24 +358,67 @@ static char *read_body(esp_http_client_handle_t c, size_t *len)
     return buf;
 }
 
-char *net_http_request(const char *method, const char *url, const char *user, const char *pass, const char *body,
-                       size_t body_len, int *status, size_t *len)
+/* One client is kept between requests to the same server so the TLS
+ * session stays up: a handshake costs about 50 KB of internal RAM and a
+ * second or two, and a vault sync makes hundreds of requests in a row. */
+static esp_http_client_handle_t s_keep;
+static char s_keep_origin[160]; /* scheme://host:port the client was made for */
+static char s_keep_user[64];
+
+static bool same_origin(const char *url, char *origin, size_t n)
 {
-    if (status) *status = 0;
-    if (s_state != NET_CONNECTED) return NULL;
+    const char *p = strstr(url, "://");
+    if (p == NULL) return false;
+    const char *end = strchr(p + 3, '/');
+    size_t olen     = end ? (size_t)(end - url) : strlen(url);
+    if (olen >= n) return false;
+    memcpy(origin, url, olen);
+    origin[olen] = '\0';
+    return true;
+}
+
+void net_http_idle(void)
+{
+    if (s_keep) {
+        esp_http_client_close(s_keep);
+        esp_http_client_cleanup(s_keep);
+        s_keep = NULL;
+    }
+    s_keep_origin[0] = '\0';
+}
+
+static esp_http_client_handle_t keep_client(const char *url, const char *user, const char *pass)
+{
+    char origin[160];
+    if (!same_origin(url, origin, sizeof(origin))) return NULL;
+    if (s_keep && strcmp(origin, s_keep_origin) == 0 && strcmp(user ? user : "", s_keep_user) == 0) {
+        esp_http_client_set_url(s_keep, url);
+        return s_keep;
+    }
+    net_http_idle();
     esp_http_client_config_t cfg = {0};
     cfg.url                      = url;
     cfg.timeout_ms               = 20000;
     cfg.crt_bundle_attach        = esp_crt_bundle_attach;
     cfg.buffer_size              = 2048;
     cfg.buffer_size_tx           = 2048;
+    cfg.keep_alive_enable        = true;
     if (user && user[0]) {
         cfg.username  = user;
         cfg.password  = pass ? pass : "";
         cfg.auth_type = HTTP_AUTH_TYPE_BASIC;
     }
-    esp_http_client_handle_t c = esp_http_client_init(&cfg);
-    if (c == NULL) return NULL;
+    s_keep = esp_http_client_init(&cfg);
+    if (s_keep) {
+        snprintf(s_keep_origin, sizeof(s_keep_origin), "%s", origin);
+        snprintf(s_keep_user, sizeof(s_keep_user), "%s", user ? user : "");
+    }
+    return s_keep;
+}
+
+static char *do_request(esp_http_client_handle_t c, const char *method, const char *url, const char *body,
+                        size_t body_len, int *status, size_t *len)
+{
     esp_http_client_method_t m = HTTP_METHOD_GET;
     if (strcmp(method, "PUT") == 0) m = HTTP_METHOD_PUT;
     else if (strcmp(method, "POST") == 0) m = HTTP_METHOD_POST;
@@ -383,19 +426,34 @@ char *net_http_request(const char *method, const char *url, const char *user, co
     else if (strcmp(method, "HEAD") == 0) m = HTTP_METHOD_HEAD;
     esp_http_client_set_method(c, m);
     esp_http_client_set_header(c, "Accept", "application/json");
-    if (body) esp_http_client_set_header(c, "Content-Type", "application/json");
+    esp_http_client_set_header(c, "Content-Type", body ? "application/json" : NULL);
 
     char *buf = NULL;
-    if (esp_http_client_open(c, body ? (int)body_len : 0) == ESP_OK) {
-        if (body && body_len && esp_http_client_write(c, body, (int)body_len) != (int)body_len) {
-            ESP_LOGW(TAG, "%s %s: short write", method, url);
-        } else if (esp_http_client_fetch_headers(c) >= 0) {
-            if (status) *status = esp_http_client_get_status_code(c);
-            buf = read_body(c, len);
-        }
+    if (esp_http_client_open(c, body ? (int)body_len : 0) != ESP_OK) return NULL;
+    if (body && body_len && esp_http_client_write(c, body, (int)body_len) != (int)body_len) {
+        ESP_LOGW(TAG, "%s %s: short write", method, url);
+    } else if (esp_http_client_fetch_headers(c) >= 0) {
+        if (status) *status = esp_http_client_get_status_code(c);
+        buf = read_body(c, len);
     }
-    esp_http_client_close(c);
-    esp_http_client_cleanup(c);
+    if (buf == NULL) esp_http_client_close(c); /* the stream is in an unknown state; the next call reconnects */
+    return buf;
+}
+
+char *net_http_request(const char *method, const char *url, const char *user, const char *pass, const char *body,
+                       size_t body_len, int *status, size_t *len)
+{
+    if (status) *status = 0;
+    if (s_state != NET_CONNECTED) return NULL;
+    esp_http_client_handle_t c = keep_client(url, user, pass);
+    if (c == NULL) return NULL;
+    char *buf = do_request(c, method, url, body, body_len, status, len);
+    if (buf == NULL && (status == NULL || *status == 0)) {
+        /* A kept connection the server dropped: start a fresh one, once. */
+        net_http_idle();
+        c = keep_client(url, user, pass);
+        if (c) buf = do_request(c, method, url, body, body_len, status, len);
+    }
     return buf;
 }
 

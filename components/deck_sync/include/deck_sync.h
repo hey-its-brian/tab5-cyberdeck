@@ -32,7 +32,7 @@ typedef struct {
     bool (*configured)(void);
     /* Full two-way sync of `dir`. Blocking; called on the worker task.
      * Returns false on failure after logging why. */
-    bool (*sync)(const char *dir, sync_log_fn log, volatile bool *cancel);
+    bool (*sync)(const char *dir, sync_log_fn log, volatile bool *cancel, bool full);
 } deck_sync_backend_t;
 
 void deck_sync_set_backend(const deck_sync_backend_t *backend);
@@ -43,6 +43,9 @@ bool deck_sync_configured(void);
 /* Start a sync on the worker task. False when one is running, nothing is
  * configured, or there is no network. */
 bool deck_sync_start(void);
+/* The same, but walk the whole database again (notes already on the card
+ * are matched by revision and skipped): picks up anything missed. */
+bool deck_sync_start_full(void);
 void deck_sync_cancel(void);
 
 sync_state_t deck_sync_state(void);

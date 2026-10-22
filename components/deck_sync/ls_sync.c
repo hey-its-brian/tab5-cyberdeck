@@ -44,10 +44,20 @@ typedef struct {
     sync_log_fn log;
     volatile bool *cancel;
     const char *dir;
-    cJSON *index;  /* {"seq": "...", "files": {path: {rev, mtime, local}}} */
+    cJSON *index;  /* {"seq": "...", "files": {path: {rev, mtime, local}}, "retry": {id: 1}} */
     cJSON *files;
+    cJSON *retry;  /* documents whose chunks could not be fetched last time */
     int pulled, pushed, deleted, skipped, conflicts;
+    bool dead; /* the server stopped answering; stop instead of grinding on */
+    bool full; /* ignore the stored sequence: walk everything again */
 } ctx_t;
+
+static unsigned heap_kb(void)
+{
+    hal_sysinfo_t si;
+    hal_sysinfo(&si);
+    return (unsigned)(si.heap_int_free / 1024);
+}
 
 static void logf_(ctx_t *c, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 static void logf_(ctx_t *c, const char *fmt, ...)
@@ -110,6 +120,11 @@ static void index_load(ctx_t *c)
     if (!cJSON_IsObject(c->files)) {
         cJSON_DeleteItemFromObjectCaseSensitive(c->index, "files");
         c->files = cJSON_AddObjectToObject(c->index, "files");
+    }
+    c->retry = cJSON_GetObjectItemCaseSensitive(c->index, "retry");
+    if (!cJSON_IsObject(c->retry)) {
+        cJSON_DeleteItemFromObjectCaseSensitive(c->index, "retry");
+        c->retry = cJSON_AddObjectToObject(c->index, "retry");
     }
 }
 
@@ -414,7 +429,8 @@ static char *fetch_note(ctx_t *c, const cJSON *doc, size_t *len)
     free(body);
     const cJSON *rows = resp ? cJSON_GetObjectItemCaseSensitive(resp, "rows") : NULL;
     if (!cJSON_IsArray(rows) || cJSON_GetArraySize(rows) != n) {
-        logf_(c, "chunk fetch failed (HTTP %d)", st);
+        logf_(c, st == 0 ? "chunk fetch: no answer from the server" : "chunk fetch failed (HTTP %d)", st);
+        if (st == 0) c->dead = true;
         cJSON_Delete(resp);
         free(out);
         return NULL;
@@ -548,7 +564,13 @@ static bool apply_remote(ctx_t *c, const cJSON *doc)
 
     size_t len  = 0;
     char *text  = fetch_note(c, doc, &len);
-    if (text == NULL) return true; /* logged; the sequence will not advance past a failure */
+    if (text == NULL) {
+        /* Logged. Remember it so the next run tries again instead of the
+         * change sequence moving past it for good. */
+        if (!cJSON_HasObjectItem(c->retry, id)) cJSON_AddNumberToObject(c->retry, id, 1);
+        return !c->dead;
+    }
+    cJSON_DeleteItemFromObjectCaseSensitive(c->retry, id);
     if (local_edit) conflict_copy(c, path);
     ensure_dirs(c, path);
     if (!write_file(full, text, len)) {
@@ -559,14 +581,46 @@ static bool apply_remote(ctx_t *c, const cJSON *doc)
     free(text);
     index_set(c, path, rev, jnum(doc, "mtime", 0), file_mtime(full));
     c->pulled++;
+    if (c->pulled % 10 == 0) logf_(c, "pulled %d... (%u KB free)", c->pulled, heap_kb());
+    return true;
+}
+
+/* Notes that failed last time: fetch each by id and try again. */
+static bool retry_pending(ctx_t *c)
+{
+    int n = cJSON_GetArraySize(c->retry);
+    if (n == 0) return true;
+    logf_(c, "retrying %d note%s", n, n == 1 ? "" : "s");
+    cJSON *e = c->retry->child;
+    while (e) {
+        cJSON *next = e->next;
+        if (*c->cancel || c->dead) return false;
+        char enc[520];
+        couch_encode_id(e->string, enc, sizeof(enc));
+        int st     = 0;
+        cJSON *doc = couch_get(&c->db, enc, &st);
+        if (doc && st == 200) {
+            if (!apply_remote(c, doc)) {
+                cJSON_Delete(doc);
+                return false;
+            }
+        } else if (st == 404) {
+            cJSON_DeleteItemFromObjectCaseSensitive(c->retry, e->string); /* gone meanwhile */
+        }
+        cJSON_Delete(doc);
+        e = next;
+    }
+    index_save(c);
     return true;
 }
 
 static bool pull(ctx_t *c)
 {
+    if (!retry_pending(c)) return false;
     char seq[160] = "0";
     const char *s = jstr(c->index, "seq");
-    if (s) snprintf(seq, sizeof(seq), "%s", s);
+    if (s && !c->full) snprintf(seq, sizeof(seq), "%s", s);
+    if (c->full) logf_(c, "rescanning the whole database");
     for (;;) {
         if (*c->cancel) return false;
         char path[300], enc[200];
@@ -853,15 +907,17 @@ static bool push(ctx_t *c)
 
 /* ---- Entry --------------------------------------------------------------- */
 
-static bool sync_run(const char *dir, sync_log_fn log, volatile bool *cancel)
+static bool sync_run(const char *dir, sync_log_fn log, volatile bool *cancel, bool full)
 {
     ctx_t *c = calloc(1, sizeof(*c));
     if (c == NULL) return false;
     c->log    = log;
     c->cancel = cancel;
     c->dir    = dir;
+    c->full   = full;
     load_settings(c);
     mkdir(dir, 0755);
+    logf_(c, "starting (%u KB free)", heap_kb());
     bool ok = preflight(c);
     if (ok) {
         index_load(c);
@@ -871,8 +927,10 @@ static bool sync_run(const char *dir, sync_log_fn log, volatile bool *cancel)
         if (ok) ok = pull(c);
         index_save(c);
         if (ok) {
-            logf_(c, "done: %d pulled, %d sent, %d removed%s", c->pulled, c->pushed, c->deleted,
-                  c->conflicts ? ", conflicts kept" : "");
+            int left = cJSON_GetArraySize(c->retry);
+            logf_(c, "done: %d pulled, %d sent, %d removed%s (%u KB free)", c->pulled, c->pushed, c->deleted,
+                  c->conflicts ? ", conflicts kept" : "", heap_kb());
+            if (left) logf_(c, "%d note%s still to fetch; sync again", left, left == 1 ? "" : "s");
             if (c->skipped) logf_(c, "%d non-markdown files left to Obsidian", c->skipped);
         }
         cJSON_Delete(c->index);

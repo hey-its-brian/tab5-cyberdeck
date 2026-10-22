@@ -183,6 +183,8 @@ char *net_http_request(const char *method, const char *url, const char *user, co
     return buf;
 }
 
+void net_http_idle(void) {}
+
 char *net_http_get(const char *url, size_t *len)
 {
     char cmd[1024];
