@@ -28,7 +28,7 @@
 static const char *TAG = "net";
 
 #define SCAN_MAX 24
-#define HTTP_MAX (128 * 1024)
+#define HTTP_MAX (1024 * 1024) /* large replies land in PSRAM (malloc above 4 KB does) */
 
 static volatile net_state_t s_state = NET_STARTING;
 static esp_netif_t *s_sta;
@@ -336,9 +336,16 @@ static char *read_body(esp_http_client_handle_t c, size_t *len)
     char *buf  = malloc(cap);
     while (buf) {
         if (n + 1024 >= cap) {
-            if (cap >= HTTP_MAX) break;
+            if (cap >= HTTP_MAX) {
+                ESP_LOGW(TAG, "reply over %d KB, dropped", HTTP_MAX / 1024);
+                free(buf);
+                return NULL; /* a cut-off body is worse than none */
+            }
             char *nb = realloc(buf, cap * 2);
-            if (nb == NULL) break;
+            if (nb == NULL) {
+                free(buf);
+                return NULL;
+            }
             buf = nb;
             cap *= 2;
         }

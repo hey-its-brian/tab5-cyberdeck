@@ -31,7 +31,7 @@
 
 #define INDEX_FILE ".deck-sync.json"
 #define PIECE_MAX 3000   /* bytes per chunk, split at newlines */
-#define CHANGES_LIMIT 100
+#define CHANGES_LIMIT 25 /* note metadata only, but a page must fit in RAM twice (text + parsed) */
 #define NOTE_MAX (256 * 1024)
 
 typedef struct {
@@ -577,7 +577,14 @@ static bool pull(ctx_t *c)
         cJSON *resp = couch_post(&c->db, path, "{\"selector\":{\"type\":{\"$ne\":\"leaf\"}}}", &st);
         const cJSON *results = resp ? cJSON_GetObjectItemCaseSensitive(resp, "results") : NULL;
         if (!cJSON_IsArray(results)) {
-            logf_(c, "change feed failed (HTTP %d)", st);
+            const cJSON *reason = resp ? cJSON_GetObjectItemCaseSensitive(resp, "reason") : NULL;
+            if (st == 200 && resp == NULL) {
+                logf_(c, "change feed: reply unreadable or too large");
+            } else if (cJSON_IsString(reason)) {
+                logf_(c, "change feed failed (HTTP %d): %.60s", st, reason->valuestring);
+            } else {
+                logf_(c, "change feed failed (HTTP %d)", st);
+            }
             cJSON_Delete(resp);
             return false;
         }
