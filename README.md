@@ -17,10 +17,21 @@ Seven modules: TERMINAL (SSH and Ollama chat), NOTES (markdown), CALC, WEATHER, 
 (music), FILES (file manager and LAN portal) and SYSTEM. It updates itself over
 Wi-Fi with signed builds and tells you when a new one is out.
 
+**Next (on main): NET TOOLS.** The NET TOOLS tile became a **WIRELESS**
+group holding NET TOOLS, the Tab5's own radio as a toolkit, and RF WATCH, a
+placeholder for the RF Sentinel M5-Bus board. NET TOOLS has four tabs: **SCAN**
+(every access point in earshot, one row per BSSID with channel, security and
+signal, and a chart of the strongest signal on each 2.4 GHz channel), **PING**
+(ping, DNS, traceroute and a TCP port check for a host you type), **LAN** (a
+ping sweep of your subnet plus an mDNS browse, with vendors from the MAC
+prefix) and **SPEED** (download, upload and connect latency against
+speed.cloudflare.com). ICMP runs on a raw socket on the deck and an
+unprivileged ICMP socket in the simulator, so the sim exercises the same code.
+
 **v1.3:** the home screen is five tiles instead of one per module.
 TOOLS (TERMINAL, CALC, SYSTEM) and FILES & MEDIA (FILES, PLAYER) are groups:
 the tile lists what is inside and opens a screen of the same tiles. NET TOOLS
-is a placeholder for v1.4. NOTES stays a tile of its own, and WEATHER is a
+arrives in v1.4 (below). NOTES stays a tile of its own, and WEATHER is a
 widget: current temperature, conditions, location and today's range right on
 the home screen, tap for the full forecast. `Alt+1..5` opens a home tile,
 `Alt+T N C W M F S` jumps to a module from anywhere, `Esc` goes back one

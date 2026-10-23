@@ -153,7 +153,10 @@ Home screen first, then the two modules, one at a time.
 - [x] WEATHER is a widget on the home screen (temperature, conditions, location, today's range, "tap for full forecast") from the same cache and fetch path as the module
 - [x] Alt+1..5 opens a home tile, 1..n inside a group, Alt+letter jumps to a module from anywhere, Esc goes up one level
 - [x] Checkpoint on hardware: every module still opens by touch and by keyboard, the weather widget updates on its own, Esc (or Del) from TERMINAL lands on TOOLS
-- [ ] NET TOOLS (v1.4): Wi-Fi scanner (networks, channels, signal, security, a channel chart), LAN discovery (mDNS and a ping sweep), ping / DNS / traceroute / port check, speed test
+- [x] NET TOOLS (v1.4): SCAN (every BSSID with channel, security, signal, and a channel chart), PING (ping, DNS, traceroute, TCP port check on a raw ICMP socket), LAN (ping sweep of the /24 plus an mDNS browse, vendors from the MAC prefix), SPEED (download, upload and connect latency against speed.cloudflare.com)
+- [x] The NET TOOLS tile became a WIRELESS group: NET TOOLS plus RF WATCH, the Sentinel M5-Bus board (placeholder until the PCB exists)
+- [ ] Checkpoint on hardware: scan, ping the router, trace to github.com, sweep the LAN, run a speed test
+- [ ] RF WATCH (v1.5): the $RFS link to the Stamp C5 over the M5-Bus UART (G6/G7), EXT5V on, sub-GHz sweep, 2.4 GHz occupancy, GPS, events; the E07 RX_EN/TX_EN and GDO lines on G16/G17/G45/G52/G4
 - [x] Obsidian sync: NOTES picks LOCAL (`/notes`) or VAULT (`/vault`); the vault syncs with Obsidian Self-hosted LiveSync (CouchDB) in the plugin's own format (chunks, E2EE v2, matching chunk ids), behind a sync-backend interface so other platforms can follow
 - [x] NOTES browses folders (Enter opens, Backspace goes up)
 - [x] Checkpoint in the simulator: pull, push, delete and a two-sided conflict against a seeded database, verified by the plugin's own JavaScript (chunks decrypt, ids match)

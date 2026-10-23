@@ -227,7 +227,10 @@ void deck_shell_shortcuts(void)
         "\n"
         "FILES\n"
         "  ENTER open  BACKSPACE up  DEL or D delete\n"
-        "  P preview / portal  SPACE engage / disengage",
+        "  P preview / portal  SPACE engage / disengage\n"
+        "\n"
+        "NET TOOLS\n"
+        "  1..4 tab  R rescan / sweep / run  ENTER ping the host",
     };
     deck_modal_info("SHORTCUTS", cols, 2);
 }

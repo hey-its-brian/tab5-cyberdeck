@@ -18,10 +18,15 @@
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_netif_net_stack.h"
 #include "esp_netif_sntp.h"
 #include "esp_sntp.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
+#include "lwip/etharp.h"
+#include "lwip/netif.h"
+#include "mdns.h"
+#include "net_tools.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -318,6 +323,67 @@ size_t net_scan_bss(net_bss_t *out, size_t max)
 
 bool net_time_synced(void) { return s_synced; }
 
+/* ---- LAN discovery hooks ------------------------------------------------- */
+
+bool net_local_ip(uint32_t *ip, uint32_t *mask)
+{
+    esp_netif_ip_info_t info;
+    if (s_sta == NULL || s_state != NET_CONNECTED || esp_netif_get_ip_info(s_sta, &info) != ESP_OK) return false;
+    *ip   = ntohl(info.ip.addr);
+    *mask = ntohl(info.netmask.addr);
+    return *ip != 0;
+}
+
+static bool s_mdns_up;
+
+int net_mdns_hosts(net_host_t *out, int max, int timeout_ms)
+{
+    if (!s_mdns_up) {
+        if (mdns_init() != ESP_OK) return 0; /* the portal may have started it already: fine */
+        s_mdns_up = true;
+    }
+    /* The service types a home network tends to carry. */
+    static const char *const types[] = {"_http", "_https", "_ssh", "_smb", "_afpovertcp", "_ipp", "_printer",
+                                        "_airplay", "_raop", "_googlecast", "_hap", "_spotify-connect", "_workstation",
+                                        "_esphomelib", "_matter", "_sonos", "_homekit", "_companion-link"};
+    int n            = 0;
+    int per          = timeout_ms / (int)(sizeof(types) / sizeof(types[0]));
+    if (per < 120) per = 120;
+    for (size_t t = 0; t < sizeof(types) / sizeof(types[0]) && n < max; t++) {
+        mdns_result_t *res = NULL;
+        if (mdns_query_ptr(types[t], "_tcp", (uint32_t)per, 16, &res) != ESP_OK) continue;
+        for (mdns_result_t *r = res; r && n < max; r = r->next) {
+            for (mdns_ip_addr_t *a = r->addr; a; a = a->next) {
+                if (a->addr.type != ESP_IPADDR_TYPE_V4) continue;
+                net_host_t *h = &out[n];
+                memset(h, 0, sizeof(*h));
+                snprintf(h->ip, sizeof(h->ip), IPSTR, IP2STR(&a->addr.u_addr.ip4));
+                bool dup = false;
+                for (int i = 0; i < n && !dup; i++) dup = strcmp(out[i].ip, h->ip) == 0;
+                if (dup) break;
+                snprintf(h->name, sizeof(h->name), "%s", r->hostname ? r->hostname : (r->instance_name ? r->instance_name : ""));
+                snprintf(h->service, sizeof(h->service), "%s", types[t]);
+                n++;
+                break;
+            }
+        }
+        mdns_query_results_free(res);
+    }
+    return n;
+}
+
+bool net_arp_mac(const char *ip, uint8_t mac[6])
+{
+    struct netif *nif = (struct netif *)esp_netif_get_netif_impl(s_sta);
+    ip4_addr_t addr;
+    if (nif == NULL || !ip4addr_aton(ip, &addr)) return false;
+    struct eth_addr *eth = NULL;
+    const ip4_addr_t *ipr = NULL;
+    if (etharp_find_addr(nif, &addr, &eth, &ipr) < 0 || eth == NULL) return false;
+    memcpy(mac, eth->addr, 6);
+    return true;
+}
+
 
 /* ---- Async fetch --------------------------------------------------------- */
 
@@ -489,6 +555,82 @@ char *net_http_request(const char *method, const char *url, const char *user, co
         if (c) buf = do_request(c, method, url, body, body_len, status, len);
     }
     return buf;
+}
+
+/* ---- Throughput ---------------------------------------------------------- */
+
+static double wall_ms(void) { return (double)esp_timer_get_time() / 1000.0; }
+
+bool net_speed_download(const char *url, size_t max_bytes, int timeout_ms, size_t *bytes, float *ms)
+{
+    *bytes = 0;
+    *ms    = 0;
+    if (s_state != NET_CONNECTED) return false;
+    esp_http_client_config_t cfg = {0};
+    cfg.url                      = url;
+    cfg.timeout_ms               = timeout_ms;
+    cfg.crt_bundle_attach        = esp_crt_bundle_attach;
+    cfg.buffer_size              = 4096;
+    cfg.buffer_size_tx           = 1024;
+    esp_http_client_handle_t c   = esp_http_client_init(&cfg);
+    if (c == NULL) return false;
+    bool ok   = false;
+    char *buf = malloc(8192);
+    double t0 = wall_ms();
+    if (buf && esp_http_client_open(c, 0) == ESP_OK && esp_http_client_fetch_headers(c) >= 0 &&
+        esp_http_client_get_status_code(c) == 200) {
+        t0 = wall_ms(); /* time the body, not the handshake */
+        while (*bytes < max_bytes && wall_ms() - t0 < timeout_ms) {
+            int r = esp_http_client_read(c, buf, 8192);
+            if (r <= 0) break;
+            *bytes += (size_t)r;
+        }
+        ok = *bytes > 0;
+    }
+    *ms = (float)(wall_ms() - t0);
+    free(buf);
+    esp_http_client_close(c);
+    esp_http_client_cleanup(c);
+    return ok;
+}
+
+bool net_speed_upload(const char *url, size_t bytes, int timeout_ms, float *ms)
+{
+    *ms = 0;
+    if (s_state != NET_CONNECTED) return false;
+    esp_http_client_config_t cfg = {0};
+    cfg.url                      = url;
+    cfg.timeout_ms               = timeout_ms;
+    cfg.crt_bundle_attach        = esp_crt_bundle_attach;
+    cfg.buffer_size              = 1024;
+    cfg.buffer_size_tx           = 4096;
+    esp_http_client_handle_t c   = esp_http_client_init(&cfg);
+    if (c == NULL) return false;
+    esp_http_client_set_method(c, HTTP_METHOD_POST);
+    esp_http_client_set_header(c, "Content-Type", "application/octet-stream");
+    bool ok   = false;
+    char *buf = malloc(8192);
+    if (buf) memset(buf, 'x', 8192);
+    double t0 = wall_ms();
+    if (buf && esp_http_client_open(c, (int)bytes) == ESP_OK) {
+        size_t sent = 0;
+        while (sent < bytes && wall_ms() - t0 < timeout_ms) {
+            size_t n = bytes - sent < 8192 ? bytes - sent : 8192;
+            int w    = esp_http_client_write(c, buf, (int)n);
+            if (w <= 0) break;
+            sent += (size_t)w;
+        }
+        if (sent == bytes) {
+            esp_http_client_fetch_headers(c);
+            int st = esp_http_client_get_status_code(c);
+            ok     = st >= 200 && st < 300;
+        }
+    }
+    *ms = (float)(wall_ms() - t0);
+    free(buf);
+    esp_http_client_close(c);
+    esp_http_client_cleanup(c);
+    return ok;
 }
 
 char *net_http_get(const char *url, size_t *len)

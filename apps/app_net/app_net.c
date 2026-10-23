@@ -70,7 +70,32 @@ static struct {
     float port_ms;
     char ip[16];
     bool ok;
+
+    /* LAN */
+    net_host_t hosts[64];
+    int host_n;
+    lv_obj_t *lan_list;
+    lv_obj_t *lan_status;
+    lv_obj_t *lan_btn;
+    volatile int lan_done, lan_total; /* progress from the worker */
+    bool lan_running;
+    uint32_t lan_at;
+
+    /* SPEED */
+    lv_obj_t *spd_btn;
+    lv_obj_t *spd_status;
+    lv_obj_t *spd_down, *spd_up, *spd_lat;
+    volatile int spd_phase; /* 0 idle, 1 latency, 2 down, 3 up, 4 done */
+    bool spd_lat_ok, spd_down_ok, spd_up_ok;
+    float spd_lat_ms, spd_down_ms, spd_up_ms;
+    size_t spd_down_bytes;
 } s_ui DECK_PSRAM_BSS;
+
+#define SPEED_HOST "speed.cloudflare.com"
+#define SPEED_DOWN_URL "https://speed.cloudflare.com/__down?bytes=8000000"
+#define SPEED_UP_URL "https://speed.cloudflare.com/__up"
+#define SPEED_DOWN_BYTES (8u * 1000u * 1000u)
+#define SPEED_UP_BYTES (2u * 1000u * 1000u)
 
 enum { JOB_PING, JOB_DNS, JOB_TRACE, JOB_PORT };
 
@@ -103,6 +128,9 @@ static const char *bars(int rssi)
 }
 
 static int channel_mhz(int ch) { return ch == 14 ? 2484 : 2407 + ch * 5; }
+
+static void lan_tick(void);
+static void speed_tick(void);
 
 /* ---- SCAN ---------------------------------------------------------------- */
 
@@ -220,6 +248,8 @@ static void start_scan(void)
 static void scan_tick(lv_timer_t *t)
 {
     (void)t;
+    lan_tick();
+    speed_tick();
     if (s_ui.tab != TAB_SCAN) return;
     if (s_ui.scanning && net_scan_done()) {
         s_ui.scanning = false;
@@ -499,19 +529,233 @@ static void build_ping(lv_obj_t *page)
     lv_obj_set_style_text_line_space(s_ui.out, 6, 0);
 }
 
-/* ---- The other tabs, until they land ------------------------------------- */
+/* ---- LAN ----------------------------------------------------------------- */
 
-static void build_soon(lv_obj_t *page, const char *title, const char *body)
+static void lan_progress(int done, int total, void *u)
 {
-    lv_obj_t *p = deck_panel(page, DECK_CUT_TL | DECK_CUT_BR, 18);
-    lv_obj_set_size(p, LV_PCT(100), LV_PCT(100));
+    (void)u;
+    s_ui.lan_done  = done;
+    s_ui.lan_total = total;
+}
+
+static void lan_job(void *u)
+{
+    (void)u;
+    s_ui.host_n = net_lan_scan(s_ui.hosts, 64, lan_progress, NULL);
+}
+
+static void render_lan(void)
+{
+    lv_obj_clean(s_ui.lan_list);
+    if (s_ui.tab == TAB_LAN) lv_group_remove_all_objs(deck_input_group());
+    if (s_ui.host_n == 0) {
+        deck_label(s_ui.lan_list, g_font.mono_m, g_pal.dim,
+                   s_ui.lan_running ? "Sweeping the subnet..." : "Nothing found yet. Press SCAN.");
+        return;
+    }
+    for (int i = 0; i < s_ui.host_n; i++) {
+        const net_host_t *h = &s_ui.hosts[i];
+        lv_obj_t *row       = deck_panel(s_ui.lan_list, DECK_CUT_BR, 10);
+        lv_obj_set_size(row, LV_PCT(100), 52);
+        lv_obj_set_style_pad_hor(row, 14, 0);
+        if (h->self) deck_panel_set_outline(row, g_pal.accent);
+
+        lv_obj_t *ip = deck_label(row, g_font.mono_m, h->self ? g_pal.accent : g_pal.text, h->ip);
+        lv_obj_align(ip, LV_ALIGN_LEFT_MID, 0, 0);
+
+        lv_obj_t *name = deck_label(row, g_font.mono_m, h->name[0] ? g_pal.text : g_pal.dim, h->name[0] ? h->name : "-");
+        lv_label_set_long_mode(name, LV_LABEL_LONG_MODE_DOTS);
+        lv_obj_set_width(name, 360);
+        lv_obj_align(name, LV_ALIGN_LEFT_MID, 190, 0);
+
+        const char *vendor = h->has_mac ? net_oui_vendor(h->mac) : "";
+        char mac[40] = "";
+        if (h->has_mac) {
+            snprintf(mac, sizeof(mac), "%02X:%02X:%02X:%02X:%02X:%02X%s%s", h->mac[0], h->mac[1], h->mac[2], h->mac[3],
+                     h->mac[4], h->mac[5], vendor[0] ? "  " : "", vendor);
+        }
+        lv_obj_t *m = deck_label(row, g_font.mono_s, g_pal.dim, mac);
+        lv_obj_align(m, LV_ALIGN_LEFT_MID, 570, 0);
+
+        lv_obj_t *svc = deck_label(row, g_font.mono_s, g_pal.accent2, h->service[0] ? h->service : (h->ms > 0 ? "ping" : ""));
+        lv_obj_align(svc, LV_ALIGN_RIGHT_MID, 0, 0);
+    }
+}
+
+static void lan_done_cb(void *u)
+{
+    (void)u;
+    if (s_ui.lan_list == NULL) return;
+    s_ui.lan_running = false;
+    s_ui.lan_at      = lv_tick_get();
+    lv_label_set_text(lv_obj_get_child(s_ui.lan_btn, 0), "SCAN");
+    lv_obj_remove_state(s_ui.lan_btn, LV_STATE_DISABLED);
+    char buf[80];
+    snprintf(buf, sizeof(buf), "%d DEVICE%s  ::  PING SWEEP + MDNS", s_ui.host_n, s_ui.host_n == 1 ? "" : "S");
+    lv_label_set_text(s_ui.lan_status, buf);
+    render_lan();
+}
+
+static void lan_tick(void)
+{
+    if (!s_ui.lan_running || s_ui.lan_status == NULL) return;
+    int total = s_ui.lan_total ? s_ui.lan_total : 1;
+    lv_label_set_text_fmt(s_ui.lan_status, "SWEEPING  %d%%", s_ui.lan_done * 100 / total);
+}
+
+static void lan_scan_clicked(lv_event_t *e)
+{
+    (void)e;
+    if (s_ui.lan_running || net_tools_busy()) return;
+    if (net_state() != NET_CONNECTED) {
+        lv_label_set_text(s_ui.lan_status, "NO NETWORK");
+        return;
+    }
+    s_ui.lan_running = true;
+    s_ui.lan_done = s_ui.lan_total = 0;
+    s_ui.host_n = 0;
+    lv_label_set_text(lv_obj_get_child(s_ui.lan_btn, 0), "...");
+    lv_obj_add_state(s_ui.lan_btn, LV_STATE_DISABLED);
+    render_lan();
+    if (!net_tools_run(lan_job, lan_done_cb, NULL)) {
+        s_ui.lan_running = false;
+        lv_label_set_text(s_ui.lan_status, "BUSY, TRY AGAIN");
+    }
+}
+
+static void build_lan(lv_obj_t *page)
+{
+    lv_obj_set_flex_flow(page, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(page, 14, 0);
+
+    lv_obj_t *row = deck_box(page);
+    lv_obj_set_width(row, LV_PCT(100));
+    s_ui.lan_status = deck_label(row, g_font.mono_m, g_pal.dim, "PING SWEEP OF YOUR /24 PLUS MDNS NAMES. PRESS SCAN.");
+    lv_obj_align(s_ui.lan_status, LV_ALIGN_LEFT_MID, 0, 0);
+    s_ui.lan_btn = small_button(row, "SCAN", lan_scan_clicked, 0);
+    lv_obj_align(s_ui.lan_btn, LV_ALIGN_RIGHT_MID, 0, 0);
+
+    lv_obj_t *panel = deck_panel(page, DECK_CUT_TL | DECK_CUT_BR, 18);
+    lv_obj_set_width(panel, LV_PCT(100));
+    lv_obj_set_flex_grow(panel, 1);
+    lv_obj_set_style_pad_all(panel, 12, 0);
+    s_ui.lan_list = deck_box(panel);
+    lv_obj_set_size(s_ui.lan_list, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_flex_flow(s_ui.lan_list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(s_ui.lan_list, 8, 0);
+    lv_obj_set_style_pad_all(s_ui.lan_list, 4, 0);
+    lv_obj_add_flag(s_ui.lan_list, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(s_ui.lan_list, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(s_ui.lan_list, LV_SCROLLBAR_MODE_AUTO);
+    render_lan();
+}
+
+/* ---- SPEED --------------------------------------------------------------- */
+
+static void speed_job(void *u)
+{
+    (void)u;
+    s_ui.spd_phase  = 1;
+    s_ui.spd_lat_ok = net_port_open(SPEED_HOST, 443, 3000, &s_ui.spd_lat_ms);
+    s_ui.spd_phase  = 2;
+    s_ui.spd_down_ok = net_speed_download(SPEED_DOWN_URL, SPEED_DOWN_BYTES, 20000, &s_ui.spd_down_bytes, &s_ui.spd_down_ms);
+    s_ui.spd_phase   = 3;
+    s_ui.spd_up_ok   = net_speed_upload(SPEED_UP_URL, SPEED_UP_BYTES, 20000, &s_ui.spd_up_ms);
+    s_ui.spd_phase   = 4;
+}
+
+static void mbps(char *out, size_t n, size_t bytes, float ms, bool ok)
+{
+    if (!ok || ms <= 0) {
+        snprintf(out, n, "--");
+        return;
+    }
+    double v = (double)bytes * 8.0 / (ms / 1000.0) / 1e6;
+    snprintf(out, n, v >= 100 ? "%.0f" : "%.1f", v);
+}
+
+static void speed_done(void *u)
+{
+    (void)u;
+    if (s_ui.spd_btn == NULL) return;
+    char d[16], up[16];
+    mbps(d, sizeof(d), s_ui.spd_down_bytes, s_ui.spd_down_ms, s_ui.spd_down_ok);
+    mbps(up, sizeof(up), SPEED_UP_BYTES, s_ui.spd_up_ms, s_ui.spd_up_ok);
+    lv_label_set_text(s_ui.spd_down, d);
+    lv_label_set_text(s_ui.spd_up, up);
+    if (s_ui.spd_lat_ok) {
+        lv_label_set_text_fmt(s_ui.spd_lat, "%.0f", (double)s_ui.spd_lat_ms);
+    } else {
+        lv_label_set_text(s_ui.spd_lat, "--");
+    }
+    lv_label_set_text(s_ui.spd_status, s_ui.spd_down_ok ? "DONE  ::  SPEED.CLOUDFLARE.COM  ::  8 MB DOWN, 2 MB UP"
+                                                        : "FAILED: no answer from the test server");
+    lv_label_set_text(lv_obj_get_child(s_ui.spd_btn, 0), "START");
+    lv_obj_remove_state(s_ui.spd_btn, LV_STATE_DISABLED);
+    s_ui.spd_phase = 0;
+}
+
+static void speed_tick(void)
+{
+    if (s_ui.spd_status == NULL || s_ui.spd_phase == 0 || s_ui.spd_phase == 4) return;
+    static const char *const names[] = {"", "MEASURING LATENCY...", "DOWNLOADING 8 MB...", "UPLOADING 2 MB...", ""};
+    lv_label_set_text(s_ui.spd_status, names[s_ui.spd_phase]);
+}
+
+static void speed_clicked(lv_event_t *e)
+{
+    (void)e;
+    if (s_ui.spd_phase != 0 || net_tools_busy()) return;
+    if (net_state() != NET_CONNECTED) {
+        lv_label_set_text(s_ui.spd_status, "NO NETWORK");
+        return;
+    }
+    lv_label_set_text(s_ui.spd_down, "...");
+    lv_label_set_text(s_ui.spd_up, "...");
+    lv_label_set_text(s_ui.spd_lat, "...");
+    lv_label_set_text(lv_obj_get_child(s_ui.spd_btn, 0), "...");
+    lv_obj_add_state(s_ui.spd_btn, LV_STATE_DISABLED);
+    s_ui.spd_phase = 1;
+    if (!net_tools_run(speed_job, speed_done, NULL)) {
+        s_ui.spd_phase = 0;
+        lv_label_set_text(s_ui.spd_status, "BUSY, TRY AGAIN");
+    }
+}
+
+static lv_obj_t *speed_cell(lv_obj_t *parent, const char *title, const char *unit, lv_obj_t **value)
+{
+    lv_obj_t *p = deck_panel(parent, DECK_CUT_TL | DECK_CUT_BR, 18);
+    lv_obj_set_height(p, LV_PCT(100));
+    lv_obj_set_flex_grow(p, 1);
     lv_obj_set_flex_flow(p, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(p, 20, 0);
-    lv_obj_set_style_pad_row(p, 12, 0);
-    deck_section(p, title);
-    lv_obj_t *t = deck_label(p, g_font.mono_m, g_pal.dim, body);
-    lv_obj_set_width(t, LV_PCT(100));
-    lv_obj_set_style_text_line_space(t, 6, 0);
+    lv_obj_set_flex_align(p, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(p, 10, 0);
+    deck_label(p, g_font.disp_s, g_pal.accent, title);
+    *value = deck_label(p, g_font.disp_hero, g_pal.text, "--");
+    deck_label(p, g_font.mono_m, g_pal.dim, unit);
+    return p;
+}
+
+static void build_speed(lv_obj_t *page)
+{
+    lv_obj_set_flex_flow(page, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(page, 14, 0);
+
+    lv_obj_t *row = deck_box(page);
+    lv_obj_set_width(row, LV_PCT(100));
+    s_ui.spd_status = deck_label(row, g_font.mono_m, g_pal.dim, "AGAINST SPEED.CLOUDFLARE.COM: 8 MB DOWN, 2 MB UP. PRESS START.");
+    lv_obj_align(s_ui.spd_status, LV_ALIGN_LEFT_MID, 0, 0);
+    s_ui.spd_btn = small_button(row, "START", speed_clicked, 0);
+    lv_obj_align(s_ui.spd_btn, LV_ALIGN_RIGHT_MID, 0, 0);
+
+    lv_obj_t *cells = deck_box(page);
+    lv_obj_set_width(cells, LV_PCT(100));
+    lv_obj_set_flex_grow(cells, 1);
+    lv_obj_set_flex_flow(cells, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_column(cells, 20, 0);
+    speed_cell(cells, "DOWNLOAD", "Mbit/s", &s_ui.spd_down);
+    speed_cell(cells, "UPLOAD", "Mbit/s", &s_ui.spd_up);
+    speed_cell(cells, "LATENCY", "ms to connect", &s_ui.spd_lat);
 }
 
 /* ---- Tabs ---------------------------------------------------------------- */
@@ -535,6 +779,12 @@ static void set_tab(int tab)
         lv_group_add_obj(deck_input_group(), s_ui.host_ta);
         for (int i = 0; i < 4; i++) lv_group_add_obj(deck_input_group(), s_ui.ping_btn[i]);
         lv_group_focus_obj(s_ui.host_ta);
+        lv_label_set_text(s_ui.status, "");
+    } else if (tab == TAB_LAN) {
+        lv_group_add_obj(deck_input_group(), s_ui.lan_btn);
+        lv_label_set_text(s_ui.status, "");
+    } else if (tab == TAB_SPEED) {
+        lv_group_add_obj(deck_input_group(), s_ui.spd_btn);
         lv_label_set_text(s_ui.status, "");
     } else {
         lv_label_set_text(s_ui.status, "");
@@ -580,10 +830,8 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
     s_ui.job = -1;
     build_scan(s_ui.page[TAB_SCAN]);
     build_ping(s_ui.page[TAB_PING]);
-    build_soon(s_ui.page[TAB_LAN], "LAN DISCOVERY",
-               "Everything on your subnet: mDNS names and services, then a ping sweep for the quiet ones, with vendors from the MAC prefix.\n\nNext build.");
-    build_soon(s_ui.page[TAB_SPEED], "SPEED TEST",
-               "Download and upload throughput of this link, measured against a public test endpoint.\n\nNext build.");
+    build_lan(s_ui.page[TAB_LAN]);
+    build_speed(s_ui.page[TAB_SPEED]);
 
     deck_label(root, g_font.mono_s, g_pal.dim, "[1..4] TAB    [R] RESCAN    [UP/DOWN] SELECT    [TAB] NEXT FIELD    [ESC] BACK");
 
@@ -614,6 +862,14 @@ static bool on_key(deck_app_t *self, const deck_key_t *k)
     if (k->code == HID_R && s_ui.tab == TAB_SCAN) {
         s_ui.scanned_at = 0;
         start_scan();
+        return true;
+    }
+    if (k->code == HID_R && s_ui.tab == TAB_LAN) {
+        lan_scan_clicked(NULL);
+        return true;
+    }
+    if (k->code == HID_R && s_ui.tab == TAB_SPEED) {
+        speed_clicked(NULL);
         return true;
     }
     return false;

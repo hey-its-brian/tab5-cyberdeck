@@ -75,6 +75,12 @@ char *net_http_get(const char *url, size_t *len);
 char *net_http_request(const char *method, const char *url, const char *user, const char *pass, const char *body,
                        size_t body_len, int *status, size_t *len);
 
+/* Throughput probes (NET TOOLS > SPEED). Download reads and discards up to
+ * `max_bytes` from `url`; upload POSTs `bytes` of filler. Both report the
+ * bytes moved and the time taken. Worker task only. */
+bool net_speed_download(const char *url, size_t max_bytes, int timeout_ms, size_t *bytes, float *ms);
+bool net_speed_upload(const char *url, size_t bytes, int timeout_ms, float *ms);
+
 /* Drop the connection net_http_request keeps open between calls to the same
  * server (call when a run of requests is over). */
 void net_http_idle(void);

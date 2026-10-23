@@ -8,6 +8,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <ifaddrs.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include "net_tools.h"
 
 #include "deck_hal.h"
 #include "lvgl.h"
@@ -206,6 +211,95 @@ char *net_http_request(const char *method, const char *url, const char *user, co
 }
 
 void net_http_idle(void) {}
+
+/* ---- Throughput, through curl ------------------------------------------- */
+
+static bool curl_numbers(const char *cmd, double *a, double *b)
+{
+    FILE *p = popen(cmd, "r");
+    if (p == NULL) return false;
+    char line[128] = "";
+    char *got      = fgets(line, sizeof(line), p);
+    pclose(p);
+    return got && sscanf(line, "%lf %lf", a, b) == 2;
+}
+
+bool net_speed_download(const char *url, size_t max_bytes, int timeout_ms, size_t *bytes, float *ms)
+{
+    char cmd[640];
+    snprintf(cmd, sizeof(cmd), "curl -s -o /dev/null --max-time %d -r 0-%zu -w '%%{size_download} %%{time_total}' '%s'",
+             timeout_ms / 1000 + 1, max_bytes - 1, url);
+    double sz = 0, t = 0;
+    if (!curl_numbers(cmd, &sz, &t)) return false;
+    *bytes = (size_t)sz;
+    *ms    = (float)(t * 1000.0);
+    return *bytes > 0;
+}
+
+bool net_speed_upload(const char *url, size_t bytes, int timeout_ms, float *ms)
+{
+    char tmp[] = "/tmp/deck_sim_up_XXXXXX";
+    int fd     = mkstemp(tmp);
+    if (fd < 0) return false;
+    char *z = calloc(1, 65536);
+    for (size_t left = bytes; z && left; left -= left < 65536 ? left : 65536) {
+        if (write(fd, z, left < 65536 ? left : 65536) < 0) break;
+    }
+    free(z);
+    close(fd);
+    char cmd[700];
+    snprintf(cmd, sizeof(cmd),
+             "curl -s -o /dev/null --max-time %d -X POST -H 'Content-Type: application/octet-stream' --data-binary @%s "
+             "-w '%%{size_upload} %%{time_total}' '%s'",
+             timeout_ms / 1000 + 1, tmp, url);
+    double sz = 0, t = 0;
+    bool ok   = curl_numbers(cmd, &sz, &t) && (size_t)sz == bytes;
+    unlink(tmp);
+    *ms = (float)(t * 1000.0);
+    return ok;
+}
+
+/* ---- LAN discovery hooks ------------------------------------------------- */
+
+bool net_local_ip(uint32_t *ip, uint32_t *mask)
+{
+    struct ifaddrs *ifs = NULL, *i;
+    bool ok = false;
+    if (getifaddrs(&ifs) != 0) return false;
+    for (i = ifs; i && !ok; i = i->ifa_next) {
+        if (i->ifa_addr == NULL || i->ifa_addr->sa_family != AF_INET || (i->ifa_flags & IFF_LOOPBACK)) continue;
+        if (!(i->ifa_flags & IFF_UP) || strncmp(i->ifa_name, "utun", 4) == 0) continue;
+        *ip   = ntohl(((struct sockaddr_in *)i->ifa_addr)->sin_addr.s_addr);
+        *mask = ntohl(((struct sockaddr_in *)i->ifa_netmask)->sin_addr.s_addr);
+        ok    = true;
+    }
+    freeifaddrs(ifs);
+    return ok;
+}
+
+/* A believable set of neighbours; the real browse needs the deck. */
+int net_mdns_hosts(net_host_t *out, int max, int timeout_ms)
+{
+    (void)timeout_ms;
+    static const net_host_t fake[] = {
+        {"192.168.1.1", "router", "_http", {0x9c, 0x3d, 0xcf, 0x77, 0x77, 0x77}, true, 0, false},
+        {"192.168.1.20", "printer", "_ipp", {0x00, 0x80, 0x92, 0x01, 0x02, 0x03}, true, 0, false},
+        {"192.168.1.42", "living-room-tv", "_airplay", {0xd0, 0x59, 0xe4, 0x10, 0x20, 0x30}, true, 0, false},
+        {"192.168.1.77", "deck", "_http", {0x24, 0x0a, 0xc4, 0xaa, 0xbb, 0xcc}, true, 0, false},
+        {"192.168.1.90", "hue-bridge", "_hap", {0x00, 0x17, 0x88, 0x11, 0x22, 0x33}, true, 0, false},
+    };
+    int n = (int)(sizeof(fake) / sizeof(fake[0]));
+    if (n > max) n = max;
+    memcpy(out, fake, (size_t)n * sizeof(fake[0]));
+    return n;
+}
+
+bool net_arp_mac(const char *ip, uint8_t mac[6])
+{
+    (void)ip;
+    (void)mac;
+    return false;
+}
 
 char *net_http_get(const char *url, size_t *len)
 {

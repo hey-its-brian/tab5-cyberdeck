@@ -10,6 +10,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,6 +44,31 @@ int net_trace(const char *host, int max_hops, int timeout_ms, net_hop_t *out);
 
 /* TCP connect with a timeout; `ms` gets the connect time. */
 bool net_port_open(const char *host, int port, int timeout_ms, float *ms);
+
+/* ---- LAN discovery ------------------------------------------------------- */
+
+typedef struct {
+    char ip[16];
+    char name[48];     /* mDNS host or instance name, "" if unknown */
+    char service[24];  /* first service type seen, e.g. "_http" */
+    uint8_t mac[6];
+    bool has_mac;
+    float ms;          /* ping round trip, 0 when found by mDNS only */
+    bool self;         /* this deck */
+} net_host_t;
+
+/* Ping sweep of the deck's /24 plus an mDNS browse of common services,
+ * merged by address and sorted. `progress(done, total, user)` is called
+ * from the worker as the sweep advances (may be NULL). Returns the count. */
+int net_lan_scan(net_host_t *out, int max, void (*progress)(int done, int total, void *user), void *user);
+
+/* Vendor from a MAC prefix (a short built-in table), or "". */
+const char *net_oui_vendor(const uint8_t mac[6]);
+
+/* Platform hooks, implemented by net_tab5.c and sim/net_sim.c. */
+bool net_local_ip(uint32_t *ip, uint32_t *mask);          /* host byte order */
+int  net_mdns_hosts(net_host_t *out, int max, int timeout_ms);
+bool net_arp_mac(const char *ip, uint8_t mac[6]);
 
 /* Run `job(user)` on a worker task; afterwards `done(user)` runs on the
  * LVGL task. One job at a time; returns false while one is running. */
