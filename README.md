@@ -11,16 +11,16 @@ weather, a music player and a file manager with a LAN portal.
 |---|---|---|
 | ![Boot](docs/screenshots/boot.png) | ![System](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
-## Status: v1.2.0
+## Status: v1.3.0
 
 Seven modules: TERMINAL (SSH and Ollama chat), NOTES (markdown), CALC, WEATHER, PLAYER
 (music), FILES (file manager and LAN portal) and SYSTEM. It updates itself over
 Wi-Fi with signed builds and tells you when a new one is out.
 
-**Next (on main):** the home screen is five tiles instead of one per module.
+**v1.3:** the home screen is five tiles instead of one per module.
 TOOLS (TERMINAL, CALC, SYSTEM) and FILES & MEDIA (FILES, PLAYER) are groups:
 the tile lists what is inside and opens a screen of the same tiles. NET TOOLS
-is a placeholder for v1.3. NOTES stays a tile of its own, and WEATHER is a
+is a placeholder for v1.4. NOTES stays a tile of its own, and WEATHER is a
 widget: current temperature, conditions, location and today's range right on
 the home screen, tap for the full forecast. `Alt+1..5` opens a home tile,
 `Alt+T N C W M F S` jumps to a module from anywhere, `Esc` goes back one
@@ -30,7 +30,7 @@ level and the status bar shows the path (`TOOLS // TERMINAL`).
 |---|---|---|
 | ![Home](docs/screenshots/home.png) | ![Tools](docs/screenshots/tools.png) | ![Files & Media](docs/screenshots/media.png) |
 
-**Obsidian vault sync (on main):** NOTES has two sources, LOCAL (the deck's
+**Obsidian vault sync (v1.3):** NOTES has two sources, LOCAL (the deck's
 own `/notes`) and VAULT (`/vault`, an Obsidian vault kept in sync with
 [Self-hosted LiveSync](https://github.com/vrtmrz/obsidian-livesync) through its
 CouchDB). The deck speaks the plugin's database format directly: chunked notes,

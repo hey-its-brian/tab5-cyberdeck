@@ -15,14 +15,14 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
                             "> PORT CHECK ............ is that service listening\n"
                             "> SPEED TEST ............ down and up\n"
                             "\n"
-                            "AWAITING UPLINK. SCHEDULED FOR v1.3.");
+                            "AWAITING UPLINK. SCHEDULED FOR v1.4.");
 }
 
 static deck_app_t s_app = {
     .name     = "NET TOOLS",
     .tagline  = "RECON SUITE",
     .icon     = ICON_RADAR,
-    .eta      = "v1.3",
+    .eta      = "v1.4",
     .hotkey   = HID_LETTER('R'),
     .on_start = start,
 };

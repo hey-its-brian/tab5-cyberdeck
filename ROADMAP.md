@@ -142,20 +142,24 @@ add-on). Revisit after v1.0.
 - [x] Any key or touch wakes it, and that press is swallowed
 - [x] Checkpoint: on hardware, idle for the timeout, the clock appears and drifts, a key brings the deck back exactly where it was
 
-## v1.3: Home layout, NET TOOLS, Obsidian sync
+## v1.3: Home layout and Obsidian sync (done); NET TOOLS moves to v1.4
 
 Home screen first, then the two modules, one at a time.
+
+- [ ] 1.3.1: rethink how folders look in NOTES (flat list with folder prefix, a folder tree, or the drill-down with a breadcrumb)
 
 - [x] Five home tiles: TOOLS (TERMINAL, CALC, SYSTEM), NET TOOLS, FILES & MEDIA (FILES, PLAYER), NOTES, WEATHER
 - [x] Group tiles list their modules and open a screen of the same tiles; the status bar shows the path and the back button names where it goes
 - [x] WEATHER is a widget on the home screen (temperature, conditions, location, today's range, "tap for full forecast") from the same cache and fetch path as the module
 - [x] Alt+1..5 opens a home tile, 1..n inside a group, Alt+letter jumps to a module from anywhere, Esc goes up one level
-- [ ] Checkpoint on hardware: every module still opens by touch and by keyboard, the weather widget updates on its own, Esc from TERMINAL lands on TOOLS
-- [ ] NET TOOLS: Wi-Fi scanner (networks, channels, signal, security, a channel chart), LAN discovery (mDNS and a ping sweep), ping / DNS / traceroute / port check, speed test
+- [x] Checkpoint on hardware: every module still opens by touch and by keyboard, the weather widget updates on its own, Esc (or Del) from TERMINAL lands on TOOLS
+- [ ] NET TOOLS (v1.4): Wi-Fi scanner (networks, channels, signal, security, a channel chart), LAN discovery (mDNS and a ping sweep), ping / DNS / traceroute / port check, speed test
 - [x] Obsidian sync: NOTES picks LOCAL (`/notes`) or VAULT (`/vault`); the vault syncs with Obsidian Self-hosted LiveSync (CouchDB) in the plugin's own format (chunks, E2EE v2, matching chunk ids), behind a sync-backend interface so other platforms can follow
 - [x] NOTES browses folders (Enter opens, Backspace goes up)
 - [x] Checkpoint in the simulator: pull, push, delete and a two-sided conflict against a seeded database, verified by the plugin's own JavaScript (chunks decrypt, ids match)
-- [ ] Checkpoint on hardware: the deck syncs with a real vault, edits made on the deck show up in Obsidian and the other way round
+- [x] Checkpoint on hardware: the deck syncs with a real vault (906 attachments left to Obsidian, notes in all three storage forms), a note created on the deck appears in Obsidian
+- [x] Memory: LVGL widgets, parsed JSON and the sync's connection no longer starve internal RAM (one kept TLS connection, 40 KB sync stack, allocators on PSRAM)
+- [x] Del doubles as a back key
 
 ## Next: Startup sound
 
