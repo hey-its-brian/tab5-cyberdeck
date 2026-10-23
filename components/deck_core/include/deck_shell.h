@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-#define DECK_VERSION "1.4.0-beta.1"
+#define DECK_VERSION "1.4.0-beta.2"
 
 #define DECK_STATUSBAR_H 56
 
