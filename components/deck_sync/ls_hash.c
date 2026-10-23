@@ -254,7 +254,7 @@ void ls_mixed_hash(const char *src, size_t n, char out[16])
      * hashed first, then the string, as one stream. */
     char pre[16];
     int pn = snprintf(pre, sizeof(pre), "%u", (unsigned)ls_utf16_len(src, n));
-    char buf[4096];
+    static char buf[4096]; /* not on the caller's stack; only the sync task hashes */
     uint32_t m, f;
     if ((size_t)pn + n <= sizeof(buf)) {
         memcpy(buf, pre, (size_t)pn);

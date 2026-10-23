@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include "deck_hal.h"
+#include "deck_net.h"
 #include "deck_sync.h"
 #include "ls_couch.h"
 #include "ls_crypto.h"
@@ -926,6 +927,7 @@ static bool sync_run(const char *dir, sync_log_fn log, volatile bool *cancel, bo
          * their sequence so they are not fetched a second time. */
         if (ok) ok = pull(c);
         index_save(c);
+        net_http_idle(); /* release the connection before measuring */
         if (ok) {
             int left = cJSON_GetArraySize(c->retry);
             logf_(c, "done: %d pulled, %d sent, %d removed%s (%u KB free)", c->pulled, c->pushed, c->deleted,

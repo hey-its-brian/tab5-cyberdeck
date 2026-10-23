@@ -50,6 +50,11 @@ static void run(void)
 {
     bool ok = s_backend->sync(s_dir, log_line, &s_cancel, s_full);
     net_http_idle();
+#ifdef ESP_PLATFORM
+    char buf[64];
+    snprintf(buf, sizeof(buf), "stack headroom %u bytes", (unsigned)uxTaskGetStackHighWaterMark(NULL));
+    log_line(buf);
+#endif
     if (ok) s_last_ok = time(NULL);
     s_state = ok ? SYNC_DONE : SYNC_FAILED;
 }
@@ -97,7 +102,7 @@ static bool start(bool full)
     /* TLS, JSON and a note's chunks in flight: a roomy stack. It has to be
      * internal RAM: the task reads settings, and flash access from a PSRAM
      * stack trips the cache-disabled assert. */
-    if (xTaskCreatePinnedToCore(worker, "sync", 24576, NULL, 3, NULL, 0) != pdPASS) {
+    if (xTaskCreatePinnedToCore(worker, "sync", 40960, NULL, 3, NULL, 0) != pdPASS) {
         log_line("could not start the sync task");
         s_state = SYNC_FAILED;
         return false;

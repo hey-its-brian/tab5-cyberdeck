@@ -105,3 +105,8 @@ CONFIG_ESP32P4_REV_MIN_1=y
 # internal RAM for early boot: with too little left, IDF 5.4 puts an idle
 # task's stack in TCM and the stack check asserts at every boot.
 CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
+
+# ---- LVGL memory -------------------------------------------------------------
+# Widgets are allocated in PSRAM (components/deck_hal/lv_mem_psram.c) so a big
+# screen (a vault folder with a hundred rows) leaves internal RAM to TLS and DMA.
+CONFIG_LV_USE_CUSTOM_MALLOC=y

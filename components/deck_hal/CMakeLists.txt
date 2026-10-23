@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "hal_tab5.cpp"
+    SRCS "hal_tab5.cpp" "lv_mem_psram.c"
     INCLUDE_DIRS "include"
     REQUIRES lvgl__lvgl
     PRIV_REQUIRES
@@ -14,4 +14,5 @@ idf_component_register(
         nvs_sec_provider
         efuse
         esp_timer
+    WHOLE_ARCHIVE # lv_mem_psram.c defines LVGL's allocator hooks; nothing in this library references them
 )

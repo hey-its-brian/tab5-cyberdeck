@@ -332,9 +332,9 @@ static void sync_refresh(lv_timer_t *t)
     lv_obj_set_style_text_color(s_n.sync_status, col, 0);
     lv_label_set_text(lv_obj_get_child(s_n.sync_btn, 0), st == SYNC_RUNNING ? "STOP" : "SYNC NOW");
 
-    char lines[24][96];
+    static char lines[24][96]; /* off the UI task's stack */
     int n = deck_sync_log(lines, 24);
-    char all[24 * 96];
+    static char all[24 * 100];
     size_t o = 0;
     for (int i = 0; i < n && o < sizeof(all) - 100; i++) {
         o += (size_t)snprintf(all + o, sizeof(all) - o, "%s> %s", i ? "\n" : "", lines[i]);
