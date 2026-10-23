@@ -18,6 +18,7 @@
 #include "deck_audio.h"
 #include "app_files.h"
 #include "app_net.h"
+#include "app_rf.h"
 #include "app_sys.h"
 #include "app_term.h"
 #include "app_weather.h"
@@ -57,6 +58,7 @@ void app_main(void)
     deck_app_register(app_player());
     deck_app_register(app_files());
     deck_app_register(app_net());
+    deck_app_register(app_rf());
     deck_app_register(app_sys());
     deck_sync_set_backend(&g_sync_livesync); /* vault sync for NOTES */
 
@@ -65,7 +67,9 @@ void app_main(void)
     deck_group_add(tools, app_term());
     deck_group_add(tools, app_calc());
     deck_group_add(tools, app_sys());
-    deck_home_add_app(app_net());
+    deck_group_t *wireless = deck_home_add_group("WIRELESS", "RECON SUITE", ICON_WIRELESS);
+    deck_group_add(wireless, app_net());
+    deck_group_add(wireless, app_rf());
     deck_group_t *media = deck_home_add_group("FILES & MEDIA", "STORAGE + AUDIO", ICON_MEDIA);
     deck_group_add(media, app_files());
     deck_group_add(media, app_player());

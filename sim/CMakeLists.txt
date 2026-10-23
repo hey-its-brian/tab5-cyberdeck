@@ -59,6 +59,7 @@ add_executable(deck_sim
     main.c
     hal_sim.c
     net_sim.c
+    ${ROOT}/components/deck_net/net_tools.c
     ota_sim.c
     term_link_pty.c
     term_chat_sim.c
@@ -124,6 +125,10 @@ target_include_directories(calc_test PRIVATE ${ROOT}/apps/app_calc)
 target_compile_options(calc_test PRIVATE -Wall -Wextra)
 enable_testing()
 add_test(NAME calc_engine COMMAND calc_test)
+
+add_executable(nettools_test nettools_test.c ${ROOT}/components/deck_net/net_tools.c)
+target_include_directories(nettools_test PRIVATE ${ROOT}/components/deck_net/include ${ROOT}/components/deck_ui/include ${ROOT}/components/deck_hal/include)
+target_link_libraries(nettools_test PRIVATE lvgl SDL2::SDL2 pthread)
 
 add_executable(ls_test ls_test.c ${ROOT}/components/deck_sync/ls_hash.c ${ROOT}/components/deck_sync/ls_crypto.c)
 target_include_directories(ls_test PRIVATE ${ROOT}/components/deck_sync/include)

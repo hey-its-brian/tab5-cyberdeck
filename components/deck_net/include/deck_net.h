@@ -44,10 +44,21 @@ int         net_bars(void);        /* 0..4 */
 void net_connect(const char *ssid, const char *pass);
 void net_forget(void);
 
-/* Asynchronous scan; poll net_scan_done(), then read the results. */
+/* Every access point the last scan heard, one per BSSID (NET TOOLS). */
+typedef struct {
+    char ssid[33];    /* "" for a hidden network */
+    uint8_t bssid[6];
+    uint8_t channel;  /* 1..14 on the 2.4 GHz band */
+    int8_t rssi;
+    char auth[8];     /* OPEN, WEP, WPA, WPA2, WPA3, WPA2/3, ENT */
+} net_bss_t;
+
+/* Asynchronous scan; poll net_scan_done(), then read the results: one row
+ * per network name for the join list, or every BSSID for the scanner. */
 bool   net_scan_start(void);
 bool   net_scan_done(void);
 size_t net_scan_results(net_ap_t *out, size_t max);
+size_t net_scan_bss(net_bss_t *out, size_t max);
 
 /* True once SNTP has set the clock this boot. */
 bool net_time_synced(void);

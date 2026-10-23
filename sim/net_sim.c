@@ -83,6 +83,28 @@ bool net_scan_start(void)
 
 bool net_scan_done(void) { return lv_tick_elaps(s_scan_at) > 600; }
 
+/* A believable apartment block for the scanner. */
+static const net_bss_t s_fake_bss[] = {
+    {"NIGHTCITY-5G", {0x3c, 0x7c, 0x3f, 0x12, 0x34, 0x56}, 6, -41, "WPA2/3"},
+    {"NIGHTCITY-5G", {0x3c, 0x7c, 0x3f, 0x12, 0x34, 0x57}, 11, -58, "WPA2/3"},
+    {"rikers_iot", {0xa4, 0x2b, 0xb0, 0xaa, 0x01, 0x02}, 1, -47, "WPA2"},
+    {"", {0xa4, 0x2b, 0xb0, 0xaa, 0x01, 0x03}, 1, -48, "WPA2"},
+    {"xfinitywifi", {0x00, 0x1d, 0xd0, 0x99, 0x00, 0x11}, 6, -72, "OPEN"},
+    {"Arasaka Guest", {0xd8, 0x47, 0x32, 0x00, 0x00, 0x01}, 6, -66, "WPA2"},
+    {"Militech-Ops", {0xd8, 0x47, 0x32, 0x00, 0x00, 0x02}, 11, -80, "WPA3"},
+    {"NETGEAR77", {0x9c, 0x3d, 0xcf, 0x77, 0x77, 0x77}, 3, -83, "WPA2"},
+    {"Printer-Direct", {0x00, 0x80, 0x92, 0x01, 0x02, 0x03}, 9, -75, "OPEN"},
+    {"Maelstrom", {0x2c, 0xf0, 0x5d, 0x55, 0x55, 0x55}, 13, -88, "WEP"},
+};
+
+size_t net_scan_bss(net_bss_t *out, size_t max)
+{
+    size_t n = sizeof(s_fake_bss) / sizeof(s_fake_bss[0]);
+    if (n > max) n = max;
+    memcpy(out, s_fake_bss, n * sizeof(net_bss_t));
+    return n;
+}
+
 size_t net_scan_results(net_ap_t *out, size_t max)
 {
     size_t n = sizeof(s_fake) / sizeof(s_fake[0]);

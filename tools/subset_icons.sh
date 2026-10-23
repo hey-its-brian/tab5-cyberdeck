@@ -80,6 +80,9 @@ codepoints=(
     F1064  # tools (TOOLS group)
     F0437  # radar (NET TOOLS)
     F1B97  # multimedia (FILES & MEDIA group)
+    F0002  # access-point-network (WIRELESS group)
+    F0317  # lan (NET TOOLS)
+    F1119  # antenna (RF WATCH)
 )
 
 unicodes=$(printf 'U+%s,' "${codepoints[@]}")

@@ -42,6 +42,24 @@ static bool s_sntp_started;
 
 static net_ap_t s_scan[SCAN_MAX];
 static size_t s_scan_n;
+#define BSS_MAX 48
+static net_bss_t s_bss[BSS_MAX];
+static size_t s_bss_n;
+
+static const char *auth_name(wifi_auth_mode_t m)
+{
+    switch (m) {
+        case WIFI_AUTH_OPEN: return "OPEN";
+        case WIFI_AUTH_WEP: return "WEP";
+        case WIFI_AUTH_WPA_PSK: return "WPA";
+        case WIFI_AUTH_WPA2_PSK: return "WPA2";
+        case WIFI_AUTH_WPA_WPA2_PSK: return "WPA/2";
+        case WIFI_AUTH_WPA3_PSK: return "WPA3";
+        case WIFI_AUTH_WPA2_WPA3_PSK: return "WPA2/3";
+        case WIFI_AUTH_WPA2_ENTERPRISE: return "ENT";
+        default: return "OTHER";
+    }
+}
 static volatile bool s_scan_done = true;
 
 /* ---- Clock --------------------------------------------------------------- */
@@ -100,11 +118,20 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         esp_timer_stop(s_retry);
         esp_timer_start_once(s_retry, (uint64_t)delay_s * 1000000ULL);
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_SCAN_DONE) {
-        uint16_t n             = SCAN_MAX;
-        wifi_ap_record_t *recs = calloc(SCAN_MAX, sizeof(*recs));
+        uint16_t n             = BSS_MAX;
+        wifi_ap_record_t *recs = calloc(BSS_MAX, sizeof(*recs));
         s_scan_n               = 0;
+        s_bss_n                = 0;
         if (recs && esp_wifi_scan_get_ap_records(&n, recs) == ESP_OK) {
-            for (uint16_t i = 0; i < n; i++) {
+            for (uint16_t i = 0; i < n && s_bss_n < BSS_MAX; i++) {
+                net_bss_t *b = &s_bss[s_bss_n++];
+                strlcpy(b->ssid, (char *)recs[i].ssid, sizeof(b->ssid));
+                memcpy(b->bssid, recs[i].bssid, 6);
+                b->channel = recs[i].primary;
+                b->rssi    = recs[i].rssi;
+                strlcpy(b->auth, auth_name(recs[i].authmode), sizeof(b->auth));
+            }
+            for (uint16_t i = 0; i < n && s_scan_n < SCAN_MAX; i++) {
                 if (recs[i].ssid[0] == '\0') continue;
                 bool dup = false; /* mesh networks repeat; records come strongest first */
                 for (size_t j = 0; j < s_scan_n && !dup; j++) dup = !strcmp(s_scan[j].ssid, (char *)recs[i].ssid);
@@ -279,6 +306,13 @@ size_t net_scan_results(net_ap_t *out, size_t max)
 {
     size_t n = s_scan_n < max ? s_scan_n : max;
     memcpy(out, s_scan, n * sizeof(net_ap_t));
+    return n;
+}
+
+size_t net_scan_bss(net_bss_t *out, size_t max)
+{
+    size_t n = s_bss_n < max ? s_bss_n : max;
+    memcpy(out, s_bss, n * sizeof(net_bss_t));
     return n;
 }
 

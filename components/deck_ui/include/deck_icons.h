@@ -73,4 +73,7 @@
 #define ICON_TOOLS          "\xF3\xB1\x81\xA4" /* F1064 */
 #define ICON_RADAR          "\xF3\xB0\x90\xB7" /* F0437 */
 #define ICON_MEDIA          "\xF3\xB1\xAE\x97" /* F1B97 */
+#define ICON_WIRELESS       "\xF3\xB0\x80\x82" /* F0002 */
+#define ICON_LAN            "\xF3\xB0\x8C\x97" /* F0317 */
+#define ICON_ANTENNA        "\xF3\xB1\x84\x99" /* F1119 */
 #define ICON_UMBRELLA       "\xF3\xB0\x95\x8A" /* F054A */
