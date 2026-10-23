@@ -201,7 +201,7 @@ See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
 | (idle) | After SYSTEM > SAVER minutes (default 5) a drifting clock takes over, dimmed; 10 minutes later the screen sleeps. Any key or touch wakes it |
 | `Alt+H`, or tap the hint on the home screen | List every shortcut |
 | `Alt+P` | Pause or resume music from anywhere |
-| `Esc` | Back / close, or up one level (a module to its group, a group to the deck) if the module does not use it |
+| `Esc` or `Del` | Back / close, or up one level (a module to its group, a group to the deck) if the module does not use it. `Del` still deletes inside a text field, and deletes the selected item in NOTES, FILES and TERMINAL |
 | `Left` `Right` `Enter`, or `1..5` | Pick a tile on the home screen or in a group |
 | `Tab`, arrows | Move focus inside a module |
 

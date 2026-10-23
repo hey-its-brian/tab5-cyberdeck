@@ -304,7 +304,7 @@ void deck_launcher_create(lv_obj_t *parent, deck_group_t *group)
     s_uptime = deck_label(head, g_font.mono_s, g_pal.dim, "");
     lv_obj_align(s_uptime, LV_ALIGN_RIGHT_MID, 0, 0);
     /* Shortcut hint; tapping it opens the list too. */
-    lv_obj_t *hint = deck_label(head, g_font.mono_s, g_pal.dim, group ? "ESC: BACK TO DECK    SHORTCUTS: ALT+H" : "SHORTCUTS: ALT+H");
+    lv_obj_t *hint = deck_label(head, g_font.mono_s, g_pal.dim, group ? "ESC OR DEL: BACK TO DECK    SHORTCUTS: ALT+H" : "SHORTCUTS: ALT+H");
     lv_obj_align(hint, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_flag(hint, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_ext_click_area(hint, 14);

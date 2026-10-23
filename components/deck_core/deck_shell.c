@@ -197,7 +197,7 @@ void deck_shell_shortcuts(void)
         "  ALT+0       sleep the screen (or tap the clock)\n"
         "  ALT+H       this list\n"
         "  ALT+P       pause / resume music\n"
-        "  ESC         back / close\n"
+        "  ESC or DEL  back / close (DEL deletes inside text)\n"
         "\n"
         "HOME AND GROUPS\n"
         "  LEFT RIGHT ENTER, or 1..5   pick a tile\n"
@@ -255,6 +255,17 @@ static void rebuild_async(void *u)
 void deck_shell_rebuild(void) { lv_async_call(rebuild_async, NULL); }
 
 /* ---- Keys ---------------------------------------------------------------- */
+
+/* Del doubles as a back key (it sits in the keyboard's top right corner,
+ * easier to reach than Esc), except while a text field has focus, where it
+ * keeps deleting. Modules that use Del themselves consume it first. */
+static bool back_key(const deck_key_t *k)
+{
+    if (k->code == HID_ESC) return true;
+    if (k->code != HID_DELETE || (k->mods & (DECK_MOD_CTRL | DECK_MOD_ALT))) return false;
+    lv_obj_t *f = lv_group_get_focused(deck_input_group());
+    return f == NULL || !lv_obj_check_type(f, &lv_textarea_class);
+}
 
 bool deck_shell_key(const deck_key_t *k)
 {
@@ -320,7 +331,7 @@ bool deck_shell_key(const deck_key_t *k)
 
     if (s_current == NULL) {
         if (deck_launcher_key(k)) return true;
-        if (k->code == HID_ESC && s_group) {
+        if (back_key(k) && s_group) {
             deck_shell_back();
             return true;
         }
@@ -329,7 +340,7 @@ bool deck_shell_key(const deck_key_t *k)
     if (s_current->on_key && s_current->on_key(s_current, k)) {
         return true;
     }
-    if (k->code == HID_ESC) {
+    if (back_key(k)) {
         deck_shell_back();
         return true;
     }
