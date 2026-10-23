@@ -108,20 +108,22 @@ static lv_obj_t *build_tile(lv_obj_t *parent, const deck_tile_t *it, int index, 
     }
     lv_obj_align(chip, LV_ALIGN_TOP_RIGHT, 0, 14);
 
-    if (app && app->on_tile && !offline) {
-        /* Widget: the module draws the body between the number and the footer. */
-        lv_obj_t *body = deck_box(t);
-        lv_obj_set_size(body, LV_PCT(100), 330);
-        lv_obj_align(body, LV_ALIGN_TOP_MID, 0, 60);
-        app->on_tile(app, body);
-    } else if (grp) {
-        lv_obj_t *icon = deck_label(t, g_font.icon_l, g_pal.accent, grp->icon);
-        lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 52);
-        lv_obj_t *name = deck_label(t, g_font.disp_m, g_pal.text, grp->name);
-        lv_obj_align(name, LV_ALIGN_TOP_MID, 0, 166);
-        lv_obj_t *tag = deck_label(t, g_font.mono_s, g_pal.dim, grp->tagline);
-        lv_obj_align(tag, LV_ALIGN_TOP_MID, 0, 198);
+    /* Every tile shares one top band: icon, name, tagline at fixed heights,
+     * so the row reads evenly. What sits below differs per kind. */
+    lv_obj_t *icon = deck_label(t, g_font.icon_l, offline ? g_pal.dim : g_pal.accent, grp ? grp->icon : app->icon);
+    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 52);
+    lv_obj_t *name = deck_label(t, g_font.disp_m, g_pal.text, grp ? grp->name : app->name);
+    lv_obj_align(name, LV_ALIGN_TOP_MID, 0, 166);
+    lv_obj_t *tag = deck_label(t, g_font.mono_s, g_pal.dim, grp ? grp->tagline : app->tagline);
+    lv_obj_align(tag, LV_ALIGN_TOP_MID, 0, 198);
 
+    if (app && app->on_tile && !offline) {
+        /* Widget: the module fills the space between the band and the footer. */
+        lv_obj_t *body = deck_box(t);
+        lv_obj_set_size(body, LV_PCT(100), 160);
+        lv_obj_align(body, LV_ALIGN_TOP_MID, 0, 234);
+        app->on_tile(app, body, icon);
+    } else if (grp) {
         /* The modules inside, each with its Alt+letter. */
         lv_obj_t *list = deck_box(t);
         lv_obj_set_width(list, LV_PCT(100));
@@ -140,13 +142,6 @@ static lv_obj_t *build_tile(lv_obj_t *parent, const deck_tile_t *it, int index, 
             lv_obj_set_width(k, 14);
             deck_label(row, g_font.mono_m, a->eta ? g_pal.dim : g_pal.text, a->name);
         }
-    } else {
-        lv_obj_t *icon = deck_label(t, g_font.icon_l, offline ? g_pal.dim : g_pal.accent, app->icon);
-        lv_obj_align(icon, LV_ALIGN_CENTER, 0, -40);
-        lv_obj_t *name = deck_label(t, g_font.disp_m, g_pal.text, app->name);
-        lv_obj_align(name, LV_ALIGN_CENTER, 0, 52);
-        lv_obj_t *tag = deck_label(t, g_font.mono_s, g_pal.dim, app->tagline);
-        lv_obj_align(tag, LV_ALIGN_CENTER, 0, 84);
     }
 
     /* Footer: how to open it from the keyboard, and its state. */

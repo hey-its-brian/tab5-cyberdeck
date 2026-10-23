@@ -42,10 +42,11 @@ struct deck_app {
     void (*on_exit)(deck_app_t *self);
     void (*on_stop)(deck_app_t *self);
     bool (*on_key)(deck_app_t *self, const deck_key_t *key);
-    /* Optional: the home tile shows live content (a widget) instead of the
-     * icon and name. `body` is the tile's inner box; it is deleted with the
-     * home screen, so hang timers and handles off it. */
-    void (*on_tile)(deck_app_t *self, lv_obj_t *body);
+    /* Optional: the home tile shows live content (a widget) under the usual
+     * icon, name and tagline. `body` is the box below them and `icon` the
+     * tile's icon label, which the module may retarget (a weather glyph).
+     * Both are deleted with the home screen, so hang timers off `body`. */
+    void (*on_tile)(deck_app_t *self, lv_obj_t *body, lv_obj_t *icon);
 
     void *user;
 };

@@ -536,7 +536,7 @@ static void stop(deck_app_t *self)
 
 static struct {
     volatile bool alive;
-    lv_obj_t *icon, *temp, *cond, *place, *range, *status;
+    lv_obj_t *icon, *temp, *cond, *place, *range;
     lv_timer_t *timer;
 } s_tile;
 
@@ -564,11 +564,10 @@ static void tile_render(void)
         char hi[12], lo[12];
         fmt_temp(hi, sizeof(hi), w->day[0].hi);
         fmt_temp(lo, sizeof(lo), w->day[0].lo);
-        lv_label_set_text_fmt(s_tile.range, "H %s   L %s", hi, lo);
+        bool stale = s_w.from_cache || s_w.failed || net_state() != NET_CONNECTED;
+        lv_label_set_text_fmt(s_tile.range, "H %s  L %s  %s", hi, lo, s_w.loading ? "UPLINK" : stale ? "CACHED" : "LIVE");
+        lv_obj_set_style_text_color(s_tile.range, stale ? g_pal.warn : g_pal.dim, 0);
     }
-    bool stale = s_w.from_cache || s_w.failed || net_state() != NET_CONNECTED;
-    lv_label_set_text(s_tile.status, s_w.loading ? "UPLINK" : !s_w.have ? "" : stale ? "CACHED" : "LIVE");
-    lv_obj_set_style_text_color(s_tile.status, stale ? g_pal.warn : g_pal.dim, 0);
 }
 
 static void tile_tick(lv_timer_t *t)
@@ -589,7 +588,7 @@ static void tile_deleted(lv_event_t *e)
     s_w.loading = false;
 }
 
-static void on_tile(deck_app_t *self, lv_obj_t *body)
+static void on_tile(deck_app_t *self, lv_obj_t *body, lv_obj_t *icon)
 {
     (void)self;
     memset(&s_tile, 0, sizeof(s_tile));
@@ -598,18 +597,16 @@ static void on_tile(deck_app_t *self, lv_obj_t *body)
     lv_obj_add_event_cb(body, tile_deleted, LV_EVENT_DELETE, NULL);
     lv_obj_set_flex_flow(body, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(body, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(body, 4, 0);
+    lv_obj_set_style_pad_row(body, 2, 0);
 
-    deck_label(body, g_font.disp_s, g_pal.accent, "WEATHER");
-    s_tile.icon = deck_label(body, g_font.icon_l, g_pal.accent, "");
+    s_tile.icon = icon; /* the tile's own icon shows the conditions */
     s_tile.temp = deck_label(body, g_font.disp_xl, g_pal.text, "");
     s_tile.cond = deck_label(body, g_font.mono_m, g_pal.text, "");
     s_tile.place = deck_label(body, g_font.mono_s, g_pal.dim, "");
     lv_obj_set_width(s_tile.place, LV_PCT(100));
     lv_label_set_long_mode(s_tile.place, LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_style_text_align(s_tile.place, LV_TEXT_ALIGN_CENTER, 0);
-    s_tile.range  = deck_label(body, g_font.mono_s, g_pal.dim, "");
-    s_tile.status = deck_label(body, g_font.mono_s, g_pal.dim, "");
+    s_tile.range   = deck_label(body, g_font.mono_s, g_pal.dim, "");
     lv_obj_t *hint = deck_label(body, g_font.mono_s, g_pal.accent2, "TAP FOR FULL FORECAST");
     lv_obj_set_style_pad_top(hint, 6, 0);
 
