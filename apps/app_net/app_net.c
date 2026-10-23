@@ -28,7 +28,7 @@
 
 #define BSS_MAX 48
 #define CHANNELS 13
-#define RESCAN_MS 10000
+#define RESCAN_MS 30000 /* a rebuild loses the scroll, so not too often */
 
 #define HID_R 0x15
 
@@ -92,7 +92,8 @@ static struct {
 } s_ui DECK_PSRAM_BSS;
 
 #define SPEED_HOST "speed.cloudflare.com"
-#define SPEED_DOWN_URL "https://speed.cloudflare.com/__down?bytes=8000000"
+/* Plain HTTP for the download so the number is the link, not TLS decryption. */
+#define SPEED_DOWN_URL "http://ipv4.download.thinkbroadband.com/10MB.zip"
 #define SPEED_UP_URL "https://speed.cloudflare.com/__up"
 #define SPEED_DOWN_BYTES (8u * 1000u * 1000u)
 #define SPEED_UP_BYTES (2u * 1000u * 1000u)
@@ -160,6 +161,11 @@ static void row_clicked(lv_event_t *e)
 
 static void render_scan(void)
 {
+    /* Rebuilding the rows must not throw away where the user was. */
+    int32_t scroll_y   = lv_obj_get_scroll_y(s_ui.list);
+    lv_obj_t *focused  = lv_group_get_focused(deck_input_group());
+    int focus_idx      = -1;
+    if (focused && lv_obj_get_parent(focused) == s_ui.list) focus_idx = (int)lv_obj_get_index(focused);
     lv_obj_clean(s_ui.list);
     lv_group_remove_all_objs(deck_input_group());
     if (s_ui.count == 0) {
@@ -194,6 +200,14 @@ static void render_scan(void)
         snprintf(sig, sizeof(sig), "%d  %s", b->rssi, bars(b->rssi));
         lv_obj_t *s = deck_label(row, g_font.mono_s, g_pal.text, sig);
         lv_obj_align(s, LV_ALIGN_RIGHT_MID, 0, 0);
+    }
+    lv_obj_update_layout(s_ui.list);
+    lv_obj_scroll_to_y(s_ui.list, scroll_y, LV_ANIM_OFF);
+    if (focus_idx >= 0 && focus_idx < s_ui.count) {
+        lv_obj_t *row = lv_obj_get_child(s_ui.list, focus_idx);
+        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLL_ON_FOCUS); /* keep the scroll where it is */
+        lv_group_focus_obj(row);
+        lv_obj_add_flag(row, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     }
 
     /* Channel chart: the strongest signal on each channel, with a count. */
@@ -688,7 +702,7 @@ static void speed_done(void *u)
     } else {
         lv_label_set_text(s_ui.spd_lat, "--");
     }
-    lv_label_set_text(s_ui.spd_status, s_ui.spd_down_ok ? "DONE  ::  SPEED.CLOUDFLARE.COM  ::  8 MB DOWN, 2 MB UP"
+    lv_label_set_text(s_ui.spd_status, s_ui.spd_down_ok ? "DONE  ::  8 MB DOWN (THINKBROADBAND, HTTP)  ::  2 MB UP (CLOUDFLARE, HTTPS)"
                                                         : "FAILED: no answer from the test server");
     lv_label_set_text(lv_obj_get_child(s_ui.spd_btn, 0), "START");
     lv_obj_remove_state(s_ui.spd_btn, LV_STATE_DISABLED);
@@ -743,7 +757,7 @@ static void build_speed(lv_obj_t *page)
 
     lv_obj_t *row = deck_box(page);
     lv_obj_set_width(row, LV_PCT(100));
-    s_ui.spd_status = deck_label(row, g_font.mono_m, g_pal.dim, "AGAINST SPEED.CLOUDFLARE.COM: 8 MB DOWN, 2 MB UP. PRESS START.");
+    s_ui.spd_status = deck_label(row, g_font.mono_m, g_pal.dim, "8 MB DOWN FROM THINKBROADBAND (HTTP), 2 MB UP TO CLOUDFLARE. PRESS START.");
     lv_obj_align(s_ui.spd_status, LV_ALIGN_LEFT_MID, 0, 0);
     s_ui.spd_btn = small_button(row, "START", speed_clicked, 0);
     lv_obj_align(s_ui.spd_btn, LV_ALIGN_RIGHT_MID, 0, 0);

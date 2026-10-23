@@ -110,3 +110,10 @@ CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
 # Widgets are allocated in PSRAM (components/deck_hal/lv_mem_psram.c) so a big
 # screen (a vault folder with a hundred rows) leaves internal RAM to TLS and DMA.
 CONFIG_LV_USE_CUSTOM_MALLOC=y
+
+# ---- TCP throughput ----------------------------------------------------------
+# lwIP's 5.7 KB default window caps a 20 ms link at about 2.5 Mbit/s. 64 KB
+# windows let OTA, the vault sync and NET TOOLS > SPEED use the C6 link.
+CONFIG_LWIP_TCP_SND_BUF_DEFAULT=65535
+CONFIG_LWIP_TCP_WND_DEFAULT=65535
+CONFIG_LWIP_TCP_RECVMBOX_SIZE=32
