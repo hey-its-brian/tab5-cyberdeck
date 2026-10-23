@@ -29,6 +29,7 @@
 #include "ls_couch.h"
 #include "ls_crypto.h"
 #include "ls_hash.h"
+#include "mbedtls/base64.h"
 
 #define INDEX_FILE ".deck-sync.json"
 #define PIECE_MAX 3000   /* bytes per chunk, split at newlines */
@@ -49,6 +50,7 @@ typedef struct {
     cJSON *files;
     cJSON *retry;  /* documents whose chunks could not be fetched last time */
     int pulled, pushed, deleted, skipped, conflicts;
+    int legacy; /* notes stored the old inline way or as binary */
     bool dead; /* the server stopped answering; stop instead of grinding on */
     bool full; /* ignore the stored sequence: walk everything again */
 } ctx_t;
@@ -408,8 +410,61 @@ static bool preflight(ctx_t *c)
 /* ---- Pull ---------------------------------------------------------------- */
 
 /* Fetch and decode a note's chunks into one malloc'd string. */
+/* Decode one piece of a note: decrypt "%=" strings, and for binary
+ * ("newnote") documents base64-decode the result. Returns malloc'd bytes. */
+static char *decode_piece(ctx_t *c, const char *data, bool binary, size_t *plen, const char **why)
+{
+    char *plain = NULL;
+    size_t n    = 0;
+    if (data[0] == '%' && data[1] == '=') {
+        plain = ls_decrypt(&c->master, data, &n);
+        if (plain == NULL) {
+            *why = "would not decrypt";
+            return NULL;
+        }
+    } else if (data[0] == '%' || data[0] == '[' || data[0] == '\x0e') {
+        *why = "uses an older format";
+        return NULL;
+    } else {
+        n     = strlen(data);
+        plain = malloc(n + 1);
+        if (plain == NULL) return NULL;
+        memcpy(plain, data, n + 1);
+    }
+    if (binary) {
+        size_t cap = n / 4 * 3 + 4, out_n = 0;
+        unsigned char *bytes = malloc(cap + 1);
+        if (bytes == NULL || mbedtls_base64_decode(bytes, cap, &out_n, (const unsigned char *)plain, n) != 0) {
+            free(bytes);
+            free(plain);
+            *why = "is not valid base64";
+            return NULL;
+        }
+        free(plain);
+        bytes[out_n] = '\0';
+        plain        = (char *)bytes;
+        n            = out_n;
+    }
+    *plen = n;
+    return plain;
+}
+
+static bool append(char **out, size_t *tot, const char *src, size_t n)
+{
+    if (*tot + n > NOTE_MAX) return false;
+    char *grown = realloc(*out, *tot + n + 1);
+    if (grown == NULL) return false;
+    *out = grown;
+    memcpy(*out + *tot, src, n);
+    *tot += n;
+    (*out)[*tot] = '\0';
+    return true;
+}
+
 static char *fetch_note(ctx_t *c, const cJSON *doc, size_t *len)
 {
+    const char *type      = jstr(doc, "type");
+    bool binary           = type && strcmp(type, "newnote") == 0;
     const cJSON *children = cJSON_GetObjectItemCaseSensitive(doc, "children");
     const cJSON *eden     = cJSON_GetObjectItemCaseSensitive(doc, "eden");
     int n = cJSON_IsArray(children) ? cJSON_GetArraySize(children) : 0;
@@ -417,6 +472,29 @@ static char *fetch_note(ctx_t *c, const cJSON *doc, size_t *len)
     if (out == NULL) return NULL;
     out[0]     = '\0';
     size_t tot = 0;
+
+    /* The oldest form keeps the text inline, as one string or a list. */
+    const cJSON *inline_data = cJSON_GetObjectItemCaseSensitive(doc, "data");
+    if (type && strcmp(type, "notes") == 0 && inline_data) {
+        const cJSON *piece;
+        const cJSON *first = cJSON_IsArray(inline_data) ? inline_data->child : inline_data;
+        for (piece = first; piece; piece = cJSON_IsArray(inline_data) ? piece->next : NULL) {
+            if (!cJSON_IsString(piece)) continue;
+            size_t plen     = 0;
+            const char *why = "";
+            char *plain     = decode_piece(c, piece->valuestring, false, &plen, &why);
+            if (plain == NULL || !append(&out, &tot, plain, plen)) {
+                logf_(c, "note %s %s", jstr(doc, "path") ? jstr(doc, "path") : "?", plain ? "too large" : why);
+                free(plain);
+                free(out);
+                return NULL;
+            }
+            free(plain);
+        }
+        if (len) *len = tot;
+        return out;
+    }
+
     if (n == 0) {
         if (len) *len = 0;
         return out;
@@ -454,44 +532,23 @@ static char *fetch_note(ctx_t *c, const cJSON *doc, size_t *len)
             free(out);
             return NULL;
         }
-        char *plain  = NULL;
-        size_t plen  = 0;
-        if (data[0] == '%' && data[1] == '=') {
-            plain = ls_decrypt(&c->master, data, &plen);
-            if (plain == NULL) {
-                logf_(c, "chunk %s would not decrypt", id ? id : "?");
-                cJSON_Delete(resp);
-                free(out);
-                return NULL;
-            }
-        } else if (data[0] == '%' || data[0] == '[' || data[0] == '\x0e') {
-            logf_(c, "chunk %s uses an older format", id ? id : "?");
-            cJSON_Delete(resp);
-            free(out);
-            return NULL;
-        } else {
-            plen = strlen(data);
-        }
-        const char *src = plain ? plain : data;
-        if (tot + plen > NOTE_MAX) {
-            logf_(c, "note too large");
-            free(plain);
+        size_t plen     = 0;
+        const char *why = "";
+        char *plain     = decode_piece(c, data, binary, &plen, &why);
+        if (plain == NULL) {
+            logf_(c, "chunk %s %s", id ? id : "?", why);
             cJSON_Delete(resp);
             free(out);
             return NULL;
         }
-        char *grown = realloc(out, tot + plen + 1);
-        if (grown == NULL) {
-            free(plain);
-            cJSON_Delete(resp);
-            free(out);
-            return NULL;
-        }
-        out = grown;
-        memcpy(out + tot, src, plen);
-        tot += plen;
-        out[tot] = '\0';
+        bool ok = append(&out, &tot, plain, plen);
         free(plain);
+        if (!ok) {
+            logf_(c, "note too large");
+            cJSON_Delete(resp);
+            free(out);
+            return NULL;
+        }
     }
     cJSON_Delete(resp);
     if (len) *len = tot;
@@ -532,10 +589,11 @@ static bool apply_remote(ctx_t *c, const cJSON *doc)
     }
     if (strcmp(type, "plain") != 0 && strcmp(type, "newnote") != 0 && strcmp(type, "notes") != 0) return true;
     if (path == NULL) path = id;
-    if (!is_md(path) || strcmp(type, "plain") != 0) {
+    if (!is_md(path)) {
         c->skipped++; /* attachments and other files stay in Obsidian */
         return true;
     }
+    if (strcmp(type, "plain") != 0) c->legacy++; /* inline or binary-encoded markdown: read fine, written back as plain */
     if (!safe_vault_path(path)) {
         logf_(c, "skipping odd path %s", path);
         return true;
@@ -934,6 +992,7 @@ static bool sync_run(const char *dir, sync_log_fn log, volatile bool *cancel, bo
                   c->conflicts ? ", conflicts kept" : "", heap_kb());
             if (left) logf_(c, "%d note%s still to fetch; sync again", left, left == 1 ? "" : "s");
             if (c->skipped) logf_(c, "%d non-markdown files left to Obsidian", c->skipped);
+            if (c->legacy) logf_(c, "%d notes were in an older storage form", c->legacy);
         }
         cJSON_Delete(c->index);
     }
