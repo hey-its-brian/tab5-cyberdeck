@@ -192,6 +192,15 @@ A passive monitoring suite that listens and alerts, never transmits.
 - Open question: CSI may not be reachable through ESP-Hosted on the built-in C6; may need a dedicated ESP32 module
 - Radar-style view: presence, motion intensity, history
 
+## Later: Try other firmwares without losing DECK//OS
+
+Paused 2026-11-05: more involved than it first looks. Two steps, smallest first.
+
+- [ ] Backup and restore over USB: `tools/flash-backup.sh` reads all 16 MB of flash with esptool, `tools/flash-restore.sh` writes it back. Settings stay readable because the NVS key lives in eFuse on the same chip (a backup does not move to another Tab5)
+- [ ] Before flashing a guest: take out the SD card (some firmwares format it); check whether it ships a newer ESP-Hosted that reflashes the C6 (DECK//OS needs the stock v1.4.1 slave, or Wi-Fi breaks after a restore); skip anything that burns eFuses (secure boot, flash encryption)
+- [ ] SD launcher (only if switching becomes a habit): a LAUNCHER module copies an app image from `/sdcard/firmware/` (pulled out of a merged full .bin) into the spare OTA slot and boots it unconfirmed, so rollback returns to DECK//OS on the next reset
+- [ ] Launcher blockers to spike first: guests that confirm themselves (Arduino, rollback-aware builds) stick, so the bootloader needs an escape (which Tab5 inputs can it read?); DECK's data moves to partitions guests won't touch (one USB reflash, since OTA can't change the partition table); the slot and otadata are written directly because `esp_ota_set_boot_partition()` rejects unsigned images
+
 ## Later: Polish
 
 - Battery stats, idle sleep (timed, building on the v0.6.1 screen sleep)
