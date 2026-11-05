@@ -216,7 +216,38 @@ static bool kbd_try_attach(void)
     return true;
 }
 
-/* Attaches the keyboard when it is plugged in and notices when it is pulled. */
+/* The keyboard can lose its settings without ever missing two polls in a row
+ * (a quick reboot of its MCU, or a register changing under us), which showed
+ * up as the Caps/Sym LEDs stuck at full brightness while SYSTEM still said
+ * LOW. Read the registers back and push ours again when they differ. A
+ * mismatch caused by the UI changing the light at the same moment is
+ * harmless: the reapply uses the current settings. */
+static void kbd_state_check(void)
+{
+    uint8_t mode = 0;
+    if (s_kbd.getKeyboardMode(&mode) == M5_TAB5_KB_OK && mode != M5_TAB5_KB_MODE_HID) {
+        ESP_LOGW(TAG, "keyboard left HID mode (mode %u), restoring", mode);
+        s_kbd.setMode(M5_TAB5_KB_MODE_HID);
+        kbd_light_apply(); /* a mode reset means the light settings went too */
+        return;
+    }
+    uint8_t want = s_display_on ? s_kbd_bright : 0;
+    uint8_t bright = 0;
+    if (s_kbd.getBrightness(&bright) == M5_TAB5_KB_OK && bright != want) {
+        ESP_LOGW(TAG, "keyboard brightness %u, expected %u, reapplying", bright, want);
+        kbd_light_apply();
+        return;
+    }
+    m5_tab5_kb_rgb_mode_t rgb_mode;
+    m5_tab5_kb_rgb_mode_t rgb_want = s_kbd_color ? M5_TAB5_KB_RGB_MODE_CUSTOM : M5_TAB5_KB_RGB_MODE_BINDING;
+    if (s_kbd.getRGBMode(&rgb_mode) == M5_TAB5_KB_OK && rgb_mode != rgb_want) {
+        ESP_LOGW(TAG, "keyboard RGB mode %d, expected %d, reapplying", (int)rgb_mode, (int)rgb_want);
+        kbd_light_apply();
+    }
+}
+
+/* Attaches the keyboard when it is plugged in, notices when it is pulled, and
+ * keeps its mode and light settings in line with ours. */
 static void kbd_monitor_task(void *arg)
 {
     (void)arg;
@@ -233,6 +264,7 @@ static void kbd_monitor_task(void *arg)
         uint8_t ver = 0;
         if (s_kbd.getVersion(&ver) == M5_TAB5_KB_OK) {
             misses = 0;
+            kbd_state_check();
         } else if (++misses >= 2) {
             ESP_LOGW(TAG, "keyboard detached");
             s_kbd_present = false;
