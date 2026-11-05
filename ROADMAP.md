@@ -173,6 +173,8 @@ Home screen first, then the two modules, one at a time.
 - [x] Home: a live panel (sections from enabled apps, WEATHER today) and six fixed tiles with just an icon, a name and the Alt+letter; the status bar, grid, header and ticker stay as they were
 - [x] APPS: every optional app in a fixed slot (3x2, or 4x3 past six); switched-off apps greyed, the first one with a quiet "enable in settings" hint; tapping a greyed tile opens its switch
 - [x] SETTINGS (was SYSTEM): SETTINGS | APPLICATIONS tabs, a switch per optional app, CORE apps listed
+- [x] Live panel opens with a big clock and date (tap to sleep); the home status bar shows the version in the middle
+- [x] SETTINGS > STYLE > HOME TILES: GLOW, TWO-TONE or NEON, for the home screen only (APPS stays plain)
 - [x] Shortcuts: Alt+1..6 for the home tiles, Alt+A for APPS, RF WATCH moves to Alt+X
 - [x] `tools/check.sh`: simulator build and host unit tests (and optionally the firmware) in one command
 - [ ] Checkpoint on hardware: toggle each optional app; WEATHER stops fetching, PLAYER stops the music and its indicator; toggles survive a reboot; an update from v1.4 keeps every app on

@@ -16,6 +16,10 @@ typedef struct {
     bool tab;
     bool hazard;
     bool muted; /* switched-off look: grey tab bar */
+    bool wash;  /* a tint rising from the top edge (home tiles) */
+    lv_color_t wash_c;
+    bool tab_custom;
+    lv_color_t tab_c;
 } panel_data_t;
 
 /* ---- Low-level drawing helpers ------------------------------------------- */
@@ -177,6 +181,18 @@ static void panel_event(lv_event_t *e)
 
     fill_chamfer(layer, &a, pd->cuts, c, pressed ? g_pal.panel_hi : pd->fill);
 
+    if (pd->wash) {
+        /* Thin strips fading out over the top 45%, stepped in from the left
+         * where the top-left corner is cut so the tint keeps the chamfer. */
+        int32_t h    = (lv_area_get_height(&a) * 45) / 100;
+        int32_t step = 4;
+        for (int32_t dy = 0; dy < h; dy += step) {
+            int32_t inset = ((pd->cuts & DECK_CUT_TL) && dy < c) ? c - dy : 0;
+            lv_opa_t opa  = (lv_opa_t)(46 * (h - dy) / h); /* about 18% at the edge */
+            fill_rect(layer, a.x1 + inset, a.y1 + dy, a.x2, a.y1 + dy + step - 1, pd->wash_c, opa);
+        }
+    }
+
     if (pd->hazard) {
         /* Yellow stripes along the bottom, kept clear of the cut corners. */
         int32_t y = a.y2 - 5;
@@ -197,7 +213,8 @@ static void panel_event(lv_event_t *e)
 
     if (pd->tab) {
         int32_t tx = a.x1 + ((pd->cuts & DECK_CUT_TL) ? c : 0) + 10;
-        fill_rect(layer, tx, a.y1, tx + 56, a.y1 + 3, lit ? g_pal.accent : pd->muted ? g_pal.line : g_pal.accent2,
+        fill_rect(layer, tx, a.y1, tx + 56, a.y1 + 3,
+                  lit ? g_pal.accent : pd->muted ? g_pal.line : pd->tab_custom ? pd->tab_c : g_pal.accent2,
                   LV_OPA_COVER);
     }
 }
@@ -258,6 +275,26 @@ void deck_panel_set_muted(lv_obj_t *panel, bool on)
     panel_data_t *pd = panel_data(panel);
     if (pd) {
         pd->muted = on;
+        lv_obj_invalidate(panel);
+    }
+}
+
+void deck_panel_set_wash(lv_obj_t *panel, bool on, lv_color_t color)
+{
+    panel_data_t *pd = panel_data(panel);
+    if (pd) {
+        pd->wash   = on;
+        pd->wash_c = color;
+        lv_obj_invalidate(panel);
+    }
+}
+
+void deck_panel_set_tab_color(lv_obj_t *panel, lv_color_t color)
+{
+    panel_data_t *pd = panel_data(panel);
+    if (pd) {
+        pd->tab_custom = true;
+        pd->tab_c      = color;
         lv_obj_invalidate(panel);
     }
 }

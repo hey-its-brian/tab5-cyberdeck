@@ -93,6 +93,53 @@ static char hotkey_letter(uint8_t hotkey) { return hotkey ? (char)('A' + hotkey 
  * background, so a switched-off tile reads as present but asleep. */
 static lv_color_t off_color(void) { return lv_color_mix(g_pal.dim, g_pal.bg, 128); }
 
+/* Home tile styles (SETTINGS > STYLE > TILES, saved as "tile_style"): what
+ * sets the home deck apart from the plainer APPS drawer.
+ *   GLOW      an accent tint rising from each tile's top edge
+ *   TWO-TONE  raised tiles with secondary-neon edges and an underline
+ *   NEON      each home tile in its own fixed neon, washed like GLOW */
+static const uint32_t s_neon[DECK_HOME_TILES] = {
+    0x00F0FF, /* TERMINAL cyan */
+    0xF3E600, /* NOTES yellow */
+    0xFF2A6D, /* SETTINGS pink */
+    0x39FF14, /* CALC green */
+    0xB46CFF, /* FILES violet */
+    0xFF8A1F, /* APPS orange */
+};
+
+int deck_tile_style(void)
+{
+    int s = (int)hal_cfg_get_i32("tile_style", STYLE_GLOW);
+    return (s >= STYLE_GLOW && s <= STYLE_NEON) ? s : STYLE_GLOW;
+}
+
+/* Paints a home tile in the chosen style; returns the icon color. */
+static lv_color_t style_home_tile(lv_obj_t *t, lv_obj_t *col, int index)
+{
+    switch (deck_tile_style()) {
+        case STYLE_TWO_TONE: {
+            deck_panel_set_fill(t, g_pal.panel_hi);
+            deck_panel_set_outline(t, lv_color_mix(g_pal.accent2, g_pal.line, 110));
+            lv_obj_t *u = deck_box(col); /* underline under the name */
+            lv_obj_set_size(u, 56, 4);
+            lv_obj_set_style_bg_color(u, g_pal.accent2, 0);
+            lv_obj_set_style_bg_opa(u, LV_OPA_COVER, 0);
+            return g_pal.accent;
+        }
+        case STYLE_NEON: {
+            lv_color_t c = lv_color_hex(s_neon[index % DECK_HOME_TILES]);
+            deck_panel_set_wash(t, true, c);
+            deck_panel_set_outline(t, lv_color_mix(c, g_pal.line, 120));
+            deck_panel_set_tab_color(t, c);
+            return c;
+        }
+        default:
+            deck_panel_set_wash(t, true, g_pal.accent);
+            deck_panel_set_outline(t, lv_color_mix(g_pal.accent, g_pal.line, 110));
+            return g_pal.accent;
+    }
+}
+
 static lv_obj_t *build_tile(lv_obj_t *parent, int index, int32_t w, int32_t h)
 {
     const deck_tile_t *it = &s_items[index];
@@ -133,8 +180,13 @@ static lv_obj_t *build_tile(lv_obj_t *parent, int index, int32_t w, int32_t h)
     lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(col, h >= 200 ? 14 : 6, 0);
     lv_obj_center(col);
-    deck_label(col, h >= 200 ? g_font.icon_l : g_font.icon_m, icon_c, grp ? grp->icon : app->icon);
+    lv_obj_t *icon = deck_label(col, h >= 200 ? g_font.icon_l : g_font.icon_m, icon_c, grp ? grp->icon : app->icon);
     deck_label(col, g_font.disp_m, off ? off_color() : g_pal.text, grp ? grp->name : app->name);
+    if (s_group == NULL) {
+        lv_color_t c = style_home_tile(t, col, index);
+        lv_obj_set_style_text_color(icon, c, 0);
+        if (deck_tile_style() == STYLE_NEON) lv_obj_set_style_text_color(k, c, 0);
+    }
     return t;
 }
 

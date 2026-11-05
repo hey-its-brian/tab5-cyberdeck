@@ -25,6 +25,7 @@ static lv_obj_t *s_bar;
 static lv_obj_t *s_left;
 static lv_obj_t *s_clock;
 static lv_obj_t *s_date;
+static lv_obj_t *s_ver; /* home screen: the version sits where the clock is */
 static lv_obj_t *s_mid, *s_right;
 static lv_obj_t *s_kbd;
 static lv_obj_t *s_sd;
@@ -64,10 +65,16 @@ static void build_left(deck_group_t *group, deck_app_t *app)
         lv_obj_set_flex_flow(brand, LV_FLEX_FLOW_ROW);
         deck_label(brand, g_font.disp_m, g_pal.text, "DECK");
         deck_label(brand, g_font.disp_m, g_pal.accent, "//OS");
-        lv_obj_t *ver = deck_label(s_left, g_font.mono_s, g_pal.dim, "v" DECK_VERSION);
-        lv_obj_set_style_pad_left(ver, 10, 0);
+        /* Home: the big clock lives in the live panel, so the version takes
+         * the middle of the bar. */
+        lv_obj_add_flag(s_clock, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(s_date, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(s_ver, LV_OBJ_FLAG_HIDDEN);
         return;
     }
+    lv_obj_remove_flag(s_clock, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(s_date, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(s_ver, LV_OBJ_FLAG_HIDDEN);
     /* Inside a group the button goes back to the group screen; the path
      * beside it already names the group, so keep the button short. */
     lv_obj_t *back = deck_button(s_left, app && group ? "BACK" : "DECK", g_font.disp_s);
@@ -175,6 +182,7 @@ static void refresh(lv_timer_t *t)
     /* With UPD and LINK up the indicators reach the centre: shorten the
      * date, then drop it, rather than overlap. */
     const char *forms[] = {date_full, date_short, NULL};
+    if (!lv_obj_has_flag(s_ver, LV_OBJ_FLAG_HIDDEN)) return; /* home: version, no date */
     for (int i = 0; i < 3; i++) {
         if (forms[i]) {
             lv_obj_remove_flag(s_date, LV_OBJ_FLAG_HIDDEN);
@@ -242,6 +250,9 @@ void deck_statusbar_create(lv_obj_t *parent)
     lv_obj_set_ext_click_area(mid, 12);
     lv_obj_add_event_cb(mid, clock_clicked, LV_EVENT_CLICKED, NULL);
     s_date  = deck_label(mid, g_font.mono_s, g_pal.dim, "");
+    s_ver   = deck_label(mid, g_font.disp_s, g_pal.dim, "v" DECK_VERSION);
+    lv_obj_set_style_text_letter_space(s_ver, 2, 0);
+    lv_obj_add_flag(s_ver, LV_OBJ_FLAG_HIDDEN);
 
     lv_obj_t *right = s_right = deck_box(s_bar);
     lv_obj_set_flex_flow(right, LV_FLEX_FLOW_ROW);

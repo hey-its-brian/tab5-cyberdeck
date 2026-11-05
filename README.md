@@ -25,7 +25,12 @@ app). APPS holds the optional apps (WEATHER, PLAYER, NET TOOLS, RF WATCH),
 each in a fixed slot. SETTINGS (formerly SYSTEM) has an **APPLICATIONS** tab
 with a switch per optional app: a switched-off app is greyed in APPS, does no
 background work and ignores its shortcut; tapping its tile opens the switch.
-The first greyed tile carries a quiet "enable in settings" hint.
+The first greyed tile carries a quiet "enable in settings" hint. The live panel
+opens with a big clock and the date (tap it to sleep the screen); on the home
+screen the status bar shows the version in the middle instead. SETTINGS >
+STYLE > HOME TILES picks how the home deck is painted: GLOW (an accent tint
+rising from each tile), TWO-TONE (raised tiles with secondary-neon edges) or
+NEON (each home tile in its own color).
 
 | Home | APPS | SETTINGS > APPLICATIONS |
 |---|---|---|

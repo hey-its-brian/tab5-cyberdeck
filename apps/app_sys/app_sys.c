@@ -138,6 +138,17 @@ static void kbd_theme_changed(lv_event_t *e)
     deck_shell_apply_kbd_light();
 }
 
+/* Home tile style: GLOW, TWO-TONE, NEON (the launcher reads "tile_style"). */
+static const char *const s_style_names[3] = {"GLOW", "TWO-TONE", "NEON"};
+
+static void style_clicked(lv_event_t *e)
+{
+    int style = ((int)hal_cfg_get_i32("tile_style", 0) + 1) % 3;
+    hal_cfg_set_i32("tile_style", style);
+    lv_obj_t *b = lv_event_get_target_obj(e);
+    lv_label_set_text(lv_obj_get_child_by_type(b, 0, &lv_label_class), s_style_names[style]);
+}
+
 static const int s_saver_opts[] = {0, 1, 2, 5, 10, 30};
 #define SAVER_OPTS ((int)(sizeof(s_saver_opts) / sizeof(s_saver_opts[0])))
 
@@ -820,6 +831,17 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
     lv_obj_t *set = small_button(clk, "SET", open_clock_modal, parent);
     lv_obj_align(set, LV_ALIGN_RIGHT_MID, 0, 0);
     s_ui.ntp = deck_label(mid, g_font.mono_s, g_pal.dim, "");
+
+    /* ---- STYLE ---- */
+    lv_obj_t *ss = deck_section(mid, "STYLE");
+    lv_obj_set_style_margin_top(ss, 8, 0);
+    lv_obj_t *str = deck_box(mid);
+    lv_obj_set_width(str, LV_PCT(100));
+    lv_obj_t *stl = deck_label(str, g_font.mono_m, g_pal.text, "HOME TILES");
+    lv_obj_align(stl, LV_ALIGN_LEFT_MID, 0, 0);
+    int style   = (int)hal_cfg_get_i32("tile_style", 0);
+    lv_obj_t *sb = small_button(str, s_style_names[(style >= 0 && style < 3) ? style : 0], style_clicked, NULL);
+    lv_obj_align(sb, LV_ALIGN_RIGHT_MID, 0, 0);
 
     /* ---- SYSTEM ---- */
     lv_obj_t *right = column_panel(root, 0);
