@@ -18,6 +18,7 @@ static lv_obj_t *s_root;
 static lv_obj_t *s_content;
 static deck_app_t *s_current;    /* running app, NULL on the home or a group screen */
 static deck_group_t *s_group;    /* group screen shown, or the group the running app sits in */
+static deck_group_t *s_return_group; /* deck_shell_launch_from: where Back goes for an app with no group */
 static deck_app_t *s_next;       /* what to show at the midpoint of a transition */
 static deck_group_t *s_next_group;
 static bool s_busy;              /* a transition is running */
@@ -69,6 +70,8 @@ static void start_app_now(deck_app_t *app)
 {
     teardown();
     s_group = deck_app_group(app);
+    if (s_group == NULL) s_group = s_return_group;
+    s_return_group = NULL;
     if (!app->on_start(app, s_content)) {
         LV_LOG_ERROR("module %s failed to start", app->name);
         lv_group_remove_all_objs(deck_input_group());
@@ -107,11 +110,7 @@ static void go(deck_app_t *app, deck_group_t *group)
     deck_fx_glitch(TRANSITION_MS, transition_mid, transition_done, NULL);
 }
 
-void deck_shell_launch(deck_app_t *app)
-{
-    if (app == NULL || s_busy || app == s_current) return;
-    go(app, NULL);
-}
+void deck_shell_launch(deck_app_t *app) { deck_shell_launch_from(app, NULL); }
 
 void deck_shell_open_group(deck_group_t *group)
 {
@@ -369,3 +368,10 @@ void deck_shell_start(bool boot_anim)
 }
 
 void deck_shell_set_manage(void (*fn)(const deck_app_t *focus)) { deck_launcher_set_manage(fn); }
+
+void deck_shell_launch_from(deck_app_t *app, deck_group_t *back_to)
+{
+    if (app == NULL || s_busy || app == s_current) return;
+    s_return_group = back_to; /* only once the launch is going ahead */
+    go(app, NULL);
+}

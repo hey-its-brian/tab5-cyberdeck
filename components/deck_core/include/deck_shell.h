@@ -26,6 +26,9 @@ void deck_shell_start(bool boot_anim);
 void deck_shell_home(void);
 void deck_shell_back(void);
 void deck_shell_launch(deck_app_t *app);
+/* The same, but Back from `app` returns to `back_to` (SETTINGS opened from
+ * a greyed APPS tile goes back to APPS). */
+void deck_shell_launch_from(deck_app_t *app, deck_group_t *back_to);
 void deck_shell_open_group(deck_group_t *group);
 deck_app_t *deck_shell_current(void);   /* running app, or NULL */
 deck_group_t *deck_shell_group(void);   /* group shown or the running app's group, or NULL */

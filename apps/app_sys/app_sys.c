@@ -19,6 +19,7 @@
 #include "deck_net.h"
 #include "deck_ota.h"
 #include "deck_shell.h"
+#include "deck_home.h"
 #include "deck_theme.h"
 #include "deck_widgets.h"
 
@@ -634,7 +635,7 @@ static void app_row(lv_obj_t *list, size_t i, lv_obj_t **focus_sw)
     }
     lv_obj_t *sw = lv_switch_create(row);
     lv_obj_set_size(sw, 76, 38);
-    lv_obj_align(sw, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_align(sw, LV_ALIGN_RIGHT_MID, -8, 0); /* room for the focus ring */
     if (deck_app_enabled(a)) lv_obj_add_state(sw, LV_STATE_CHECKED);
     lv_obj_set_style_outline_width(sw, 2, LV_STATE_FOCUSED);
     lv_obj_set_style_outline_color(sw, g_pal.accent, LV_STATE_FOCUSED);
@@ -650,6 +651,9 @@ static lv_obj_t *build_applications(lv_obj_t *page)
     lv_obj_t *list = column_panel(page, 0);
     lv_obj_set_size(list, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_pad_row(list, 6, 0);
+    /* deck_panel is not scrollable by default; the list outgrows the page. */
+    lv_obj_add_flag(list, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(list, LV_DIR_VER);
     deck_section(list, "APPLICATIONS");
     lv_obj_t *focus_sw = NULL;
     for (int pass = 0; pass < 2; pass++) {
@@ -680,7 +684,7 @@ void app_sys_open_applications(const deck_app_t *focus)
 {
     s_apps_tab = true;
     s_focus    = focus;
-    deck_shell_launch(&s_app);
+    deck_shell_launch_from(&s_app, deck_home_apps()); /* Back returns to APPS */
 }
 
 static bool start(deck_app_t *self, lv_obj_t *parent)
