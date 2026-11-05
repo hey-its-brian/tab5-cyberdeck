@@ -109,6 +109,9 @@ is Bluetooth LE only, so Bluetooth headphones would need external hardware
 (a transmitter on the jack, a USB Bluetooth audio dongle, or a classic ESP32
 add-on). Revisit after v1.0.
 
+- [ ] Pair with a Bluetooth speaker from the deck: scan, pair, remember, reconnect, and route PLAYER (and the startup sound) to it, with a PLAYER/SETTINGS control to pick SPEAKER / JACK / BLUETOOTH
+- [ ] Hardware decision first: speakers need Classic Bluetooth (A2DP source), which neither the P4 nor the C6 has. Candidates: a classic ESP32 on the M5-Bus as an A2DP source fed over I2S or UART, or a USB Bluetooth audio dongle on the USB-A port (pairing UI only if the dongle exposes one). A plain transmitter on the jack works today but gives no pairing from the deck
+
 ## v1.0: Update notifications, release
 
 - [x] Checks for updates at startup (once online) and then hourly, on the channel the BETA switch picks
@@ -201,6 +204,20 @@ A passive monitoring suite that listens and alerts, never transmits.
 - Detect movement and people nearby from changes in Wi-Fi signals (channel state information)
 - Open question: CSI may not be reachable through ESP-Hosted on the built-in C6; may need a dedicated ESP32 module
 - Radar-style view: presence, motion intensity, history
+
+## Later: App SDK and an app catalog
+
+Let other people build apps for DECK//OS and let users install them from the
+deck, without forking the firmware. Builds on v1.5's app model (`deck_app_t`
+with optional apps, on/off hooks and home panel sections).
+
+- [ ] A documented, versioned app API: the `deck_app_t` lifecycle, the UI kit (panels, tiles, buttons, fonts, palette), input, settings storage, files, network (HTTP, sockets), audio, notifications and the home panel; an API version number apps declare, so the deck refuses apps it cannot run
+- [ ] Decide how third-party code runs (spike first): native ELF apps loaded from SD (Espressif's `elf_loader` component, RISC-V on the P4) versus a sandboxed runtime (WebAssembly via WAMR, or a scripting language such as Lua or MicroPython). Native is fastest and has the full API; a sandbox can't crash the deck or read the SSH keys and vault
+- [ ] App packages: a manifest (id, name, icon, version, API version, permissions such as network, files, audio), the code, and assets; installed to `/sdcard/apps/<id>/` and shown in APPS like built-in optional apps
+- [ ] Signing and trust: packages signed by their author; the catalog lists the key; the deck shows the permissions before install, and unsigned apps only with a developer switch in SETTINGS
+- [ ] A catalog repo (separate GitHub repository): an index JSON of apps with versions, descriptions, screenshots and download links, plus a contribution guide and CI that builds and checks submissions
+- [ ] On the deck: SETTINGS > APPLICATIONS gains INSTALL / UPDATE / REMOVE, browsing the catalog over Wi-Fi with update checks like the firmware's
+- [ ] Developer kit: an app template repo, the simulator able to load an app from a folder, and docs; port one built-in optional app (WEATHER) to the SDK to prove the API
 
 ## Later: Try other firmwares without losing DECK//OS
 
