@@ -5,6 +5,7 @@
 
 #include "deck_app.h"
 #include "deck_hint.h"
+#include "deck_home.h"
 
 static int s_fail, s_count;
 
@@ -110,6 +111,15 @@ int main(void)
     expect(!deck_app_enabled(&opt) && s_enable_calls[1] == 1, "write lost: state and hooks unchanged");
     s_drop_writes = false;
     expect(deck_app_set_enabled(&opt, true) && deck_app_enabled(&opt) && s_enable_calls[1] == 2, "re-enable");
+
+    /* the APPS group holds every optional app, enabled or not, in order */
+    expect(deck_home_apps() == NULL, "apps group: none before it is added");
+    deck_home_add_app(&core);
+    deck_group_t *g = deck_home_add_apps("APPS", "x");
+    deck_app_set_enabled(&opt2, false);
+    expect(g && deck_home_apps() == g, "apps group: returned and remembered");
+    expect(g && g->count == 2 && g->apps[0] == &opt && g->apps[1] == &opt2, "apps group: optional apps in order");
+    expect(deck_home_count() == 2 && deck_home_index(NULL, g) == 1, "apps group: home tile after core");
 
     /* core cannot be disabled */
     expect(!deck_app_set_enabled(&core, false) && deck_app_enabled(&core), "core stays on");

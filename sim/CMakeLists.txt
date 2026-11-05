@@ -136,7 +136,7 @@ target_include_directories(ls_test PRIVATE ${ROOT}/components/deck_sync/include)
 target_link_libraries(ls_test PRIVATE mbedcrypto m)
 add_test(NAME livesync_hash_crypto COMMAND ls_test)
 
-add_executable(apps_test apps_test.c ${ROOT}/components/deck_core/deck_app.c ${ROOT}/components/deck_core/deck_hint.c)
+add_executable(apps_test apps_test.c ${ROOT}/components/deck_core/deck_app.c ${ROOT}/components/deck_core/deck_hint.c ${ROOT}/components/deck_core/deck_home.c)
 target_include_directories(apps_test PRIVATE ${ROOT}/components/deck_core/include ${ROOT}/components/deck_hal/include)
 target_compile_options(apps_test PRIVATE -Wall -Wextra)
 target_link_libraries(apps_test PRIVATE lvgl m)

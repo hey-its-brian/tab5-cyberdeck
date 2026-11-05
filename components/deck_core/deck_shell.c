@@ -1,4 +1,5 @@
 #include "deck_shell.h"
+#include "deck_home.h"
 
 #include "deck_boot.h"
 #include "deck_fx.h"
@@ -191,17 +192,17 @@ void deck_shell_shortcuts(void)
 {
     static const char *const cols[] = {
         "ANYWHERE\n"
-        "  ALT+1..5    open a home tile\n"
-        "  ALT+T N C W M F S   jump to a module\n"
+        "  ALT+1..6    open a home tile   ALT+A  apps\n"
+        "  ALT+T N S C F  W M R X   jump to an app\n"
         "  ALT+ESC     back to the deck\n"
         "  ALT+0       sleep the screen (or tap the clock)\n"
         "  ALT+H       this list\n"
         "  ALT+P       pause / resume music\n"
         "  ESC or DEL  back / close (DEL deletes inside text)\n"
         "\n"
-        "HOME AND GROUPS\n"
-        "  LEFT RIGHT ENTER, or 1..5   pick a tile\n"
-        "  in a group: 1..n opens, ESC goes back\n"
+        "HOME AND APPS\n"
+        "  ARROWS ENTER, or 1..6   pick a tile\n"
+        "  in APPS: 1..n opens, ESC goes back\n"
         "\n"
         "TERMINAL\n"
         "  CTRL+N new SSH host  CTRL+O new Ollama server\n"
@@ -324,6 +325,10 @@ bool deck_shell_key(const deck_key_t *k)
             } else if (t) {
                 deck_shell_launch(t->app);
             }
+            return true;
+        }
+        if (k->code == HID_A && deck_home_apps()) {
+            deck_shell_open_group(deck_home_apps());
             return true;
         }
         deck_app_t *app = deck_app_by_hotkey(k->code);

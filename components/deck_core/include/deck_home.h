@@ -15,7 +15,7 @@ extern "C" {
 #endif
 
 #define DECK_HOME_TILES 6
-#define DECK_GROUP_APPS 6
+#define DECK_GROUP_APPS 12
 
 typedef struct {
     const char *name;    /* tile title, e.g. "TOOLS" */
@@ -34,6 +34,10 @@ typedef struct {
 void          deck_home_add_app(deck_app_t *app);
 deck_group_t *deck_home_add_group(const char *name, const char *tagline, const char *icon);
 void          deck_group_add(deck_group_t *group, deck_app_t *app);
+/* The APPS tile: a group of every registered optional app, enabled or not,
+ * in registration order (each keeps a fixed slot). Call after registration. */
+deck_group_t *deck_home_add_apps(const char *name, const char *icon);
+deck_group_t *deck_home_apps(void); /* NULL until added */
 
 size_t             deck_home_count(void);
 const deck_tile_t *deck_home_tile(size_t index);

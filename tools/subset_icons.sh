@@ -83,6 +83,7 @@ codepoints=(
     F0002  # access-point-network (WIRELESS group)
     F0317  # lan (NET TOOLS)
     F1119  # antenna (RF WATCH)
+    F003B  # apps (APPS tile)
 )
 
 unicodes=$(printf 'U+%s,' "${codepoints[@]}")

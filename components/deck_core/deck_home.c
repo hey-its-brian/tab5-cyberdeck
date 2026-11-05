@@ -38,6 +38,22 @@ void deck_group_add(deck_group_t *group, deck_app_t *app)
     group->apps[group->count++] = app;
 }
 
+static deck_group_t *s_apps;
+
+deck_group_t *deck_home_add_apps(const char *name, const char *icon)
+{
+    deck_group_t *g = deck_home_add_group(name, NULL, icon);
+    if (g == NULL) return NULL;
+    for (size_t i = 0; i < deck_app_count(); i++) {
+        deck_app_t *a = deck_app_get(i);
+        if (a->optional) deck_group_add(g, a);
+    }
+    s_apps = g;
+    return g;
+}
+
+deck_group_t *deck_home_apps(void) { return s_apps; }
+
 size_t deck_home_count(void) { return s_ntiles; }
 
 const deck_tile_t *deck_home_tile(size_t index) { return index < s_ntiles ? &s_tiles[index] : NULL; }

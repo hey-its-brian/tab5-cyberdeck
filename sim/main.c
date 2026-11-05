@@ -321,19 +321,14 @@ int main(int argc, char **argv)
     deck_app_boot(); /* background work of enabled optional apps */
     deck_sync_set_backend(&g_sync_livesync); /* vault sync for NOTES */
 
-    /* Home tiles 01..05 (Alt+1..5). Groups open a screen of their own. */
-    deck_group_t *tools = deck_home_add_group("TOOLS", "UTILITY STACK", ICON_TOOLS);
-    deck_group_add(tools, app_term());
-    deck_group_add(tools, app_calc());
-    deck_group_add(tools, app_sys());
-    deck_group_t *wireless = deck_home_add_group("WIRELESS", "RECON SUITE", ICON_WIRELESS);
-    deck_group_add(wireless, app_net());
-    deck_group_add(wireless, app_rf());
-    deck_group_t *media = deck_home_add_group("FILES & MEDIA", "STORAGE + AUDIO", ICON_MEDIA);
-    deck_group_add(media, app_files());
-    deck_group_add(media, app_player());
+    /* Home tiles 01..06 (Alt+1..6), always these six. APPS holds every
+     * optional app, switched on or off in SETTINGS > APPLICATIONS. */
+    deck_home_add_app(app_term());
     deck_home_add_app(app_notes());
-    deck_home_add_app(app_weather());
+    deck_home_add_app(app_sys());
+    deck_home_add_app(app_calc());
+    deck_home_add_app(app_files());
+    deck_home_add_apps("APPS", ICON_APPS);
     deck_shell_start(boot);
 
     if (headless) {

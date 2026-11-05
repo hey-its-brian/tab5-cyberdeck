@@ -33,6 +33,7 @@
 #define ICON_HISTORY        "\xF3\xB0\x8B\x9A" /* F02DA */
 #define ICON_SERVER         "\xF3\xB0\x92\x8D" /* F048D */
 #define ICON_KEYPAD         "\xF3\xB0\xA5\xBB" /* F097B */
+#define ICON_APPS           "\xF3\xB0\x80\xBB" /* F003B */
 #define ICON_PLAY           "\xF3\xB0\x90\x8A" /* F040A */
 #define ICON_PAUSE          "\xF3\xB0\x8F\xA4" /* F03E4 */
 #define ICON_NEXT           "\xF3\xB0\x92\xAD" /* F04AD */
