@@ -47,11 +47,6 @@ struct deck_app {
     void (*on_exit)(deck_app_t *self);
     void (*on_stop)(deck_app_t *self);
     bool (*on_key)(deck_app_t *self, const deck_key_t *key);
-    /* Optional: the home tile shows live content (a widget) under the usual
-     * icon, name and tagline. `body` is the box below them and `icon` the
-     * tile's icon label, which the module may retarget (a weather glyph).
-     * Both are deleted with the home screen, so hang timers off `body`. */
-    void (*on_tile)(deck_app_t *self, lv_obj_t *body, lv_obj_t *icon);
     /* Optional apps: start and stop background work (timers, tasks,
      * connections). on_disable may come before any on_enable, and on_enable
      * may be called twice; both must cope. */

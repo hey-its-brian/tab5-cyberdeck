@@ -588,7 +588,9 @@ static void tile_deleted(lv_event_t *e)
     s_w.loading = false;
 }
 
-static void on_tile(deck_app_t *self, lv_obj_t *body, lv_obj_t *icon)
+/* The home panel section: conditions icon, temperature and sky on one line,
+ * then the place and today's range. */
+static void on_panel(deck_app_t *self, lv_obj_t *body)
 {
     (void)self;
     memset(&s_tile, 0, sizeof(s_tile));
@@ -596,19 +598,20 @@ static void on_tile(deck_app_t *self, lv_obj_t *body, lv_obj_t *icon)
     if (!s_w.have) cache_load();
     lv_obj_add_event_cb(body, tile_deleted, LV_EVENT_DELETE, NULL);
     lv_obj_set_flex_flow(body, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(body, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(body, 2, 0);
 
-    s_tile.icon = icon; /* the tile's own icon shows the conditions */
-    s_tile.temp = deck_label(body, g_font.disp_xl, g_pal.text, "");
-    s_tile.cond = deck_label(body, g_font.mono_m, g_pal.text, "");
+    lv_obj_t *row = deck_box(body);
+    lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row, 12, 0);
+    s_tile.icon = deck_label(row, g_font.icon_m, g_pal.accent, WX_CLOUDY);
+    s_tile.temp = deck_label(row, g_font.disp_l, g_pal.text, "");
+    s_tile.cond = deck_label(row, g_font.mono_m, g_pal.text, "");
     s_tile.place = deck_label(body, g_font.mono_s, g_pal.dim, "");
     lv_obj_set_width(s_tile.place, LV_PCT(100));
     lv_label_set_long_mode(s_tile.place, LV_LABEL_LONG_MODE_DOTS);
-    lv_obj_set_style_text_align(s_tile.place, LV_TEXT_ALIGN_CENTER, 0);
-    s_tile.range   = deck_label(body, g_font.mono_s, g_pal.dim, "");
-    lv_obj_t *hint = deck_label(body, g_font.mono_s, g_pal.accent2, "TAP FOR FULL FORECAST");
-    lv_obj_set_style_pad_top(hint, 6, 0);
+    s_tile.range = deck_label(body, g_font.mono_s, g_pal.dim, "");
 
     s_tile.timer = lv_timer_create(tile_tick, 5000, NULL);
     tile_tick(s_tile.timer);
@@ -627,7 +630,7 @@ static deck_app_t s_app = {
     .on_start = start,
     .on_stop  = stop,
     .on_key   = on_key,
-    .on_tile  = on_tile,
+    .on_panel = on_panel,
 };
 
 deck_app_t *app_weather(void) { return &s_app; }

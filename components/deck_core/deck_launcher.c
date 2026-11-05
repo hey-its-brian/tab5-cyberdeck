@@ -17,6 +17,7 @@
 #include "deck_boot.h"
 #include "deck_hal.h"
 #include "deck_hint.h"
+#include "deck_live.h"
 #include "deck_net.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
@@ -323,8 +324,7 @@ void deck_launcher_create(lv_obj_t *parent, deck_group_t *group)
     lv_obj_set_style_pad_column(area, TILE_GAP, 0);
     int32_t grid_w = ROW_W;
     if (!group) {
-        lv_obj_t *panel = deck_panel(area, DECK_CUT_TL | DECK_CUT_BR, 22); /* live panel (next step) */
-        lv_obj_set_size(panel, PANEL_W, TILE_H);
+        deck_live_create(area, PANEL_W, TILE_H);
         grid_w = ROW_W - PANEL_W - TILE_GAP;
     }
     lv_obj_t *grid = deck_box(area);

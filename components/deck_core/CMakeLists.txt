@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "deck_app.c"
         "deck_hint.c"
+        "deck_live.c"
         "deck_home.c"
         "deck_input.c"
         "deck_shell.c"
