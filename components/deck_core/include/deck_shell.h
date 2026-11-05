@@ -33,6 +33,8 @@ deck_group_t *deck_shell_group(void);   /* group shown or the running app's grou
 /* Tear down and rebuild everything visible (after an accent change). The
  * running app is restarted in place, without a transition. */
 void deck_shell_rebuild(void);
+/* What a tap on a greyed APPS tile does (SETTINGS > APPLICATIONS). */
+void deck_shell_set_manage(void (*fn)(const deck_app_t *focus));
 
 /* Screen sleep: backlight and keyboard LEDs off, everything keeps running.
  * Any key or touch wakes it, and that press is swallowed. Alt+0 or a tap

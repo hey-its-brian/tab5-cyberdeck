@@ -45,6 +45,13 @@ typedef struct {
 
 static sys_ui_t s_ui;
 
+/* Which tab shows, and the app whose switch to focus on APPLICATIONS; kept
+ * outside s_ui so a rebuild (closing a modal) stays on the same tab. */
+static deck_app_t s_app;
+static bool s_apps_tab;
+static const deck_app_t *s_focus;
+static lv_obj_t *s_tab_btn[2], *s_pages[2];
+
 enum { INFO_BOARD, INFO_CHIP, INFO_PSRAM, INFO_SRAM, INFO_UPTIME, INFO_KBD, INFO_SD, INFO_PWR, INFO_FW, INFO_SEC, INFO_COUNT };
 
 static const char *s_info_keys[INFO_COUNT] = {
@@ -583,20 +590,132 @@ static lv_obj_t *small_button(lv_obj_t *parent, const char *text, lv_event_cb_t 
     return b;
 }
 
+/* ---- APPLICATIONS -------------------------------------------------------- */
+
+#define APPS_MAX 20
+static lv_obj_t *s_app_desc[APPS_MAX]; /* per registered app, for the save-failed note */
+
+static void app_switch_changed(lv_event_t *e)
+{
+    lv_obj_t *sw  = lv_event_get_target_obj(e);
+    size_t i      = (size_t)(uintptr_t)lv_event_get_user_data(e);
+    deck_app_t *a = deck_app_get(i);
+    bool on       = lv_obj_has_state(sw, LV_STATE_CHECKED);
+    if (!deck_app_set_enabled(a, on)) {
+        if (on) {
+            lv_obj_remove_state(sw, LV_STATE_CHECKED);
+        } else {
+            lv_obj_add_state(sw, LV_STATE_CHECKED);
+        }
+        lv_label_set_text(s_app_desc[i], "Could not save. Try again.");
+        lv_obj_set_style_text_color(s_app_desc[i], g_pal.warn, 0);
+        return;
+    }
+    lv_label_set_text(s_app_desc[i], a->desc ? a->desc : "");
+    lv_obj_set_style_text_color(s_app_desc[i], g_pal.dim, 0);
+    if (!on && deck_shell_current() == a) deck_shell_home(); /* guards future callers */
+}
+
+static void app_row(lv_obj_t *list, size_t i, lv_obj_t **focus_sw)
+{
+    deck_app_t *a = deck_app_get(i);
+    lv_obj_t *row = deck_box(list);
+    lv_obj_set_size(row, LV_PCT(100), 64);
+    lv_obj_t *ic = deck_label(row, g_font.icon_s, a->optional ? g_pal.accent : g_pal.dim, a->icon);
+    lv_obj_align(ic, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_t *nm = deck_label(row, g_font.disp_s, g_pal.text, a->name);
+    lv_obj_align(nm, LV_ALIGN_TOP_LEFT, 44, 6);
+    s_app_desc[i] = deck_label(row, g_font.mono_s, g_pal.dim, a->desc ? a->desc : "");
+    lv_obj_align(s_app_desc[i], LV_ALIGN_BOTTOM_LEFT, 44, -6);
+    if (!a->optional) {
+        lv_obj_t *c = deck_label(row, g_font.mono_s, g_pal.dim, "CORE");
+        lv_obj_align(c, LV_ALIGN_RIGHT_MID, -10, 0);
+        return;
+    }
+    lv_obj_t *sw = lv_switch_create(row);
+    lv_obj_set_size(sw, 76, 38);
+    lv_obj_align(sw, LV_ALIGN_RIGHT_MID, 0, 0);
+    if (deck_app_enabled(a)) lv_obj_add_state(sw, LV_STATE_CHECKED);
+    lv_obj_set_style_outline_width(sw, 2, LV_STATE_FOCUSED);
+    lv_obj_set_style_outline_color(sw, g_pal.accent, LV_STATE_FOCUSED);
+    lv_obj_set_style_outline_pad(sw, 4, LV_STATE_FOCUSED);
+    lv_obj_add_event_cb(sw, app_switch_changed, LV_EVENT_VALUE_CHANGED, (void *)(uintptr_t)i);
+    if (a == s_focus) *focus_sw = sw;
+}
+
+/* Core apps first, then optional apps in grid order. Returns the switch to
+ * focus (the one SETTINGS was opened for), or NULL. */
+static lv_obj_t *build_applications(lv_obj_t *page)
+{
+    lv_obj_t *list = column_panel(page, 0);
+    lv_obj_set_size(list, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_pad_row(list, 6, 0);
+    deck_section(list, "APPLICATIONS");
+    lv_obj_t *focus_sw = NULL;
+    for (int pass = 0; pass < 2; pass++) {
+        for (size_t i = 0; i < deck_app_count() && i < APPS_MAX; i++) {
+            if (deck_app_get(i)->optional == (pass == 1)) app_row(list, i, &focus_sw);
+        }
+    }
+    return focus_sw;
+}
+
+static void set_tab(bool apps)
+{
+    s_apps_tab = apps;
+    for (int i = 0; i < 2; i++) {
+        bool on = (i == 1) == apps;
+        if (on) {
+            lv_obj_remove_flag(s_pages[i], LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(s_pages[i], LV_OBJ_FLAG_HIDDEN);
+        }
+        deck_panel_set_outline(s_tab_btn[i], on ? g_pal.accent : g_pal.line);
+    }
+}
+
+static void tab_clicked(lv_event_t *e) { set_tab(lv_event_get_user_data(e) != NULL); }
+
+void app_sys_open_applications(const deck_app_t *focus)
+{
+    s_apps_tab = true;
+    s_focus    = focus;
+    deck_shell_launch(&s_app);
+}
+
 static bool start(deck_app_t *self, lv_obj_t *parent)
 {
     (void)self;
     s_ui = (sys_ui_t){0};
 
-    lv_obj_t *root = deck_box(parent);
-    lv_obj_set_size(root, LV_PCT(100), LV_PCT(100));
+    lv_obj_t *outer = deck_box(parent);
+    lv_obj_set_size(outer, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_flex_flow(outer, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(outer, 24, 0);
+    lv_obj_set_style_pad_top(outer, 10, 0);
+    lv_obj_set_style_pad_row(outer, 10, 0);
+
+    lv_obj_t *tabs = deck_box(outer);
+    lv_obj_set_size(tabs, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(tabs, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_column(tabs, 12, 0);
+    s_tab_btn[0] = small_button(tabs, "SETTINGS", tab_clicked, NULL);
+    s_tab_btn[1] = small_button(tabs, "APPLICATIONS", tab_clicked, (void *)1);
+    for (int i = 0; i < 2; i++) lv_obj_set_style_min_height(s_tab_btn[i], 42, 0);
+
+    lv_obj_t *root = deck_box(outer);
+    lv_obj_set_width(root, LV_PCT(100));
+    lv_obj_set_flex_grow(root, 1);
     lv_obj_set_flex_flow(root, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_pad_all(root, 24, 0);
     lv_obj_set_style_pad_column(root, 20, 0);
+    s_pages[0] = root;
+    s_pages[1] = deck_box(outer);
+    lv_obj_set_width(s_pages[1], LV_PCT(100));
+    lv_obj_set_flex_grow(s_pages[1], 1);
 
     /* ---- DISPLAY ---- */
     lv_obj_t *left = column_panel(root, 372);
-    lv_obj_set_style_pad_row(left, 9, 0); /* seven rows plus the accent grid */
+    lv_obj_set_style_pad_row(left, 6, 0); /* seven rows plus the accent grid, under the tab row */
     deck_section(left, "DISPLAY");
 
     lv_obj_t *row = setting_row(left, ICON_BRIGHTNESS, "BRIGHTNESS");
@@ -716,9 +835,18 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
     lv_obj_align(bl, LV_ALIGN_RIGHT_MID, -90, 0);
     add_switch(urow, hal_cfg_get_i32("ota_beta", 0) != 0, beta_changed);
 
+    lv_obj_t *focus_sw = build_applications(s_pages[1]);
+
     refresh(NULL);
     s_ui.timer = lv_timer_create(refresh, 1000, NULL);
-    lv_group_focus_obj(slider);
+    set_tab(s_apps_tab);
+    if (s_apps_tab && focus_sw) {
+        lv_obj_scroll_to_view_recursive(focus_sw, LV_ANIM_OFF);
+        lv_group_focus_obj(focus_sw);
+    } else {
+        lv_group_focus_obj(s_apps_tab ? s_tab_btn[1] : slider);
+    }
+    s_focus = NULL;
     return true;
 }
 
@@ -728,6 +856,7 @@ static void stop(deck_app_t *self)
     if (s_ui.timer) lv_timer_delete(s_ui.timer);
     if (s_ui.scan_poll) lv_timer_delete(s_ui.scan_poll);
     s_ui = (sys_ui_t){0};
+    s_apps_tab = false; /* next visit opens on SETTINGS */
 }
 
 static bool on_key(deck_app_t *self, const deck_key_t *k)
@@ -741,7 +870,7 @@ static bool on_key(deck_app_t *self, const deck_key_t *k)
 }
 
 static deck_app_t s_app = {
-    .name     = "SYSTEM",
+    .name     = "SETTINGS",
     .tagline  = "DECK CONFIG",
     .icon     = ICON_COG,
     .eta      = NULL,

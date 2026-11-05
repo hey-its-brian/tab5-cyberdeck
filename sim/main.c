@@ -358,6 +358,7 @@ int main(int argc, char **argv)
     deck_home_add_app(app_calc());
     deck_home_add_app(app_files());
     deck_home_add_apps("APPS", ICON_APPS);
+    deck_shell_set_manage(app_sys_open_applications);
     deck_shell_start(boot);
 
     if (headless) {

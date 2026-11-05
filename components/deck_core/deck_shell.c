@@ -367,3 +367,5 @@ void deck_shell_start(bool boot_anim)
     deck_shell_apply_kbd_light();
     if (boot_anim) deck_boot_run();
 }
+
+void deck_shell_set_manage(void (*fn)(const deck_app_t *focus)) { deck_launcher_set_manage(fn); }
