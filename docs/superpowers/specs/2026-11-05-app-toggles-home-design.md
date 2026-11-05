@@ -52,8 +52,8 @@ void deck_app_set_enabled(deck_app_t *app, bool on);
 - Enabled state lives in NVS as `app_<name>` (i32, lower-case name,
   e.g. `app_weather`). Missing key means `default_on`.
 - `deck_app_set_enabled()` saves the key, calls `on_enable` / `on_disable`,
-  updates the hint holder (section 4), and asks the shell to rebuild the
-  home and APPS screens if one is showing. Takes effect immediately; no
+  and asks the shell to rebuild the home and APPS screens if one is
+  showing. Takes effect immediately; no
   restart.
 - At boot, after registration, the shell calls `on_enable` for every enabled
   optional app.
@@ -144,16 +144,14 @@ One disabled tile carries an overlay: `DISABLED` and `ENABLE IN SETTINGS`.
 - Tone: muted text one step brighter than the greyed tile, over a light
   scrim. No accent fill, no button look. Readable when looked for; does not
   pull the eye each time APPS opens.
-- Which tile: the app the user disabled first. Stored as one NVS string,
-  `apps_hint` (app name, "" for none).
-  - On disable: if no disabled app currently holds the hint, this app takes
-    it (the check skips the app being disabled).
-  - On enable of the holder: the hint moves to the first still-disabled app
-    in grid order, or clears if none are left.
-  - At boot: if `apps_hint` does not name a disabled app (fresh install with
-    default-off apps, or a stale value), the first disabled app in grid order
-    takes it.
-- Offline tiles never carry the hint.
+- Which tile: the disabled app with the lowest ID, where the ID is the
+  registration order (`deck_app_index()`), which is also grid order. So the
+  hint is always on the greyed tile nearest the top left corner.
+- Computed when the APPS screen builds; nothing is stored. Toggling an app
+  rebuilds the screen, so the hint follows automatically, including on a
+  fresh install where default-off apps were never switched by the user.
+- Offline tiles never carry the hint (they are skipped when looking for the
+  lowest ID).
 
 ## 5. SETTINGS > APPLICATIONS
 
@@ -187,9 +185,9 @@ Sim first (`sim/`), screenshots into `docs/screenshots/`:
 - SETTINGS > APPLICATIONS;
 - a 12-app APPS grid using stub apps, to check the 4x3 sizing.
 
-Unit-style checks in the sim build for the hint holder rules: disable A then
-B (A holds); enable A (B holds); enable B (none); fresh boot with default-off
-apps (first in grid order holds).
+Unit-style check in the sim build for the hint rule (a pure function over
+the app list): none disabled gives no hint; disabled apps 3 and 5 give 3;
+re-enable 3 gives 5; an offline app with the lowest ID is skipped.
 
 On the Tab5 (after a full 16 MB flash backup with esptool, so the previous
 state can be restored in one command): toggle each optional app; confirm
