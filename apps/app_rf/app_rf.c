@@ -25,7 +25,11 @@ static deck_app_t s_app = {
     .tagline  = "SENTINEL BOARD",
     .icon     = ICON_ANTENNA,
     .eta      = "v1.5",
-    .hotkey   = HID_LETTER('A'),
+    .hotkey   = HID_LETTER('X'),
+    .id       = "rf",
+    .desc     = "Receive-only radio monitor (coming in v1.5)",
+    .optional   = true,
+    .default_on = false,
     .on_start = start,
 };
 

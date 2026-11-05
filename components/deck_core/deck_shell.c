@@ -313,7 +313,8 @@ bool deck_shell_key(const deck_key_t *k)
             return true;
         }
         if (k->code == HID_P) {
-            player_toggle(); /* music pause / resume from anywhere */
+            /* music pause / resume from anywhere, while PLAYER is on */
+            if (deck_app_enabled(deck_app_by_id("player"))) player_toggle();
             return true;
         }
         if (k->code >= HID_1 && k->code <= HID_9) {

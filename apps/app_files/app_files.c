@@ -183,6 +183,8 @@ static void enter_dir(const entry_t *e)
     build_list();
 }
 
+static void body_note(const char *text, lv_color_t color);
+
 /* Index of entry i among this folder's MP3s, which is the player's queue order. */
 static int track_index(int i)
 {
@@ -196,6 +198,10 @@ static int track_index(int i)
 static void play_selected(void)
 {
     if (s_ui.sel < 0 || kind_of(&s_entries[s_ui.sel]) != KIND_MP3) return;
+    if (!deck_app_enabled(deck_app_by_id("player"))) {
+        body_note("PLAYER is off. Turn it on in SETTINGS > APPLICATIONS.", g_pal.warn);
+        return;
+    }
     player_open_dir(s_cwd, track_index(s_ui.sel));
 }
 
@@ -753,6 +759,8 @@ static deck_app_t s_app = {
     .icon     = ICON_FOLDER,
     .eta      = NULL,
     .hotkey   = HID_LETTER('F'),
+    .id       = "files",
+    .desc     = "File browser and Wi-Fi portal",
     .on_start = start,
     .on_stop  = stop,
     .on_key   = on_key,

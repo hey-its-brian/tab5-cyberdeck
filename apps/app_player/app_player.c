@@ -447,12 +447,32 @@ static bool on_key(deck_app_t *self, const deck_key_t *k)
     }
 }
 
+/* Switching PLAYER on starts the audio task; switching it off stops the
+ * music. A task already running stays until the next boot. */
+static void enable(deck_app_t *self)
+{
+    (void)self;
+    player_init();
+}
+
+static void disable(deck_app_t *self)
+{
+    (void)self;
+    player_stop();
+}
+
 static deck_app_t s_app = {
     .name     = "PLAYER",
     .tagline  = "AUDIO DECK",
     .icon     = ICON_MUSIC,
     .eta      = NULL,
     .hotkey   = HID_LETTER('M'),
+    .id       = "player",
+    .desc     = "MP3 player, Alt+P, status bar indicator",
+    .optional   = true,
+    .default_on = true,
+    .on_enable  = enable,
+    .on_disable = disable,
     .on_start = start,
     .on_stop  = stop,
     .on_key   = on_key,

@@ -44,8 +44,6 @@ void app_main(void)
     net_init(); /* brings up the C6 link in the background */
     ota_init(DECK_VERSION); /* arms the rollback countdown on a fresh OTA build */
 
-    player_init(); /* music task; idle until something plays */
-
     hal_lvgl_lock(0);
     deck_theme_init();
     deck_input_init();
@@ -60,6 +58,7 @@ void app_main(void)
     deck_app_register(app_net());
     deck_app_register(app_rf());
     deck_app_register(app_sys());
+    deck_app_boot(); /* background work of enabled optional apps (PLAYER's task) */
     deck_sync_set_backend(&g_sync_livesync); /* vault sync for NOTES */
 
     /* Home tiles 01..05 (Alt+1..5). Groups open a screen of their own. */

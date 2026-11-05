@@ -30,8 +30,10 @@
 #include "freertos/task.h"
 static SemaphoreHandle_t s_lock;
 static void lock_init(void) { s_lock = xSemaphoreCreateMutex(); }
-static void lock(void) { xSemaphoreTake(s_lock, portMAX_DELAY); }
-static void unlock(void) { xSemaphoreGive(s_lock); }
+/* Before player_init() there is no mutex and no player task, so nothing can
+ * race: lock and unlock do nothing and commands are dropped (see post()). */
+static void lock(void) { if (s_lock) xSemaphoreTake(s_lock, portMAX_DELAY); }
+static void unlock(void) { if (s_lock) xSemaphoreGive(s_lock); }
 static void sleep_ms(int ms) { vTaskDelay(pdMS_TO_TICKS(ms)); }
 static uint32_t now_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
 static uint32_t rnd(void) { return esp_random(); }
@@ -83,8 +85,11 @@ static bool s_shuffle;
 static player_repeat_t s_repeat = REPEAT_ALL;
 static uint8_t s_levels[PLAYER_BANDS];
 
+static bool s_ready; /* player_init() has run */
+
 static void post(cmd_t c, int arg)
 {
+    if (!s_ready) return; /* PLAYER is switched off: no task to take it */
     lock();
     if (s_qn < (int)(sizeof(s_q) / sizeof(s_q[0]))) s_q[s_qn++] = (cmd_msg_t){c, arg};
     unlock();
@@ -583,6 +588,7 @@ void player_init(void)
     if (done) return;
     done = true;
     lock_init();
+    s_ready = true;
     s_volume  = (int)hal_cfg_get_i32("vol", 60);
     s_shuffle = hal_cfg_get_i32("shuf", 0) != 0;
     s_repeat  = (player_repeat_t)hal_cfg_get_i32("rep", REPEAT_ALL);

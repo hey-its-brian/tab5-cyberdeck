@@ -308,7 +308,6 @@ int main(int argc, char **argv)
     if (accent >= 0) hal_cfg_set_i32("accent", accent);
     deck_theme_init();
     deck_input_init();
-    player_init();
     /* Every module, flat: Alt+letter shortcuts and lookups by name. */
     deck_app_register(app_term());
     deck_app_register(app_notes());
@@ -319,6 +318,7 @@ int main(int argc, char **argv)
     deck_app_register(app_net());
     deck_app_register(app_rf());
     deck_app_register(app_sys());
+    deck_app_boot(); /* background work of enabled optional apps */
     deck_sync_set_backend(&g_sync_livesync); /* vault sync for NOTES */
 
     /* Home tiles 01..05 (Alt+1..5). Groups open a screen of their own. */
