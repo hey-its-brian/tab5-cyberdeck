@@ -7,9 +7,9 @@ weather, a music player and a file manager with a LAN portal.
 
 ![Home](docs/screenshots/home.png)
 
-| Boot POST | System module | Scheduled module |
+| Boot POST | Settings | Scheduled module |
 |---|---|---|
-| ![Boot](docs/screenshots/boot.png) | ![System](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
+| ![Boot](docs/screenshots/boot.png) | ![Settings](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
 ## Status: v1.3.0
 
@@ -17,9 +17,22 @@ Seven modules: TERMINAL (SSH and Ollama chat), NOTES (markdown), CALC, WEATHER, 
 (music), FILES (file manager and LAN portal) and SYSTEM. It updates itself over
 Wi-Fi with signed builds and tells you when a new one is out.
 
-**Next (on main): NET TOOLS.** The NET TOOLS tile became a **WIRELESS**
-group holding NET TOOLS, the Tab5's own radio as a toolkit, and RF WATCH, a
-placeholder for the RF Sentinel M5-Bus board. NET TOOLS has four tabs: **SCAN**
+**Next (v1.5): app toggles and a cleaner home.** The home screen is a live
+panel plus six fixed tiles: TERMINAL, NOTES, SETTINGS, CALC, FILES and APPS.
+Tiles carry only an icon, a name and their `Alt+letter`. The panel shows live
+sections from apps that have one (WEATHER today; tap a section to open the
+app). APPS holds the optional apps (WEATHER, PLAYER, NET TOOLS, RF WATCH),
+each in a fixed slot. SETTINGS (formerly SYSTEM) has an **APPLICATIONS** tab
+with a switch per optional app: a switched-off app is greyed in APPS, does no
+background work and ignores its shortcut; tapping its tile opens the switch.
+The first greyed tile carries a quiet "enable in settings" hint.
+
+| Home | APPS | SETTINGS > APPLICATIONS |
+|---|---|---|
+| ![Home](docs/screenshots/home.png) | ![Apps](docs/screenshots/apps.png) | ![Applications](docs/screenshots/applications.png) |
+
+**v1.4: NET TOOLS**, the Tab5's own radio as a toolkit (in APPS), next to
+RF WATCH, a placeholder for the RF Sentinel M5-Bus board. NET TOOLS has four tabs: **SCAN**
 (every access point in earshot, one row per BSSID with channel, security and
 signal, and a chart of the strongest signal on each 2.4 GHz channel), **PING**
 (ping, DNS, traceroute and a TCP port check for a host you type), **LAN** (a
@@ -33,13 +46,8 @@ TOOLS (TERMINAL, CALC, SYSTEM) and FILES & MEDIA (FILES, PLAYER) are groups:
 the tile lists what is inside and opens a screen of the same tiles. NET TOOLS
 arrives in v1.4 (below). NOTES stays a tile of its own, and WEATHER is a
 widget: current temperature, conditions, location and today's range right on
-the home screen, tap for the full forecast. `Alt+1..5` opens a home tile,
-`Alt+T N C W M F S` jumps to a module from anywhere, `Esc` goes back one
-level and the status bar shows the path (`TOOLS // TERMINAL`).
-
-| Home | TOOLS | FILES & MEDIA |
-|---|---|---|
-| ![Home](docs/screenshots/home.png) | ![Tools](docs/screenshots/tools.png) | ![Files & Media](docs/screenshots/media.png) |
+the home screen, tap for the full forecast. (v1.5 replaces the groups with
+the fixed home and APPS above.)
 
 **Obsidian vault sync (v1.3):** NOTES has two sources, LOCAL (the deck's
 own `/notes`) and VAULT (`/vault`, an Obsidian vault kept in sync with
@@ -194,9 +202,9 @@ flash when moving from v0.1.
 
 - Boot POST that reports real hardware state (keyboard, SD, RTC, battery); tap or any key skips it
 - HUD status bar: clock, keyboard link, SD, network, battery
-- Launcher with five large touch tiles, keyboard navigation and a live system ticker
+- Launcher: a live panel and six large touch tiles, optional apps under APPS, keyboard navigation and a live system ticker
 - Glitch transitions, optional CRT scanlines, four accent themes (NETRUNNER, ARASAKA, NOMAD, MILITECH)
-- **SYSTEM** module: brightness, scanlines, boot sequence, accent, RTC clock setting, live hardware readout
+- **SETTINGS** module: an APPLICATIONS tab to switch optional apps on and off; brightness, scanlines, boot sequence, accent, RTC clock setting, live hardware readout
 - TERMINAL is a placeholder until v0.7 that show their planned features until their version lands
 
 See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
@@ -205,24 +213,26 @@ See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
 
 | Keys | Action |
 |---|---|
-| `Alt+1..5` | Open home tile 01..05 (a module or a group) |
-| `Alt+T` `N` `C` `W` `M` `F` `S` | Jump to TERMINAL, NOTES, CALC, WEATHER, PLAYER (music), FILES or SYSTEM from anywhere |
+| `Alt+1..6` | Open home tile 01..06 |
+| `Alt+A` | Open APPS |
+| `Alt+T` `N` `S` `C` `F` | Jump to TERMINAL, NOTES, SETTINGS, CALC or FILES from anywhere |
+| `Alt+W` `M` `R` `X` | Jump to WEATHER, PLAYER (music), NET TOOLS or RF WATCH, while switched on |
 | `Alt+Esc` | Return to the deck from anywhere (reserved for when SSH owns `Esc`) |
-| `Alt+0`, tap the clock, or SYSTEM > SAVER > SLEEP | Sleep the screen (backlight and keyboard light off); any key or touch wakes it |
-| (idle) | After SYSTEM > SAVER minutes (default 5) a drifting clock takes over, dimmed; 10 minutes later the screen sleeps. Any key or touch wakes it |
+| `Alt+0`, tap the clock, or SETTINGS > SAVER > SLEEP | Sleep the screen (backlight and keyboard light off); any key or touch wakes it |
+| (idle) | After SETTINGS > SAVER minutes (default 5) a drifting clock takes over, dimmed; 10 minutes later the screen sleeps. Any key or touch wakes it |
 | `Alt+H`, or tap the hint on the home screen | List every shortcut |
-| `Alt+P` | Pause or resume music from anywhere |
-| `Esc` or `Del` | Back / close, or up one level (a module to its group, a group to the deck) if the module does not use it. `Del` still deletes inside a text field, and deletes the selected item in NOTES, FILES and TERMINAL |
-| `Left` `Right` `Enter`, or `1..5` | Pick a tile on the home screen or in a group |
+| `Alt+P` | Pause or resume music from anywhere (while PLAYER is on) |
+| `Esc` or `Del` | Back / close, or up one level (an app to APPS, APPS to the deck) if the module does not use it. `Del` still deletes inside a text field, and deletes the selected item in NOTES, FILES and TERMINAL |
+| Arrows, `Enter`, or `1..6` | Pick a tile on the home screen or in APPS |
 | `Tab`, arrows | Move focus inside a module |
 
-Everything is also reachable by touch: tiles, the `< DECK` / `< TOOLS` back button and on-screen controls.
+Everything is also reachable by touch: tiles, panel sections, the `< DECK` back button and on-screen controls.
 
 ## Install from the browser
 
 [**hey-its-brian.github.io/tab5-cyberdeck**](https://hey-its-brian.github.io/tab5-cyberdeck/): plug the
 Tab5 in over USB-C, click INSTALL in Chrome or Edge. After that, updates come
-over Wi-Fi (SYSTEM > UPDATE).
+over Wi-Fi (SETTINGS > UPDATE).
 
 ![Web flasher](docs/screenshots/web_flasher.png)
 
@@ -232,7 +242,7 @@ over Wi-Fi (SYSTEM > UPDATE).
   NVS). On its first boot, v0.7.1 or later generates a random key, burns it into
   one free eFuse key block, and moves the existing settings over. This is the
   only eFuse change. It does not restrict flashing, and if anything goes wrong the deck
-  falls back to plain settings rather than failing to boot. SYSTEM > SECURITY
+  falls back to plain settings rather than failing to boot. SETTINGS > SECURITY
   shows which mode is active.
 - **Updates are signed.** A deck running a signed build only installs
   over-the-air updates signed with the same key (RSA-3072). Nothing is
@@ -311,7 +321,17 @@ Headless mode renders scripted screenshots on a virtual clock:
 `--key MS:SPEC` (e.g. `esc`, `enter`, `left`, `a`, `alt+2`, `ctrl+s`), `--tap MS:X,Y` and
 `--shot MS:FILE.ppm` can repeat; `--set KEY=VALUE` seeds a setting (for example
 `--set wx_name=Raleigh --set wx_lat=35.78 --set wx_lon=-78.64` gives the WEATHER
-widget a location). Convert with `sips -s format png in.ppm --out out.png`.
+widget a location), `--stub-apps N` adds placeholder optional apps to check
+the APPS grid, and `--realtime` runs on the wall clock (for real network
+fetches). Convert with `sips -s format png in.ppm --out out.png`.
+
+Every check that needs no hardware runs in one command, printing one line per
+stage and PASS or FAIL (full output in `sim/build/check.log`):
+
+```bash
+tools/check.sh             # simulator build and host unit tests
+tools/check.sh --firmware  # also builds the ESP-IDF firmware
+```
 
 The portal's browser side runs on the Mac too: `tools/portal_mock.py` serves
 the real page backed by `sim/sdcard` at `http://127.0.0.1:8080` (PIN `271828`,

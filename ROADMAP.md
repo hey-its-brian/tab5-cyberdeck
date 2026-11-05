@@ -164,6 +164,16 @@ Home screen first, then the two modules, one at a time.
 - [x] Memory: LVGL widgets, parsed JSON and the sync's connection no longer starve internal RAM (one kept TLS connection, 40 KB sync stack, allocators on PSRAM)
 - [x] Del doubles as a back key
 
+## v1.5: App toggles and a cleaner home
+
+- [x] Apps are core (TERMINAL, NOTES, SETTINGS, CALC, FILES) or optional (WEATHER, PLAYER, NET TOOLS, RF WATCH); an optional app's on/off state is saved as `app_<id>`, and a switched-off app runs no background work and ignores its shortcut
+- [x] Home: a live panel (sections from enabled apps, WEATHER today) and six fixed tiles with just an icon, a name and the Alt+letter; the status bar, grid, header and ticker stay as they were
+- [x] APPS: every optional app in a fixed slot (3x2, or 4x3 past six); switched-off apps greyed, the first one with a quiet "enable in settings" hint; tapping a greyed tile opens its switch
+- [x] SETTINGS (was SYSTEM): SETTINGS | APPLICATIONS tabs, a switch per optional app, CORE apps listed
+- [x] Shortcuts: Alt+1..6 for the home tiles, Alt+A for APPS, RF WATCH moves to Alt+X
+- [x] `tools/check.sh`: simulator build and host unit tests (and optionally the firmware) in one command
+- [ ] Checkpoint on hardware: toggle each optional app; WEATHER stops fetching, PLAYER stops the music and its indicator; toggles survive a reboot; an update from v1.4 keeps every app on
+
 ## Next: Startup sound
 
 - A short boot chime through the speaker (or headphones) while the POST runs, stored as a small embedded clip and played by the audio driver
