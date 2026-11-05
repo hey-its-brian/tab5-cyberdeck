@@ -75,6 +75,7 @@ add_executable(deck_sim
     ${ROOT}/components/deck_ui/deck_widgets.c
     ${ROOT}/components/deck_ui/deck_fx.c
     ${ROOT}/components/deck_core/deck_app.c
+    ${ROOT}/components/deck_core/deck_hint.c
     ${ROOT}/components/deck_core/deck_home.c
     ${ROOT}/components/deck_core/deck_input.c
     ${ROOT}/components/deck_core/deck_shell.c
@@ -134,6 +135,12 @@ add_executable(ls_test ls_test.c ${ROOT}/components/deck_sync/ls_hash.c ${ROOT}/
 target_include_directories(ls_test PRIVATE ${ROOT}/components/deck_sync/include)
 target_link_libraries(ls_test PRIVATE mbedcrypto m)
 add_test(NAME livesync_hash_crypto COMMAND ls_test)
+
+add_executable(apps_test apps_test.c ${ROOT}/components/deck_core/deck_app.c ${ROOT}/components/deck_core/deck_hint.c)
+target_include_directories(apps_test PRIVATE ${ROOT}/components/deck_core/include ${ROOT}/components/deck_hal/include)
+target_compile_options(apps_test PRIVATE -Wall -Wextra)
+target_link_libraries(apps_test PRIVATE lvgl m)
+add_test(NAME app_model COMMAND apps_test)
 
 add_executable(weather_test weather_test.c ${ROOT}/apps/app_weather/weather_data.c)
 target_include_directories(weather_test PRIVATE ${ROOT}/apps/app_weather ${ROOT}/components/deck_ui/include)
