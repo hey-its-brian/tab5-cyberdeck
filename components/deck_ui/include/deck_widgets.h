@@ -26,6 +26,8 @@ void deck_panel_set_outline(lv_obj_t *panel, lv_color_t color);
 void deck_panel_set_fill(lv_obj_t *panel, lv_color_t color);
 /* Short secondary-neon bar along the top edge, a "this is a live module" mark. */
 void deck_panel_set_tab(lv_obj_t *panel, bool on);
+/* Switched-off look: the tab bar turns grey (used for disabled apps). */
+void deck_panel_set_muted(lv_obj_t *panel, bool on);
 /* Diagonal hazard stripes along the bottom edge (used for offline modules). */
 void deck_panel_set_hazard(lv_obj_t *panel, bool on);
 

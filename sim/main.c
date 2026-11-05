@@ -8,7 +8,7 @@
  *   deck_sim --headless [--no-boot] [--wifi] [--accent N] [--set KEY=VALUE]...
  *            [--key MS:SPEC]...   SPEC like esc, enter, left, a, 5, comma, alt+2, ctrl+s, shift+9
  *            [--tap MS:X,Y]...
- *            [--shot MS:FILE.ppm]...
+ *            [--shot MS:FILE.ppm]... [--stub-apps N]
  */
 #include <SDL.h>
 #include <stdio.h>
@@ -226,10 +226,35 @@ static int key_watch(void *ud, SDL_Event *ev)
 
 /* ---- Main ---------------------------------------------------------------- */
 
+/* --stub-apps N: placeholder optional apps, to check the APPS grid at sizes
+ * real apps have not reached yet. */
+#define STUB_MAX 12
+static deck_app_t s_stubs[STUB_MAX];
+static char s_stub_names[STUB_MAX][12], s_stub_ids[STUB_MAX][8];
+
+static bool stub_start(deck_app_t *self, lv_obj_t *parent)
+{
+    (void)self;
+    (void)parent;
+    return true;
+}
+
+static void register_stubs(int n)
+{
+    for (int i = 0; i < n && i < STUB_MAX; i++) {
+        snprintf(s_stub_names[i], sizeof(s_stub_names[i]), "STUB %d", i + 1);
+        snprintf(s_stub_ids[i], sizeof(s_stub_ids[i]), "stub%d", i + 1);
+        s_stubs[i] = (deck_app_t){.name = s_stub_names[i], .id = s_stub_ids[i], .icon = ICON_TOOLS,
+                                  .optional = true, .default_on = true, .on_start = stub_start};
+        deck_app_register(&s_stubs[i]);
+    }
+}
+
 int main(int argc, char **argv)
 {
     bool headless = false, boot = true;
     int accent    = -1;
+    int stubs     = 0;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
         const char *v = (i + 1 < argc) ? argv[i + 1] : "";
@@ -253,6 +278,9 @@ int main(int argc, char **argv)
                 long n = strtol(eq + 1, &end, 10);
                 if (end != eq + 1 && *end == '\0') hal_cfg_set_i32(key, (int32_t)n);
             }
+            i++;
+        } else if (strcmp(a, "--stub-apps") == 0) {
+            stubs = atoi(v);
             i++;
         } else if (strcmp(a, "--accent") == 0) {
             accent = atoi(v);
@@ -318,6 +346,7 @@ int main(int argc, char **argv)
     deck_app_register(app_net());
     deck_app_register(app_rf());
     deck_app_register(app_sys());
+    register_stubs(stubs);
     deck_app_boot(); /* background work of enabled optional apps */
     deck_sync_set_backend(&g_sync_livesync); /* vault sync for NOTES */
 

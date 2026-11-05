@@ -15,6 +15,7 @@ typedef struct {
     lv_color_t fill;
     bool tab;
     bool hazard;
+    bool muted; /* switched-off look: grey tab bar */
 } panel_data_t;
 
 /* ---- Low-level drawing helpers ------------------------------------------- */
@@ -196,7 +197,8 @@ static void panel_event(lv_event_t *e)
 
     if (pd->tab) {
         int32_t tx = a.x1 + ((pd->cuts & DECK_CUT_TL) ? c : 0) + 10;
-        fill_rect(layer, tx, a.y1, tx + 56, a.y1 + 3, lit ? g_pal.accent : g_pal.accent2, LV_OPA_COVER);
+        fill_rect(layer, tx, a.y1, tx + 56, a.y1 + 3, lit ? g_pal.accent : pd->muted ? g_pal.line : g_pal.accent2,
+                  LV_OPA_COVER);
     }
 }
 
@@ -247,6 +249,15 @@ void deck_panel_set_tab(lv_obj_t *panel, bool on)
     panel_data_t *pd = panel_data(panel);
     if (pd) {
         pd->tab = on;
+        lv_obj_invalidate(panel);
+    }
+}
+
+void deck_panel_set_muted(lv_obj_t *panel, bool on)
+{
+    panel_data_t *pd = panel_data(panel);
+    if (pd) {
+        pd->muted = on;
         lv_obj_invalidate(panel);
     }
 }

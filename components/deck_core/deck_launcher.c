@@ -1,8 +1,12 @@
 /*
- * Home screen and group screens: one row of tall tiles (big touch targets),
- * a header, and a scrolling system ticker along the bottom. The home row is
- * laid out by deck_home.h (modules, groups, and widgets that draw their own
- * tile); a group screen shows that group's modules the same way.
+ * Home screen and the APPS screen: a header, a tile area, and a scrolling
+ * system ticker along the bottom.
+ *
+ * Home: the live panel on the left and the six fixed tiles in a 3x2 grid.
+ * APPS: every optional app in a fixed slot (3x2 up to six, 4x3 up to twelve);
+ * switched-off apps are greyed, and the first of them carries a quiet hint
+ * pointing at SETTINGS > APPLICATIONS. Tiles show only an icon, a name and
+ * the Alt+letter.
  */
 #include "deck_launcher.h"
 
@@ -12,24 +16,29 @@
 
 #include "deck_boot.h"
 #include "deck_hal.h"
+#include "deck_hint.h"
 #include "deck_net.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
 #include "deck_widgets.h"
 
 #define ROW_W 1232   /* content width inside the launcher padding */
-#define TILE_H 470
+#define TILE_H 470   /* height of the tile area */
 #define TILE_GAP 18
-#define MAX_TILES 9
+#define PANEL_W 360  /* home: the live panel column */
+#define MAX_TILES DECK_GROUP_APPS
 
 static lv_obj_t *s_tiles[MAX_TILES];
 static deck_tile_t s_items[MAX_TILES]; /* what each tile opens */
+static bool s_off[MAX_TILES];          /* switched-off app: greyed, opens settings */
 static int s_tile_count;
+static int s_cols;                     /* grid columns, for up / down */
 static deck_group_t *s_group;          /* NULL on the home screen */
 static int s_sel_home;                 /* keyboard selection, survives trips into apps */
 static int s_sel_group;
 static deck_group_t *s_sel_group_of;   /* the group s_sel_group belongs to */
 static bool s_kbd_nav;                 /* only show the selection once the keyboard is used */
+static void (*s_manage)(const deck_app_t *focus);
 static lv_obj_t *s_uptime;
 static lv_timer_t *s_timer;
 static lv_obj_t *s_stats;
@@ -37,11 +46,16 @@ static lv_timer_t *s_stats_timer;
 static uint32_t s_stats_start;
 static bool s_stats_settled;
 
+void deck_launcher_set_manage(void (*fn)(const deck_app_t *focus)) { s_manage = fn; }
+
 static int *sel(void) { return s_group ? &s_sel_group : &s_sel_home; }
 
-static void open_item(const deck_tile_t *it)
+static void open_item(int i)
 {
-    if (it->group) {
+    const deck_tile_t *it = &s_items[i];
+    if (s_off[i]) {
+        if (s_manage) s_manage(it->app); /* greyed: go and switch it on */
+    } else if (it->group) {
         deck_shell_open_group(it->group);
     } else {
         deck_shell_launch(it->app);
@@ -52,7 +66,7 @@ static void tile_clicked(lv_event_t *e)
 {
     int i  = (int)(intptr_t)lv_event_get_user_data(e);
     *sel() = i;
-    open_item(&s_items[i]);
+    open_item(i);
 }
 
 static void show_selection(void)
@@ -72,93 +86,72 @@ static void hint_clicked(lv_event_t *e)
     deck_shell_shortcuts();
 }
 
-static char hotkey_letter(const deck_app_t *app)
-{
-    return app->hotkey ? (char)('A' + app->hotkey - HID_A) : '\0';
-}
+static char hotkey_letter(uint8_t hotkey) { return hotkey ? (char)('A' + hotkey - HID_A) : '\0'; }
 
-static lv_obj_t *build_tile(lv_obj_t *parent, const deck_tile_t *it, int index, int32_t tile_w)
+/* Greyed text and icons: halfway between the dim text color and the
+ * background, so a switched-off tile reads as present but asleep. */
+static lv_color_t off_color(void) { return lv_color_mix(g_pal.dim, g_pal.bg, 128); }
+
+static lv_obj_t *build_tile(lv_obj_t *parent, int index, int32_t w, int32_t h)
 {
-    deck_app_t *app   = it->app;
-    deck_group_t *grp = it->group;
-    bool offline      = app && app->eta != NULL;
+    const deck_tile_t *it = &s_items[index];
+    deck_app_t *app       = it->app;
+    deck_group_t *grp     = it->group;
+    bool offline          = app && app->eta != NULL;
+    bool off              = s_off[index] && !offline; /* offline keeps its own look */
 
     lv_obj_t *t = deck_panel(parent, DECK_CUT_TL | DECK_CUT_BR, 22);
-    lv_obj_set_size(t, tile_w, TILE_H);
+    lv_obj_set_size(t, w, h);
     lv_obj_add_flag(t, LV_OBJ_FLAG_CLICKABLE);
     deck_panel_set_tab(t, true);
+    deck_panel_set_muted(t, off);
     deck_panel_set_hazard(t, offline);
-    lv_obj_set_style_pad_all(t, 18, 0);
+    lv_obj_set_style_pad_all(t, 0, 0); /* the hint scrim covers the whole tile */
     lv_obj_add_event_cb(t, tile_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)index);
 
-    char num[12];
-    snprintf(num, sizeof(num), "%02d", index + 1);
-    lv_obj_t *n = deck_label(t, g_font.disp_l, g_pal.accent2, num);
-    lv_obj_align(n, LV_ALIGN_TOP_LEFT, 4, 10);
-
-    lv_obj_t *chip;
-    if (grp) {
-        char c[16];
-        snprintf(c, sizeof(c), "%u MODULES", (unsigned)grp->count);
-        chip = deck_chip(t, c, g_pal.accent2);
-    } else if (offline) {
-        chip = deck_chip(t, app->eta, g_pal.warn);
+    /* Top right: the Alt+letter; OFF when switched off; the version an
+     * offline module is planned for. */
+    char key[8] = {0};
+    lv_color_t key_c = g_pal.accent2;
+    if (offline) {
+        snprintf(key, sizeof(key), "%s", app->eta);
+        key_c = g_pal.warn;
+    } else if (off) {
+        snprintf(key, sizeof(key), "OFF");
+        key_c = off_color();
     } else {
-        chip = deck_chip(t, "ONLINE", g_pal.ok);
+        key[0] = hotkey_letter(grp ? HID_A : app->hotkey);
     }
-    lv_obj_align(chip, LV_ALIGN_TOP_RIGHT, 0, 14);
+    lv_obj_t *k = deck_label(t, g_font.mono_s, key_c, key);
+    lv_obj_align(k, LV_ALIGN_TOP_RIGHT, -18, 16);
 
-    /* Every tile shares one top band: icon, name, tagline at fixed heights,
-     * so the row reads evenly. What sits below differs per kind. */
-    lv_obj_t *icon = deck_label(t, g_font.icon_l, offline ? g_pal.dim : g_pal.accent, grp ? grp->icon : app->icon);
-    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 52);
-    lv_obj_t *name = deck_label(t, g_font.disp_m, g_pal.text, grp ? grp->name : app->name);
-    lv_obj_align(name, LV_ALIGN_TOP_MID, 0, 166);
-    lv_obj_t *tag = deck_label(t, g_font.mono_s, g_pal.dim, grp ? grp->tagline : app->tagline);
-    lv_obj_align(tag, LV_ALIGN_TOP_MID, 0, 198);
-
-    if (app && app->on_tile && !offline) {
-        /* Widget: the module fills the space between the band and the footer. */
-        lv_obj_t *body = deck_box(t);
-        lv_obj_set_size(body, LV_PCT(100), 160);
-        lv_obj_align(body, LV_ALIGN_TOP_MID, 0, 234);
-        app->on_tile(app, body, icon);
-    } else if (grp) {
-        /* The modules inside, each with its Alt+letter. */
-        lv_obj_t *list = deck_box(t);
-        lv_obj_set_width(list, LV_PCT(100));
-        lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_style_pad_row(list, 6, 0);
-        lv_obj_align(list, LV_ALIGN_TOP_LEFT, 0, 238);
-        for (size_t i = 0; i < grp->count; i++) {
-            const deck_app_t *a = grp->apps[i];
-            lv_obj_t *row       = deck_box(list);
-            lv_obj_set_width(row, LV_PCT(100));
-            lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-            lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-            lv_obj_set_style_pad_column(row, 10, 0);
-            char key[2] = {hotkey_letter(a) ? hotkey_letter(a) : '-', '\0'};
-            lv_obj_t *k = deck_label(row, g_font.mono_s, g_pal.accent2, key);
-            lv_obj_set_width(k, 14);
-            deck_label(row, g_font.mono_m, a->eta ? g_pal.dim : g_pal.text, a->name);
-        }
-    }
-
-    /* Footer: how to open it from the keyboard, and its state. */
-    char hot[24];
-    if (s_group == NULL) {
-        snprintf(hot, sizeof(hot), "ALT+%d", index + 1);
-    } else if (app && hotkey_letter(app)) {
-        snprintf(hot, sizeof(hot), "%d  ALT+%c", index + 1, hotkey_letter(app));
-    } else {
-        snprintf(hot, sizeof(hot), "%d", index + 1);
-    }
-    lv_obj_t *h = deck_label(t, g_font.mono_s, g_pal.dim, hot);
-    lv_obj_align(h, LV_ALIGN_BOTTOM_LEFT, 4, -18);
-
-    lv_obj_t *state = deck_label(t, g_font.mono_s, offline ? g_pal.warn : g_pal.ok, offline ? "OFFLINE" : "READY");
-    lv_obj_align(state, LV_ALIGN_BOTTOM_RIGHT, -8, -18);
+    lv_color_t icon_c = off ? off_color() : offline ? g_pal.dim : g_pal.accent;
+    lv_obj_t *col     = deck_box(t);
+    lv_obj_set_size(col, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(col, h >= 200 ? 14 : 6, 0);
+    lv_obj_center(col);
+    deck_label(col, h >= 200 ? g_font.icon_l : g_font.icon_m, icon_c, grp ? grp->icon : app->icon);
+    deck_label(col, g_font.disp_m, off ? off_color() : g_pal.text, grp ? grp->name : app->name);
     return t;
+}
+
+/* The settings hint on the first switched-off tile: muted text over a light
+ * scrim, readable when looked for, not loud on every visit. */
+static void add_hint(lv_obj_t *tile)
+{
+    lv_obj_t *scrim = deck_box(tile);
+    lv_obj_set_size(scrim, LV_PCT(100), LV_PCT(100));
+    lv_obj_center(scrim);
+    lv_obj_set_style_bg_color(scrim, g_pal.bg, 0);
+    lv_obj_set_style_bg_opa(scrim, LV_OPA_60, 0);
+    lv_obj_remove_flag(scrim, LV_OBJ_FLAG_CLICKABLE); /* taps reach the tile */
+    lv_obj_set_flex_flow(scrim, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(scrim, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(scrim, 6, 0);
+    deck_label(scrim, g_font.disp_s, g_pal.dim, "DISABLED");
+    deck_label(scrim, g_font.mono_s, g_pal.dim, "ENABLE IN SETTINGS");
 }
 
 static void uptime_tick(lv_timer_t *t)
@@ -305,24 +298,50 @@ void deck_launcher_create(lv_obj_t *parent, deck_group_t *group)
     lv_obj_set_ext_click_area(hint, 14);
     lv_obj_add_event_cb(hint, hint_clicked, LV_EVENT_CLICKED, NULL);
 
-    /* Tiles */
-    lv_obj_t *row = deck_box(root);
-    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_pad_column(row, TILE_GAP, 0);
+    /* Tiles: home is the live panel plus a 3x2 grid of the fixed tiles;
+     * APPS is a full-width grid with a fixed slot per optional app. */
     s_tile_count = 0;
     if (group) {
         for (size_t i = 0; i < group->count && s_tile_count < MAX_TILES; i++) {
-            s_items[s_tile_count++] = (deck_tile_t){.app = group->apps[i]};
+            deck_app_t *a           = group->apps[i];
+            s_off[s_tile_count]     = !deck_app_enabled(a);
+            s_items[s_tile_count++] = (deck_tile_t){.app = a};
         }
     } else {
         for (size_t i = 0; i < deck_home_count() && s_tile_count < MAX_TILES; i++) {
+            s_off[s_tile_count]     = false;
             s_items[s_tile_count++] = *deck_home_tile(i);
         }
     }
-    int n          = s_tile_count;
-    int32_t tile_w = n ? (ROW_W - (n - 1) * TILE_GAP) / n : ROW_W;
+    int n    = s_tile_count;
+    s_cols   = (group && n > 6) ? 4 : 3;
+    int rows = n > s_cols * 2 ? 3 : 2;
+
+    lv_obj_t *area = deck_box(root);
+    lv_obj_set_size(area, ROW_W, TILE_H);
+    lv_obj_set_flex_flow(area, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_column(area, TILE_GAP, 0);
+    int32_t grid_w = ROW_W;
+    if (!group) {
+        lv_obj_t *panel = deck_panel(area, DECK_CUT_TL | DECK_CUT_BR, 22); /* live panel (next step) */
+        lv_obj_set_size(panel, PANEL_W, TILE_H);
+        grid_w = ROW_W - PANEL_W - TILE_GAP;
+    }
+    lv_obj_t *grid = deck_box(area);
+    lv_obj_set_size(grid, grid_w, TILE_H);
+    lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_style_pad_column(grid, TILE_GAP, 0);
+    lv_obj_set_style_pad_row(grid, TILE_GAP, 0);
+    int32_t tile_w = (grid_w - (s_cols - 1) * TILE_GAP) / s_cols;
+    int32_t tile_h = (TILE_H - (rows - 1) * TILE_GAP) / rows;
     for (int i = 0; i < n; i++) {
-        s_tiles[i] = build_tile(row, &s_items[i], i, tile_w);
+        s_tiles[i] = build_tile(grid, i, tile_w, tile_h);
+    }
+    if (group) {
+        bool offline[MAX_TILES];
+        for (int i = 0; i < n; i++) offline[i] = s_items[i].app->eta != NULL;
+        int h = deck_hint_slot(s_off, offline, (size_t)n);
+        if (h >= 0) add_hint(s_tiles[h]);
     }
     if (*sel() >= s_tile_count) *sel() = 0;
     show_selection();
@@ -367,6 +386,12 @@ bool deck_launcher_key(const deck_key_t *k)
         case HID_TAB:
             *s = s_kbd_nav ? (*s + 1) % s_tile_count : *s;
             break;
+        case HID_UP:
+            if (s_kbd_nav && *s - s_cols >= 0) *s -= s_cols;
+            break;
+        case HID_DOWN:
+            if (s_kbd_nav && *s + s_cols < s_tile_count) *s += s_cols;
+            break;
         case HID_ENTER:
         case HID_SPACE:
             if (s_kbd_nav) target = *s;
@@ -382,6 +407,6 @@ bool deck_launcher_key(const deck_key_t *k)
     }
     s_kbd_nav = true;
     show_selection();
-    if (target >= 0) open_item(&s_items[target]);
+    if (target >= 0) open_item(target);
     return true;
 }
