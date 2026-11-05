@@ -133,6 +133,7 @@ target_link_libraries(nettools_test PRIVATE lvgl SDL2::SDL2 pthread)
 add_executable(ls_test ls_test.c ${ROOT}/components/deck_sync/ls_hash.c ${ROOT}/components/deck_sync/ls_crypto.c)
 target_include_directories(ls_test PRIVATE ${ROOT}/components/deck_sync/include)
 target_link_libraries(ls_test PRIVATE mbedcrypto m)
+add_test(NAME livesync_hash_crypto COMMAND ls_test)
 
 add_executable(weather_test weather_test.c ${ROOT}/apps/app_weather/weather_data.c)
 target_include_directories(weather_test PRIVATE ${ROOT}/apps/app_weather ${ROOT}/components/deck_ui/include)
