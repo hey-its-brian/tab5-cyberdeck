@@ -177,6 +177,8 @@ Home screen first, then the two modules, one at a time.
 - [x] SETTINGS > STYLE > HOME TILES: GLOW, TWO-TONE or NEON, for the home screen only (APPS stays plain)
 - [x] Shortcuts: Alt+1..6 for the home tiles, Alt+A for APPS, RF WATCH moves to Alt+X
 - [x] `tools/check.sh`: simulator build and host unit tests (and optionally the firmware) in one command
+- [x] GitHub Actions runs `tools/check.sh --firmware` on every push and pull request
+- [x] Review cleanup: APPS uses 4x3 from seven apps; a refused SETTINGS launch no longer leaves APPLICATIONS for the next Alt+S; the music indicator won't open a switched-off PLAYER; PLAYER start-up checks its lock, buffer and task (and retries on the next switch-on); duplicate app ids are rejected
 - [ ] Checkpoint on hardware: toggle each optional app; WEATHER stops fetching, PLAYER stops the music and its indicator; toggles survive a reboot; an update from v1.4 keeps every app on
 
 ## Next: Startup sound
@@ -220,6 +222,21 @@ with optional apps, on/off hooks and home panel sections).
 - [ ] A catalog repo (separate GitHub repository): an index JSON of apps with versions, descriptions, screenshots and download links, plus a contribution guide and CI that builds and checks submissions
 - [ ] On the deck: SETTINGS > APPLICATIONS gains INSTALL / UPDATE / REMOVE, browsing the catalog over Wi-Fi with update checks like the firmware's
 - [ ] Developer kit: an app template repo, the simulator able to load an app from a folder, and docs; port one built-in optional app (WEATHER) to the SDK to prove the API
+
+## Later: Claude Code client
+
+Start a new Claude Code session, or pick up a recent one, and work on projects
+from the deck. Claude Code can't run on the ESP32, so it runs on a Mac (or any
+host) and the deck drives it. The v0.6 SSH terminal (libssh2, libvterm
+xterm-256color) already renders full-screen terminal apps, so the first version
+reuses it instead of building a new window.
+
+- [ ] A host helper script (in `tools/`, installed on the Mac): lists projects and recent sessions as JSON (from `~/.claude/projects/`: project folder, session id, last message time, first prompt as a title), and starts or reattaches `claude` / `claude --resume <id>` inside tmux, so a dropped Wi-Fi link doesn't end the session
+- [ ] CLAUDE app (optional, off by default): picks a host profile from SSH, shows NEW SESSION (choose a project folder) and RECENT (the helper's list), then opens the terminal running the helper; Alt+Esc back to the deck leaves the session running in tmux
+- [ ] Check Claude Code's TUI in the deck's terminal: column count at 1280x720, colours, box drawing, the keys it needs (Shift+Tab, Esc, Ctrl+C), and add any missing glyphs to the terminal font
+- [ ] Usage meter in the live panel (`on_panel`): the helper reports token use from the session logs, plus plan limit use if Claude Code makes it available to scripts (check in the spike); refreshed over the kept SSH connection, shown as a bar with the reset time
+- [ ] Later, if the terminal feels cramped: a chat-style window fed by the helper over the Claude Agent SDK's structured output (messages, tool calls, permission prompts as buttons), still with the session on the host
+- [ ] Second real user of the App SDK after the first ported app, since it needs settings, network and the home panel
 
 ## Later: Try other firmwares without losing DECK//OS
 

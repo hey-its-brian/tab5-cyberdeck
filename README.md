@@ -338,6 +338,9 @@ tools/check.sh             # simulator build and host unit tests
 tools/check.sh --firmware  # also builds the ESP-IDF firmware
 ```
 
+GitHub Actions runs `tools/check.sh --firmware` on every push and pull request
+(`.github/workflows/check.yml`, in Espressif's ESP-IDF v5.5.5 image).
+
 The portal's browser side runs on the Mac too: `tools/portal_mock.py` serves
 the real page backed by `sim/sdcard` at `http://127.0.0.1:8080` (PIN `271828`,
 `--open` skips it, `--root DIR` picks another folder).

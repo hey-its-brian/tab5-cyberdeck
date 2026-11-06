@@ -1,0 +1,45 @@
+# Runs tools/check.sh --firmware on every push and pull request: the
+# simulator build, the host unit tests (ctest) and the ESP-IDF firmware
+# build. Nothing here needs the Tab5 or the release signing key.
+name: Checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    # Espressif's ESP-IDF image, the same version as the local toolchain
+    # (v5.5.5). Pinned by digest (tags can be moved); the comment is the tag.
+    # The sim takes cJSON and mbedTLS from this IDF tree, as it does locally.
+    container:
+      image: espressif/idf@sha256:a9231d0697ab8f7517cc072e93b7c83e04907bfbfba80b6440d7dbbf90665cf2 # v5.5.5
+    steps:
+      # Actions are pinned to commit SHAs (tags can be moved); the comment is the tag.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install the simulator's host packages
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends build-essential libsdl2-dev
+
+      - name: Trust the checkout
+        # idf.py reads the version with git, which refuses a repo owned by
+        # another user (the container runs as root).
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Simulator, unit tests and firmware
+        run: tools/check.sh --firmware
+
+      - name: Show the log on failure
+        if: failure()
+        run: tail -n 200 sim/build/check.log
