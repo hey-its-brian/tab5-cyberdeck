@@ -119,6 +119,9 @@ target_compile_definitions(deck_sim PRIVATE
     DECK_SIM_SDCARD="${CMAKE_CURRENT_SOURCE_DIR}/sdcard")
 target_compile_options(deck_sim PRIVATE -Wall -Wextra -Wno-unused-parameter)
 target_link_libraries(deck_sim PRIVATE lvgl cjson vterm pthread m)
+if(NOT APPLE)
+    target_link_libraries(deck_sim PRIVATE util) # forkpty (macOS has it in libc)
+endif()
 set_source_files_properties(${ROOT}/components/minimp3/minimp3.c PROPERTIES COMPILE_OPTIONS "-w")
 
 # Unit tests for the calculator engine (no LVGL).

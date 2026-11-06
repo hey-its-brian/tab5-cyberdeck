@@ -12,7 +12,11 @@
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <util.h>
+#ifdef __APPLE__
+#include <util.h> /* forkpty */
+#else
+#include <pty.h> /* forkpty, from libutil (linked in sim/CMakeLists.txt) */
+#endif
 
 static int s_fd = -1;
 static pid_t s_pid;

@@ -42,6 +42,6 @@ jobs:
       - name: Simulator, unit tests and firmware
         run: tools/check.sh --firmware
 
-      - name: Show the log on failure
+      - name: Show errors on failure
         if: failure()
-        run: tail -n 200 sim/build/check.log
+        run: grep -n -iE -A4 "error:|undefined reference|cmake error" sim/build/check.log | head -n 120 || true
