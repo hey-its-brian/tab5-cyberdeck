@@ -47,7 +47,8 @@ static void music_clicked(lv_event_t *e)
     (void)e;
     for (size_t i = 0; i < deck_app_count(); i++) {
         deck_app_t *a = deck_app_get(i);
-        if (strcmp(a->name, "PLAYER") == 0 && deck_shell_current() != a) deck_shell_launch(a);
+        /* switched off mid-track, the indicator can show for one more tick */
+        if (strcmp(a->name, "PLAYER") == 0 && deck_app_enabled(a) && deck_shell_current() != a) deck_shell_launch(a);
     }
 }
 

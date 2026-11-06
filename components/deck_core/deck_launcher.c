@@ -368,7 +368,7 @@ void deck_launcher_create(lv_obj_t *parent, deck_group_t *group)
     }
     int n    = s_tile_count;
     s_cols   = (group && n > 6) ? 4 : 3;
-    int rows = n > s_cols * 2 ? 3 : 2;
+    int rows = n > 6 ? 3 : 2; /* APPS: 3x2 up to 6, 4x3 for 7 to 12 */
 
     lv_obj_t *area = deck_box(root);
     lv_obj_set_size(area, ROW_W, TILE_H);

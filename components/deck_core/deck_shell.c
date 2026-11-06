@@ -110,7 +110,7 @@ static void go(deck_app_t *app, deck_group_t *group)
     deck_fx_glitch(TRANSITION_MS, transition_mid, transition_done, NULL);
 }
 
-void deck_shell_launch(deck_app_t *app) { deck_shell_launch_from(app, NULL); }
+void deck_shell_launch(deck_app_t *app) { (void)deck_shell_launch_from(app, NULL); }
 
 void deck_shell_open_group(deck_group_t *group)
 {
@@ -369,9 +369,10 @@ void deck_shell_start(bool boot_anim)
 
 void deck_shell_set_manage(void (*fn)(const deck_app_t *focus)) { deck_launcher_set_manage(fn); }
 
-void deck_shell_launch_from(deck_app_t *app, deck_group_t *back_to)
+bool deck_shell_launch_from(deck_app_t *app, deck_group_t *back_to)
 {
-    if (app == NULL || s_busy || app == s_current) return;
+    if (app == NULL || s_busy || app == s_current) return false;
     s_return_group = back_to; /* only once the launch is going ahead */
     go(app, NULL);
+    return true;
 }

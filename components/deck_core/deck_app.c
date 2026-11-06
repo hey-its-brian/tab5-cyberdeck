@@ -5,11 +5,10 @@
 
 #include "deck_hal.h"
 
-#define APP_MAX 20
 #define OPTIONAL_MAX 12 /* the APPS grid tops out at 4x3 */
 #define ID_MAX 11       /* NVS keys are 15 chars: "app_" + id */
 
-static deck_app_t *s_apps[APP_MAX];
+static deck_app_t *s_apps[DECK_APP_MAX];
 static size_t s_count;
 
 static size_t optional_count(void)
@@ -21,13 +20,20 @@ static size_t optional_count(void)
 
 void deck_app_register(deck_app_t *app)
 {
-    if (app == NULL || app->on_start == NULL || s_count >= APP_MAX) {
+    if (app == NULL || app->on_start == NULL || s_count >= DECK_APP_MAX) {
         LV_LOG_ERROR("cannot register app");
         return;
     }
     if (app->optional && (app->id == NULL || strlen(app->id) > ID_MAX || optional_count() >= OPTIONAL_MAX)) {
         LV_LOG_ERROR("cannot register optional app");
         return;
+    }
+    for (size_t i = 0; i < s_count; i++) {
+        const char *id = s_apps[i]->id;
+        if (s_apps[i] == app || (app->id && id && strcmp(id, app->id) == 0)) {
+            LV_LOG_ERROR("app registered twice, or its id is taken");
+            return;
+        }
     }
     s_apps[s_count++] = app;
 }

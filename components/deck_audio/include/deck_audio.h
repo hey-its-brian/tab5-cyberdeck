@@ -21,7 +21,7 @@ extern "C" {
 typedef enum { PLAYER_STOPPED, PLAYER_PLAYING, PLAYER_PAUSED } player_state_t;
 typedef enum { REPEAT_OFF, REPEAT_ALL, REPEAT_ONE } player_repeat_t;
 
-void player_init(void);
+bool player_init(void); /* false if out of memory; safe to call again */
 
 /* Replace the queue with the .mp3 files in `dir` (full path) and start
  * track `index` (or just load it with index < 0). */

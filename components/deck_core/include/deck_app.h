@@ -59,6 +59,11 @@ struct deck_app {
     void *user;
 };
 
+#define DECK_APP_MAX 20 /* registered apps, core and optional */
+
+/* Rejects (and logs) a NULL app, one with no on_start, one already
+ * registered, a full registry, and an optional app with a missing, too long
+ * or duplicate id (the id is its NVS key). */
 void        deck_app_register(deck_app_t *app);
 size_t      deck_app_count(void);
 deck_app_t *deck_app_get(size_t index);

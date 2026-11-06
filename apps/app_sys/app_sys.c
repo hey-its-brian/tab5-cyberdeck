@@ -47,7 +47,10 @@ typedef struct {
 static sys_ui_t s_ui;
 
 /* Which tab shows, and the app whose switch to focus on APPLICATIONS; kept
- * outside s_ui so a rebuild (closing a modal) stays on the same tab. */
+ * outside s_ui so app_sys_open_applications() can set them before start().
+ * stop() resets the tab, so every start (rebuilds included) opens on
+ * SETTINGS unless APPLICATIONS was asked for; the rebuilds this module
+ * triggers (accent, clock modal) all come from the SETTINGS tab. */
 static deck_app_t s_app;
 static bool s_apps_tab;
 static const deck_app_t *s_focus;
@@ -604,8 +607,7 @@ static lv_obj_t *small_button(lv_obj_t *parent, const char *text, lv_event_cb_t 
 
 /* ---- APPLICATIONS -------------------------------------------------------- */
 
-#define APPS_MAX 20
-static lv_obj_t *s_app_desc[APPS_MAX]; /* per registered app, for the save-failed note */
+static lv_obj_t *s_app_desc[DECK_APP_MAX]; /* per registered app, for the save-failed note */
 
 static void app_switch_changed(lv_event_t *e)
 {
@@ -668,7 +670,7 @@ static lv_obj_t *build_applications(lv_obj_t *page)
     deck_section(list, "APPLICATIONS");
     lv_obj_t *focus_sw = NULL;
     for (int pass = 0; pass < 2; pass++) {
-        for (size_t i = 0; i < deck_app_count() && i < APPS_MAX; i++) {
+        for (size_t i = 0; i < deck_app_count() && i < DECK_APP_MAX; i++) {
             if (deck_app_get(i)->optional == (pass == 1)) app_row(list, i, &focus_sw);
         }
     }
@@ -695,7 +697,10 @@ void app_sys_open_applications(const deck_app_t *focus)
 {
     s_apps_tab = true;
     s_focus    = focus;
-    deck_shell_launch_from(&s_app, deck_home_apps()); /* Back returns to APPS */
+    if (!deck_shell_launch_from(&s_app, deck_home_apps())) { /* Back returns to APPS */
+        s_apps_tab = false; /* refused: the next Alt+S opens on SETTINGS */
+        s_focus    = NULL;
+    }
 }
 
 static bool start(deck_app_t *self, lv_obj_t *parent)

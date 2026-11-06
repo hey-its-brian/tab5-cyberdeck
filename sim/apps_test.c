@@ -69,6 +69,7 @@ static deck_app_t opt  = {.name = "OPT", .id = "opt", .hotkey = 0x11, .optional 
 static deck_app_t opt2 = {.name = "OPT2", .id = "opt2", .hotkey = 0x12, .optional = true, .default_on = false,
                           .on_start = start, .on_enable = en_opt2, .on_disable = dis_opt2};
 static deck_app_t bad_id = {.name = "BAD", .id = "waytoolongid", .optional = true, .on_start = start};
+static deck_app_t dup_id = {.name = "DUP", .id = "opt", .optional = true, .on_start = start};
 
 int main(void)
 {
@@ -84,6 +85,10 @@ int main(void)
     deck_app_register(&opt2);
     deck_app_register(&bad_id);
     expect(deck_app_count() == 3, "optional app with an id over 11 chars is rejected");
+    deck_app_register(&dup_id);
+    expect(deck_app_count() == 3, "optional app with a duplicate id is rejected");
+    deck_app_register(&core);
+    expect(deck_app_count() == 3, "an app registered twice is rejected");
 
     /* defaults_without_keys: an upgrade with no app_* keys */
     expect(deck_app_enabled(&core), "defaults: core on");

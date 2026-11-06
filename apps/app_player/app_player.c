@@ -448,11 +448,13 @@ static bool on_key(deck_app_t *self, const deck_key_t *k)
 }
 
 /* Switching PLAYER on starts the audio task; switching it off stops the
- * music. A task already running stays until the next boot. */
+ * music. A task already running stays until the next boot. If memory is
+ * short the player logs it and stays silent; switching PLAYER off and on
+ * again retries. */
 static void enable(deck_app_t *self)
 {
     (void)self;
-    player_init();
+    (void)player_init();
 }
 
 static void disable(deck_app_t *self)

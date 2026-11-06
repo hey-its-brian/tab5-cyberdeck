@@ -29,7 +29,11 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 static SemaphoreHandle_t s_lock;
-static void lock_init(void) { s_lock = xSemaphoreCreateMutex(); }
+static bool lock_init(void)
+{
+    if (s_lock == NULL) s_lock = xSemaphoreCreateMutex();
+    return s_lock != NULL;
+}
 /* Before player_init() there is no mutex and no player task, so nothing can
  * race: lock and unlock do nothing and commands are dropped (see post()). */
 static void lock(void) { if (s_lock) xSemaphoreTake(s_lock, portMAX_DELAY); }
@@ -43,7 +47,7 @@ static uint32_t rnd(void) { return esp_random(); }
 #include <sys/time.h>
 #include <unistd.h>
 static pthread_mutex_t s_mtx = PTHREAD_MUTEX_INITIALIZER;
-static void lock_init(void) {}
+static bool lock_init(void) { return true; }
 static void lock(void) { pthread_mutex_lock(&s_mtx); }
 static void unlock(void) { pthread_mutex_unlock(&s_mtx); }
 static void sleep_ms(int ms) { usleep((useconds_t)ms * 1000); }
@@ -582,25 +586,41 @@ static void *task_thread(void *arg)
 }
 #endif
 
-void player_init(void)
+/* Starts the player task. If memory runs short it logs, leaves the player
+ * not ready (commands are dropped, as before init) and a later call (PLAYER
+ * switched on again) tries again. */
+bool player_init(void)
 {
     static bool done;
-    if (done) return;
-    done = true;
-    lock_init();
-    s_ready = true;
+    if (done) return true;
+    if (!lock_init()) {
+        LOG("no memory for the player lock");
+        return false;
+    }
+    if (s_t.buf == NULL) s_t.buf = malloc(BUF_SIZE);
+    if (s_t.buf == NULL) {
+        LOG("no memory for the %d byte read buffer", BUF_SIZE);
+        return false;
+    }
     s_volume  = (int)hal_cfg_get_i32("vol", 60);
     s_shuffle = hal_cfg_get_i32("shuf", 0) != 0;
     s_repeat  = (player_repeat_t)hal_cfg_get_i32("rep", REPEAT_ALL);
     aout_volume(s_volume);
-    s_t.buf = malloc(BUF_SIZE);
+    s_ready = true;
 #ifdef ESP_PLATFORM
     /* minimp3 keeps ~16 KB of scratch on the stack; internal RAM, core 1,
      * above the UI so the music keeps going while screens redraw. */
-    xTaskCreatePinnedToCore(task, "player", 28 * 1024, NULL, 6, NULL, 1);
+    bool started = xTaskCreatePinnedToCore(task, "player", 28 * 1024, NULL, 6, NULL, 1) == pdPASS;
 #else
     pthread_t t;
-    pthread_create(&t, NULL, task_thread, NULL);
-    pthread_detach(t);
+    bool started = pthread_create(&t, NULL, task_thread, NULL) == 0;
+    if (started) pthread_detach(t);
 #endif
+    if (!started) {
+        s_ready = false;
+        LOG("could not start the player task");
+        return false;
+    }
+    done = true;
+    return true;
 }
