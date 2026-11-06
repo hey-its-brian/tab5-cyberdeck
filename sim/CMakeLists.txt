@@ -42,7 +42,7 @@ file(GLOB_RECURSE LVGL_SRCS "${LVGL_DIR}/src/*.c")
 add_library(lvgl STATIC ${LVGL_SRCS})
 target_include_directories(lvgl PUBLIC "${LVGL_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_definitions(lvgl PUBLIC LV_CONF_INCLUDE_SIMPLE)
-target_link_libraries(lvgl PUBLIC SDL2::SDL2)
+target_link_libraries(lvgl PUBLIC SDL2::SDL2 m) # libm: implicit on macOS, explicit on Linux
 target_compile_options(lvgl PRIVATE -w)
 
 file(GLOB APP_SRCS "${ROOT}/apps/*/*.c")
@@ -128,6 +128,7 @@ set_source_files_properties(${ROOT}/components/minimp3/minimp3.c PROPERTIES COMP
 add_executable(calc_test calc_test.c ${ROOT}/apps/app_calc/calc_engine.c)
 target_include_directories(calc_test PRIVATE ${ROOT}/apps/app_calc)
 target_compile_options(calc_test PRIVATE -Wall -Wextra)
+target_link_libraries(calc_test PRIVATE m)
 enable_testing()
 add_test(NAME calc_engine COMMAND calc_test)
 
