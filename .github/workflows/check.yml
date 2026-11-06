@@ -30,7 +30,9 @@ jobs:
       - name: Install the simulator's host packages
         run: |
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends build-essential libsdl2-dev
+          # cmake from apt: the image's own cmake is only on PATH after
+          # export.sh, which check.sh sources just for the firmware stage.
+          apt-get install -y -qq --no-install-recommends build-essential cmake libsdl2-dev
 
       - name: Trust the checkout
         # idf.py reads the version with git, which refuses a repo owned by

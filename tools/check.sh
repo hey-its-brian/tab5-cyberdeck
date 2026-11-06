@@ -2,8 +2,9 @@
 # Every check that runs without hardware, in one go:
 #   tools/check.sh            simulator build + host unit tests (ctest)
 #   tools/check.sh --firmware also builds the ESP-IDF firmware
-# Prints one line per stage and a final PASS or FAIL; full output goes to
-# sim/build/check.log so a failure can be read without rerunning.
+# Prints one line per stage and a final PASS or FAIL; a failed stage also
+# prints its last lines. Full output goes to sim/build/check.log so a failure
+# can be read without rerunning.
 set -uo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -15,13 +16,17 @@ fail=0
 
 stage() { # stage NAME COMMAND...
     local name="$1"; shift
+    local out="sim/build/stage.log"
     printf '%-24s' "$name"
-    if "$@" >> "$log" 2>&1; then
+    if "$@" > "$out" 2>&1; then
         echo "ok"
     else
         echo "FAILED (see $log)"
+        tail -n 15 "$out" | sed 's/^/    /'
         fail=1
     fi
+    cat "$out" >> "$log"
+    rm -f "$out"
 }
 
 stage "sim configure" cmake -S sim -B sim/build
