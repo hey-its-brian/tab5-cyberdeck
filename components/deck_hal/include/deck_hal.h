@@ -66,6 +66,11 @@ bool hal_headphones(void);
 /* Tab5 only: the system I2C bus (i2c_master_bus_handle_t) for the codec. */
 void *hal_tab5_sys_i2c(void);
 
+/* The 5 V rail on the rear M5-Bus (pin 28) and the Grove port, switched by
+ * the IO expander. The board driver leaves it on at boot; deck_sentinel
+ * turns it on and off with the RF Sentinel board. */
+void hal_ext5v(bool on);
+
 /* Keyboard LEDs. brightness 0..100 (0 = off). With use_color the LEDs show
  * `rgb` (0xRRGGBB); otherwise the keyboard's own status colors (Caps/Sym).
  * Remembered and re-applied whenever the keyboard is (re)attached. */

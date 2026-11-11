@@ -36,8 +36,21 @@ NEON (each home tile in its own color).
 |---|---|---|
 | ![Home](docs/screenshots/home.png) | ![Apps](docs/screenshots/apps.png) | ![Applications](docs/screenshots/applications.png) |
 
+**v1.5: RF WATCH**, the RF Sentinel carrier board on the rear M5-Bus (a
+Stamp C5 with a CC1101, an nRF24L01+ and a GPS; `hardware/tab5-board` in the
+rf-sentinel repo). Switching RF WATCH on in SETTINGS > APPLICATIONS powers
+the board (EXT5V on the bus), puts the CC1101 front end in receive (RX_EN on
+G16 high, TX_EN on G17 low) and reads the C5's `$RFS` sentences on UART1
+(G7 in, G6 out, 115200 8N1). The screen shows the link and board health,
+GNSS (fix, satellites, position, C/N0), the networks the C5 hears, the
+433 MHz sweep (21 channels with peak hold), 2.4 GHz occupancy (126 channels
+of nRF24 carrier detect) and the C5's events; the home panel carries a live
+one-line summary. `H` asks the C5 for a fresh HELLO, `P` pings it. Switching
+the app off cuts EXT5V again. The simulator has a pretend board
+(`sim/sentinel_sim.c`) and the parser has a host test (`sim/sentinel_test.c`).
+
 **v1.4: NET TOOLS**, the Tab5's own radio as a toolkit (in APPS), next to
-RF WATCH, a placeholder for the RF Sentinel M5-Bus board. NET TOOLS has four tabs: **SCAN**
+RF WATCH. NET TOOLS has four tabs: **SCAN**
 (every access point in earshot, one row per BSSID with channel, security and
 signal, and a chart of the strongest signal on each 2.4 GHz channel), **PING**
 (ping, DNS, traceroute and a TCP port check for a host you type), **LAN** (a

@@ -60,6 +60,8 @@ add_executable(deck_sim
     hal_sim.c
     net_sim.c
     ${ROOT}/components/deck_net/net_tools.c
+    sentinel_sim.c
+    ${ROOT}/components/deck_sentinel/sentinel_proto.c
     ota_sim.c
     term_link_pty.c
     term_chat_sim.c
@@ -102,6 +104,7 @@ target_include_directories(deck_sim PRIVATE
     ${ROOT}/components/deck_core/include
     ${ROOT}/components/deck_md/include
     ${ROOT}/components/deck_net/include
+    ${ROOT}/components/deck_sentinel/include
     ${ROOT}/components/deck_ota/include
     ${ROOT}/components/deck_term/include
     ${ROOT}/components/deck_term
@@ -146,6 +149,11 @@ target_include_directories(apps_test PRIVATE ${ROOT}/components/deck_core/includ
 target_compile_options(apps_test PRIVATE -Wall -Wextra)
 target_link_libraries(apps_test PRIVATE lvgl m)
 add_test(NAME app_model COMMAND apps_test)
+
+add_executable(sentinel_test sentinel_test.c ${ROOT}/components/deck_sentinel/sentinel_proto.c)
+target_include_directories(sentinel_test PRIVATE ${ROOT}/components/deck_sentinel/include)
+target_compile_options(sentinel_test PRIVATE -Wall -Wextra)
+add_test(NAME sentinel_proto COMMAND sentinel_test)
 
 add_executable(weather_test weather_test.c ${ROOT}/apps/app_weather/weather_data.c)
 target_include_directories(weather_test PRIVATE ${ROOT}/apps/app_weather ${ROOT}/components/deck_ui/include)

@@ -153,6 +153,7 @@ void hal_cfg_set_blob(const char *key, const void *data, size_t len)
 bool hal_cfg_encrypted(void) { return false; }
 
 void hal_speaker_amp(bool on) { (void)on; }
+void hal_ext5v(bool on) { printf("[sim] EXT5V %s\n", on ? "on" : "off"); }
 bool hal_headphones(void) { return getenv("DECK_SIM_HEADPHONES") != NULL; }
 
 /* Notes live in sim/sdcard (created on demand). */

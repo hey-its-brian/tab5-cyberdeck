@@ -461,6 +461,11 @@ i2c_master_bus_handle_t m5tab5_get_sys_i2c_master_bus_handle(); /* m5tab5_driver
 
 void *hal_tab5_sys_i2c(void) { return (void *)m5::tab5::m5tab5_get_sys_i2c_master_bus_handle(); }
 
+void hal_ext5v(bool on)
+{
+    if (s_board.ext5v_enable(on) != ESP_OK) ESP_LOGW(TAG, "EXT5V %s failed", on ? "on" : "off");
+}
+
 static m5::tab5::m5tab5_extio_pi4ioe5v6408_t *extio(void)
 {
     return (m5::tab5::m5tab5_extio_pi4ioe5v6408_t *)s_board.runtime().ioexpander_handle;
