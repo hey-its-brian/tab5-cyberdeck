@@ -227,6 +227,7 @@ void sentinel_start(void)
     hal_ext5v(true);
     if (!uart_init()) {
         front_end(false);
+        hal_ext5v(false); /* nothing will read the board: do not leave it powered */
         return;
     }
     uart_set_baudrate(UART_PORT, SENTINEL_BAUD_DEFAULT); /* a freshly powered node listens here */

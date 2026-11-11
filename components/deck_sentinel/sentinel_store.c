@@ -72,13 +72,19 @@ static FILE *capture_open(sentinel_link_t link)
         !sentinel_log_capture_name(name, sizeof(name), link, &t))
         return NULL;
     snprintf(path, sizeof(path), "%s/%s", dir, name);
-    FILE *f = fopen(path, "wb");
+    /* Append, never truncate: the name only resolves to a second, and a
+     * reopen after a failed write (or a quick off and on) can land on a file
+     * that already holds packets. Only an empty file gets the header. */
+    FILE *f = fopen(path, "ab");
     if (!f) return NULL;
-    uint8_t head[SENTINEL_PCAP_HEADER];
-    sentinel_pcap_header(head, sentinel_pcap_linktype(link));
-    if (fwrite(head, 1, sizeof(head), f) != sizeof(head)) {
-        fclose(f);
-        return NULL;
+    struct stat st;
+    if (stat(path, &st) != 0 || st.st_size == 0) {
+        uint8_t head[SENTINEL_PCAP_HEADER];
+        sentinel_pcap_header(head, sentinel_pcap_linktype(link));
+        if (fwrite(head, 1, sizeof(head), f) != sizeof(head)) {
+            fclose(f);
+            return NULL;
+        }
     }
     return f;
 }

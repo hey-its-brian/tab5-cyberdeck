@@ -110,12 +110,32 @@ int main(void)
         fclose(f);
     }
 
+    /* A reopen never truncates: the same second gives the same name, and the
+     * packets already in that file must survive (one header per file). */
+    p.us = 3000000;
+    sentinel_store_packet(&p);
+    sentinel_store_close();
+    snprintf(cmd, sizeof(cmd), "cat %s/sentinel/cap-wifi-*.pcap | wc -c", root);
+    long total = 0, files = 0;
+    FILE *wc = popen(cmd, "r");
+    if (wc) {
+        if (fscanf(wc, "%ld", &total) != 1) total = -1;
+        pclose(wc);
+    }
+    snprintf(cmd, sizeof(cmd), "ls %s/sentinel/cap-wifi-*.pcap | wc -l", root);
+    wc = popen(cmd, "r");
+    if (wc) {
+        if (fscanf(wc, "%ld", &files) != 1) files = -1;
+        pclose(wc);
+    }
+    CHECK(files >= 1 && total == 24 * files + (16 + 4) + (16 + 200) + (16 + 200));
+
     /* captures are for the card only: on internal flash they are dropped, events still land */
     s_sd = false;
     sentinel_store_packet(&p);
     sentinel_store_event(&e, 0, 0, 0);
     sentinel_store_stats(&st);
-    CHECK(st.packets == 2 && st.packets_dropped == 2 && st.events == 3);
+    CHECK(st.packets == 3 && st.packets_dropped == 2 && st.events == 3);
 
     snprintf(cmd, sizeof(cmd), "rm -rf %s", root);
     if (system(cmd) != 0) printf("could not remove %s\n", root);
