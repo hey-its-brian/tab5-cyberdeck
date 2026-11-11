@@ -18,7 +18,7 @@
  * warnings into notices (the status bar count and a banner) that reach the
  * user in any app. That part is always in the safe posture.
  *
- * Screens: this file (gate, chooser), rf_overview.c, rf_log.c.
+ * Screens: this file (gate, chooser), rf_overview.c, rf_ble.c, rf_log.c.
  */
 #include "app_rf.h"
 
@@ -51,7 +51,7 @@ static const rf_tool_t s_tools[] = {
     {"WI-FI", "MONITOR, ANALYZER, DETECTORS", ICON_WIFI, "PHASE 3", NULL, NULL, NULL},
     {"SUB-GHZ", "SPECTRUM, SURVEY, TPMS", ICON_ANTENNA, "PHASE 5", NULL, NULL, NULL},
     {"2.4 GHZ", "SPECTRUM, SURVEY, JAM DETECT", ICON_GAUGE, "PHASE 5", NULL, NULL, NULL},
-    {"BLUETOOTH", "SCAN, TRACKERS, CAPTURE", ICON_WIRELESS, "PHASE 2", NULL, NULL, NULL},
+    {"BLUETOOTH", "SCAN, TRACKERS, CAPTURE", ICON_WIRELESS, NULL, rf_ble_build, rf_ble_destroy, rf_ble_key},
     {"LOG", "EVENTS ON STORAGE", ICON_HISTORY, NULL, rf_log_build, rf_log_destroy, rf_log_key},
 };
 #define TOOL_N    ((int)(sizeof(s_tools) / sizeof(s_tools[0])))
@@ -441,8 +441,8 @@ static void tile_tick(lv_timer_t *t)
         if (st->sub[i] > best) best = st->sub[i];
     for (int i = 0; i < SENTINEL_NRF_CH; i++)
         if (st->nrf[i] >= 4) busy++;
-    lv_label_set_text_fmt(s_tile.line, "GPS %d SATS %s    433 MHZ %d dBm    2.4 GHZ %d BUSY    WI-FI %u", st->sats_used,
-                          st->fix ? "FIX" : "NO FIX", best, busy, st->wifi_total);
+    lv_label_set_text_fmt(s_tile.line, "GPS %d SATS %s    433 MHZ %d dBm    2.4 GHZ %d BUSY    WI-FI %u    BLE %u", st->sats_used,
+                          st->fix ? "FIX" : "NO FIX", best, busy, st->wifi_total, st->ble_devices);
 }
 
 static void tile_deleted(lv_event_t *e)

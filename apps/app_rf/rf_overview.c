@@ -23,7 +23,7 @@ enum { CHIP_CC, CHIP_NRF, CHIP_GPS, CHIP_WIFI, CHIP_N };
 static const char *const s_chip_name[CHIP_N] = {"CC1101", "NRF24", "GPS", "WI-FI"};
 
 static struct {
-    lv_obj_t *link_word, *link_line, *chip[CHIP_N], *lines, *pins, *session, *hint;
+    lv_obj_t *link_word, *link_line, *chip[CHIP_N], *lines, *pins, *ble, *session, *hint;
     lv_obj_t *gps_sats, *gps_fix, *gps_q, *gps_pos, *gps_alt;
     lv_obj_t *wifi_sum, *ap_row[SENTINEL_AP_MAX];
     lv_obj_t *sub_now, *sub_peak, *sub_status;
@@ -140,6 +140,10 @@ static void render_link(void)
                           (unsigned)st->host_baud);
     lv_label_set_text_fmt(s_ui.pins, "TOOL %s  ::  GDO0 %d  GDO2 %d  NRF IRQ %s", tool, st->gdo0, st->gdo2,
                           st->nrf_irq ? "IDLE" : "LOW");
+
+    if (st->ble_ok) lv_label_set_text_fmt(s_ui.ble, "BLUETOOTH %u DEVICES  %u TRACKERS  %u ADVERTS/S", st->ble_devices, st->ble_trackers, st->ble_rate);
+    else lv_label_set_text(s_ui.ble, link ? "BLUETOOTH: NOT ON THIS NODE" : "BLUETOOTH --");
+    lv_obj_set_style_text_color(s_ui.ble, st->ble_ok && st->ble_trackers ? g_pal.warn : g_pal.dim, 0);
 
     /* The session: what was chosen at the gate, and whether the node agrees. */
     if (rf_mode() == RF_MODE_SAFE) {
@@ -308,6 +312,7 @@ static void build_left(lv_obj_t *col)
     lv_obj_set_width(s_ui.lines, LV_PCT(100));
     lv_label_set_long_mode(s_ui.lines, LV_LABEL_LONG_MODE_WRAP);
     s_ui.pins    = deck_label(p, g_font.mono_s, g_pal.dim, "");
+    s_ui.ble     = deck_label(p, g_font.mono_s, g_pal.dim, "");
     s_ui.session = deck_label(p, g_font.mono_s, g_pal.dim, "");
 
     /* GNSS */

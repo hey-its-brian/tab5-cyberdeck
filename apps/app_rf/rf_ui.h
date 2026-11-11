@@ -23,6 +23,12 @@ void rf_overview_build(lv_obj_t *parent);
 void rf_overview_destroy(void);
 bool rf_overview_key(const deck_key_t *k);
 
+/* BLUETOOTH: the BLE devices in earshot, trackers and surveillance devices
+ * labelled, capture to SD. Takes the node's radio full time while it is up. */
+void rf_ble_build(lv_obj_t *parent);
+void rf_ble_destroy(void);
+bool rf_ble_key(const deck_key_t *k);
+
 /* LOG: today's events file from storage, newest first. */
 void rf_log_build(lv_obj_t *parent);
 void rf_log_destroy(void);
