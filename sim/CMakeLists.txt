@@ -45,6 +45,14 @@ target_compile_definitions(lvgl PUBLIC LV_CONF_INCLUDE_SIMPLE)
 target_link_libraries(lvgl PUBLIC SDL2::SDL2 m) # libm: implicit on macOS, explicit on Linux
 target_compile_options(lvgl PRIVATE -w)
 
+# The portable RF Sentinel core and its unit tests, from the rf-sentinel submodule.
+if(NOT EXISTS "${ROOT}/external/rf-sentinel/sentinel_core/CMakeLists.txt")
+    message(FATAL_ERROR "external/rf-sentinel is empty: run git submodule update --init")
+endif()
+enable_testing()
+set(SENTINEL_CORE_TESTS ON)
+add_subdirectory(${ROOT}/external/rf-sentinel/sentinel_core sentinel_core)
+
 file(GLOB APP_SRCS "${ROOT}/apps/*/*.c")
 list(FILTER APP_SRCS EXCLUDE REGEX "term_link_ssh\\.c$")   # device link; the sim uses term_link_pty.c
 list(FILTER APP_SRCS EXCLUDE REGEX "term_chat_ollama\\.c$") # device chat; the sim uses term_chat_sim.c
@@ -61,7 +69,6 @@ add_executable(deck_sim
     net_sim.c
     ${ROOT}/components/deck_net/net_tools.c
     sentinel_sim.c
-    ${ROOT}/components/deck_sentinel/sentinel_proto.c
     ota_sim.c
     term_link_pty.c
     term_chat_sim.c
@@ -121,7 +128,7 @@ target_compile_definitions(deck_sim PRIVATE
     DECK_ASSET_DIR="${ROOT}/assets/fonts"
     DECK_SIM_SDCARD="${CMAKE_CURRENT_SOURCE_DIR}/sdcard")
 target_compile_options(deck_sim PRIVATE -Wall -Wextra -Wno-unused-parameter)
-target_link_libraries(deck_sim PRIVATE lvgl cjson vterm pthread m)
+target_link_libraries(deck_sim PRIVATE lvgl cjson vterm sentinel_core pthread m)
 if(NOT APPLE)
     target_link_libraries(deck_sim PRIVATE util) # forkpty (macOS has it in libc)
 endif()
@@ -149,11 +156,6 @@ target_include_directories(apps_test PRIVATE ${ROOT}/components/deck_core/includ
 target_compile_options(apps_test PRIVATE -Wall -Wextra)
 target_link_libraries(apps_test PRIVATE lvgl m)
 add_test(NAME app_model COMMAND apps_test)
-
-add_executable(sentinel_test sentinel_test.c ${ROOT}/components/deck_sentinel/sentinel_proto.c)
-target_include_directories(sentinel_test PRIVATE ${ROOT}/components/deck_sentinel/include)
-target_compile_options(sentinel_test PRIVATE -Wall -Wextra)
-add_test(NAME sentinel_proto COMMAND sentinel_test)
 
 add_executable(weather_test weather_test.c ${ROOT}/apps/app_weather/weather_data.c)
 target_include_directories(weather_test PRIVATE ${ROOT}/apps/app_weather ${ROOT}/components/deck_ui/include)

@@ -1,0 +1,3 @@
+[submodule "external/rf-sentinel"]
+	path = external/rf-sentinel
+	url = https://github.com/hey-its-brian/rf-sentinel.git
