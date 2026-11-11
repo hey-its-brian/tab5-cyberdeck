@@ -40,6 +40,7 @@ static struct {
     int      sel_index;     /* its place in the filtered list, kept when the device goes */
     bool     cap_wanted;
     uint32_t cap_base;      /* frames stored before this capture began */
+    uint32_t lost_base;     /* and frames lost before it began */
     int      shown[ROWS];   /* table index drawn on each row, -1 for none */
     int      match_n;
     sentinel_state_t  st;
@@ -101,15 +102,18 @@ static void render_summary(void)
     sentinel_store_stats_t log;
     sentinel_stats(&log);
     if (st->capture) {
-        lv_label_set_text_fmt(s_ble.capture, "CAPTURE ON  ::  %u FRAMES TO SD", (unsigned)(log.packets - s_ble.cap_base));
-        lv_obj_set_style_text_color(s_ble.capture, g_pal.accent, 0);
+        unsigned lost = (unsigned)(log.packets_dropped - s_ble.lost_base);
+        if (lost) lv_label_set_text_fmt(s_ble.capture, "CAPTURE ON  ::  %u FRAMES TO SD, %u LOST", (unsigned)(log.packets - s_ble.cap_base), lost);
+        else lv_label_set_text_fmt(s_ble.capture, "CAPTURE ON  ::  %u FRAMES TO SD", (unsigned)(log.packets - s_ble.cap_base));
+        lv_obj_set_style_text_color(s_ble.capture, lost ? g_pal.warn : g_pal.accent, 0);
     } else {
         /* Captured frames need the fast link; the core does not even ask on a slow one. */
         if (s_ble.cap_wanted && st->host_baud < SENTINEL_CAP_MIN_BAUD)
             lv_label_set_text_fmt(s_ble.capture, "CAPTURE NEEDS THE FAST LINK (NOW %u BAUD)", (unsigned)st->host_baud);
         else lv_label_set_text(s_ble.capture, s_ble.cap_wanted ? "CAPTURE: ASKING THE C5" : "CAPTURE OFF");
         lv_obj_set_style_text_color(s_ble.capture, s_ble.cap_wanted ? g_pal.warn : g_pal.dim, 0);
-        s_ble.cap_base = log.packets;
+        s_ble.cap_base  = log.packets;
+        s_ble.lost_base = log.packets_dropped;
     }
     lv_label_set_text_fmt(s_ble.filter_line, "SHOWING %s  ::  %d OF %d", s_filter_name[s_ble.filter], s_ble.match_n, s_ble.tab.n);
 }

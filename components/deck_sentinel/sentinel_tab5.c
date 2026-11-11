@@ -48,7 +48,10 @@ static const char *TAG = "sentinel";
 #define TX_BUF      256
 #define READ_CHUNK  512
 #define TICK_MS     100  /* how often the link machine runs */
-#define QUEUE_DEPTH 32   /* events and frames waiting for the writer */
+/* Events and frames waiting for the writer. A screen transition can keep
+ * the writer off the CPU for a few tenths of a second, and a Bluetooth
+ * capture brings about 180 frames a second: 128 slots is most of a second. */
+#define QUEUE_DEPTH 128
 
 /* One thing for the writer: an event with where it happened, or a frame. */
 typedef struct {
@@ -72,6 +75,9 @@ static TaskHandle_t      s_task, s_writer;
 static volatile bool     s_on;
 static bool              s_uart;
 static uint32_t          s_q_drop_events, s_q_drop_packets; /* the queue was full */
+/* The queue's storage: 36 KB, so in PSRAM (nothing here runs in an interrupt). */
+static uint8_t       s_queue_mem[QUEUE_DEPTH * sizeof(store_item_t)] DECK_PSRAM_BSS;
+static StaticQueue_t s_queue_ctl;
 /* The Bluetooth devices in earshot and the track watch: under s_lock, like the state. */
 static sentinel_blehost_t s_ble DECK_PSRAM_BSS;
 
@@ -238,7 +244,7 @@ void sentinel_start(void)
 {
     if (!s_lock) s_lock = xSemaphoreCreateMutex();
     if (s_on) return;
-    if (!s_queue) s_queue = xQueueCreate(QUEUE_DEPTH, sizeof(store_item_t));
+    if (!s_queue) s_queue = xQueueCreateStatic(QUEUE_DEPTH, sizeof(store_item_t), s_queue_mem, &s_queue_ctl);
     xSemaphoreTake(s_lock, portMAX_DELAY);
     sentinel_state_init(&s_state);
     s_lines.len = 0;
