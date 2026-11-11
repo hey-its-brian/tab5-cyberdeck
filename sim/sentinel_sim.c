@@ -12,8 +12,15 @@
  * transmit tests without one, and sends a captured beacon every few seconds
  * so the capture file path is exercised. The host side is the real link
  * machine (sentinel_host), and events and frames go to the real store.
+ *
+ * Bluetooth: a room of pretend advertisers (phones, headphones, a light, an
+ * AirTag away from its owner, a Tile, a SmartTag, and later an Axon camera
+ * and a Flock battery) whose hand-built advertisements go through the same
+ * table the C5 uses (sentinel_bleagg), so the BDV rows, the labels and the
+ * track watch are the real code. MODE,ble and CAP work as on the node.
  */
 #include "deck_sentinel.h"
+#include "sentinel_bleagg.h"
 #include "sentinel_cmd.h"
 #include "sentinel_host.h"
 #include "sentinel_proto.h"
@@ -34,6 +41,9 @@ static bool             s_quiet;
 static sentinel_host_t  s_host;     /* the deck's side of the link */
 static sentinel_arm_t   s_node_arm; /* the node's lease */
 static bool             s_node_armed_shown;
+static sentinel_bleagg_t  s_node_ble;  /* the node's Bluetooth table */
+static sentinel_blehost_t s_ble;       /* the deck's: devices and the track watch */
+static bool               s_node_ble_mode, s_node_cap;
 
 uint32_t sentinel_now_ms(void) { return lv_tick_get(); }
 
@@ -54,7 +64,13 @@ static void sink_packet(void *user, const sentinel_pkt_t *p)
     (void)user;
     sentinel_store_packet(p);
 }
-static const sentinel_sink_t s_sink = {sink_event, sink_packet, NULL};
+static const sentinel_sink_t s_sink;
+static void sink_device(void *user, const sentinel_bdv_t *d)
+{
+    (void)user;
+    sentinel_blehost_device(&s_ble, &s_state, d, sentinel_now_ms(), &s_sink);
+}
+static const sentinel_sink_t s_sink = {sink_event, sink_packet, sink_device, NULL};
 
 static void emit(const char *payload)
 {
@@ -79,6 +95,73 @@ static void emit_pkt(void)
     memcpy(p.data, beacon, sizeof(beacon));
     char payload[SENTINEL_LINE_MAX];
     if (sentinel_proto_pkt(payload, sizeof(payload), &p)) emit(payload);
+}
+
+/* ---- The pretend room, on Bluetooth ---------------------------------------- */
+
+typedef struct {
+    uint8_t addr[6];
+    bool    pub;
+    int8_t  rssi;
+    int     from_tick; /* walks into earshot at this tick */
+    uint8_t adv[SENTINEL_BLE_ADV_MAX];
+    uint8_t len;
+} sim_ble_t;
+
+#define APPLE(...) {2, 0x01, 0x1A, __VA_ARGS__}
+static sim_ble_t s_room[] = {
+    {{0x5A, 0x11, 0x0C, 0x33, 0x9E, 0x01}, false, -48, 0, APPLE(10, 0xFF, 0x4C, 0x00, 0x10, 0x05, 0x01, 0x18, 0x2A, 0x3B, 0x4C), 14},
+    {{0x6B, 0x47, 0xD2, 0x90, 0x12, 0x02}, false, -63, 0, APPLE(10, 0xFF, 0x4C, 0x00, 0x10, 0x05, 0x03, 0x1C, 0x5D, 0x6E, 0x7F), 14},
+    {{0xAC, 0x80, 0x0A, 0x41, 0x7C, 0x03}, true, -55, 0, {2, 0x01, 0x06, 11, 0x09, 'W', 'H', '-', '1', '0', '0', '0', 'X', 'M', '5', 5, 0xFF, 0x2D, 0x01, 0x04, 0x00}, 21},
+    {{0xD4, 0xAD, 0xFC, 0x08, 0x4A, 0x53}, true, -70, 0, {2, 0x01, 0x06, 12, 0x09, 'G', 'o', 'v', 'e', 'e', '_', 'H', '6', '0', '4', '6'}, 16},
+    /* an AirTag away from its owner: Find My, 25 bytes, status says AirTag */
+    {{0xE1, 0x7C, 0x55, 0x2B, 0x90, 0xA6}, false, -58, 4, {30, 0xFF, 0x4C, 0x00, 0x12, 0x19, 0x10, 0x8E, 0x21, 0x5F, 0x02, 0x6D, 0xB3, 0x47, 0x90, 0x1C, 0xE5, 0x38, 0x7A, 0x04, 0xD9, 0x66, 0x2F, 0xA1, 0x53, 0x0B, 0xC8, 0x72, 0x9D, 0x01, 0x4E}, 31},
+    {{0xF3, 0x02, 0x9A, 0x6E, 0x18, 0xC4}, false, -72, 0, {2, 0x01, 0x06, 3, 0x03, 0xED, 0xFE}, 7},
+    /* someone's AirPods case, owner near: the short Find My entry */
+    {{0x4D, 0x39, 0xB7, 0x05, 0xEE, 0x21}, false, -60, 0, APPLE(6, 0xFF, 0x4C, 0x00, 0x12, 0x02, 0x24, 0x02), 10},
+    {{0x7E, 0x93, 0x10, 0xC2, 0x5D, 0x88}, false, -80, 8, {2, 0x01, 0x06, 7, 0x16, 0x5A, 0xFD, 0x13, 0x00, 0x00, 0x01}, 11},
+    {{0x00, 0x25, 0xDF, 0x4A, 0x1B, 0x7E}, true, -74, 40, {2, 0x01, 0x06}, 3},
+    {{0xC8, 0x2E, 0x47, 0x91, 0x0D, 0x35}, false, -77, 80, {2, 0x01, 0x06, 15, 0x09, 'F', 'S', ' ', 'E', 'x', 't', ' ', 'B', 'a', 't', 't', 'e', 'r', 'y'}, 19},
+    {{0x51, 0xBE, 0x04, 0x7A, 0x66, 0x19}, false, -84, 0, {2, 0x01, 0x06, 5, 0xFF, 0x06, 0x00, 0x01, 0x09}, 9},
+    {{0x62, 0x0F, 0xE8, 0x33, 0x21, 0x4B}, false, -88, 0, {2, 0x01, 0x06, 5, 0xFF, 0x75, 0x00, 0x42, 0x04}, 9},
+    {{0x48, 0xD7, 0x1C, 0xA9, 0x05, 0x77}, false, -91, 0, {2, 0x01, 0x04}, 3},
+};
+#define ROOM_N ((int)(sizeof(s_room) / sizeof(s_room[0])))
+
+/* One quarter second of the room: who spoke, and what the node makes of it. */
+static void ble_tick(void)
+{
+    uint32_t now = sentinel_now_ms();
+    for (int i = 0; i < ROOM_N; i++) {
+        sim_ble_t *d = &s_room[i];
+        if (s_tick < d->from_tick || rnd(3) == 0) continue; /* not here yet, or not heard this time */
+        int8_t rssi = (int8_t)(d->rssi - 3 + (int)rnd(7));
+        sentinel_bleagg_feed(&s_node_ble, d->addr, d->pub, rssi, d->adv, d->len, now);
+        if (s_node_cap) { /* the same advertisement, as a captured packet */
+            sentinel_pkt_t p = {.link = SENTINEL_LINK_BLE, .ch = 37, .rssi = rssi, .us = (lv_tick_get() - s_started) * 1000u + (uint32_t)i};
+            p.len = p.orig_len = (uint16_t)sentinel_ble_ll_frame(p.data, sizeof(p.data), d->addr, d->pub, 0, d->adv, d->len);
+            char payload[SENTINEL_LINE_MAX];
+            if (p.len && sentinel_proto_pkt(payload, sizeof(payload), &p)) emit(payload);
+        }
+    }
+    sentinel_bdv_t row;
+    char           payload[96];
+    for (int i = 0; i < 4 && sentinel_bleagg_next(&s_node_ble, now, &row); i++)
+        if (sentinel_proto_bdv(payload, sizeof(payload), &row)) emit(payload);
+    if (s_tick % 8 == 3) {
+        sentinel_ble_summary_t sum;
+        sentinel_bleagg_summary(&s_node_ble, now, &sum);
+        snprintf(payload, sizeof(payload), "BLE,%u,%u,%u,%d", sum.devices, sum.rate, sum.trackers, sum.strongest);
+        emit(payload);
+    }
+}
+
+static void node_capture(bool on)
+{
+    if (s_node_cap == on) return;
+    s_node_cap = on;
+    emit(on ? "CAP,1" : "CAP,0");
+    printf("[sim] sentinel capture %d\n", on);
 }
 
 /* The lease as the node sees it: say so when it runs out, and show changes. */
@@ -149,8 +232,9 @@ static void tick(lv_timer_t *t)
     if (up < 2) return; /* the C5 is booting: commands sent now are lost */
     for (int i = 0; i < out.n_send; i++) sentinel_send(out.send[i]);
     node_arm_tick();
-    if (s_tick == 0) emit("HELLO,0.3.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1");
+    if (s_tick == 0) emit("HELLO,0.4.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1");
     if (s_tick % 20 == 15) emit_pkt();
+    ble_tick();
     if (!s_quiet) {
         emit_sub();
         if (s_tick % 8 == 7) emit_nrf();
@@ -190,6 +274,9 @@ void sentinel_start(void)
     s_started = lv_tick_get();
     sentinel_host_init(&s_host, SENTINEL_BAUD_FAST);
     sentinel_arm_set(&s_node_arm, false, 0, 0);
+    sentinel_bleagg_init(&s_node_ble);
+    sentinel_blehost_init(&s_ble);
+    s_node_ble_mode = s_node_cap = false;
     s_timer   = lv_timer_create(tick, 250, NULL);
     printf("[sim] sentinel on\n");
 }
@@ -225,6 +312,26 @@ void sentinel_note(bool warn, const char *text)
 
 void sentinel_stats(sentinel_store_stats_t *out) { sentinel_store_stats(out); }
 
+void sentinel_tool(const char *mode) { sentinel_host_mode(&s_host, mode); }
+void sentinel_capture(bool on) { sentinel_host_capture(&s_host, on); }
+
+void sentinel_ble_table(sentinel_bletab_t *out)
+{
+    sentinel_bletab_expire(&s_ble.tab, sentinel_now_ms());
+    memcpy(out, &s_ble.tab, sizeof(*out));
+    sentinel_bletab_sort(out);
+}
+
+bool sentinel_ble_track(const uint8_t addr[6], sentinel_track_t *out)
+{
+    const sentinel_track_t *t = sentinel_trackwatch_find(&s_ble.watch, addr);
+    if (t) *out = *t;
+    return t != NULL;
+}
+
+bool sentinel_ble_mine(const uint8_t addr[6]) { return sentinel_trackwatch_mine(&s_ble.watch, addr); }
+void sentinel_ble_set_mine(const uint8_t addr[6], bool mine) { sentinel_trackwatch_set_mine(&s_ble.watch, addr, mine); }
+
 /* What the node does with a command (rf-sentinel main/main.cpp, handle_cmd). */
 bool sentinel_send(const char *payload)
 {
@@ -234,7 +341,7 @@ bool sentinel_send(const char *payload)
     uint32_t       now = sentinel_now_ms();
     char           buf[64];
     switch (c.id) {
-        case SENTINEL_CMD_HELLO: emit("HELLO,0.3.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1"); break;
+        case SENTINEL_CMD_HELLO: emit("HELLO,0.4.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1"); break;
         case SENTINEL_CMD_PING: emit("PONG,1234"); break;
         case SENTINEL_CMD_QUIET: s_quiet = true; break;
         case SENTINEL_CMD_STREAM: s_quiet = false; break;
@@ -246,7 +353,23 @@ bool sentinel_send(const char *payload)
             snprintf(buf, sizeof(buf), "BAUD,%ld", c.value);
             emit(buf);
             break;
-        case SENTINEL_CMD_MODE: emit(c.valid && !strcmp(c.arg, "watch") ? "MODE,watch" : "ERR,unknown mode"); break;
+        case SENTINEL_CMD_MODE:
+            if (c.valid && (!strcmp(c.arg, "watch") || !strcmp(c.arg, "ble"))) {
+                bool ble = c.arg[0] == 'b';
+                if (!ble) node_capture(false); /* capture belongs to the tool that asked for it */
+                if (ble != s_node_ble_mode) printf("[sim] sentinel mode %s\n", c.arg);
+                s_node_ble_mode = ble;
+                emit(ble ? "MODE,ble" : "MODE,watch");
+            } else {
+                emit("ERR,unknown mode");
+            }
+            break;
+        case SENTINEL_CMD_CAP:
+            if (!c.valid) emit("ERR,bad cap");
+            else if (c.value == 0) s_node_cap ? node_capture(false) : emit("CAP,0");
+            else if (!s_node_ble_mode) emit("ERR,capture needs mode ble");
+            else s_node_cap ? emit("CAP,1") : node_capture(true);
+            break;
         case SENTINEL_CMD_ARM: {
             if (!c.valid) {
                 emit("ERR,bad arm");

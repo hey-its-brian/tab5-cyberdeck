@@ -106,10 +106,15 @@ void sentinel_store_packet(const sentinel_pkt_t *p)
         return;
     }
     uint32_t sec, usec;
-    uint8_t  rec[SENTINEL_PCAP_RECORD];
+    uint8_t  rec[SENTINEL_PCAP_RECORD], radio[SENTINEL_PCAP_BLE_PHDR];
+    /* Bluetooth packets go behind a radio header that carries the signal
+     * and admits the CRC was never seen; it counts as part of the packet. */
+    size_t prefix = sentinel_pcap_prefix(p->link);
+    if (prefix) sentinel_pcap_ble_phdr(radio, p->rssi);
     sentinel_pcap_time(&s_cap[p->link].clock, (uint32_t)time(NULL), p->us, &sec, &usec);
-    sentinel_pcap_record(rec, sec, usec, p->len, p->orig_len);
-    if (fwrite(rec, 1, sizeof(rec), f) != sizeof(rec) || fwrite(p->data, 1, p->len, f) != p->len) {
+    sentinel_pcap_record(rec, sec, usec, (uint32_t)(prefix + p->len), (uint32_t)(prefix + p->orig_len));
+    if (fwrite(rec, 1, sizeof(rec), f) != sizeof(rec) || (prefix && fwrite(radio, 1, prefix, f) != prefix) ||
+        fwrite(p->data, 1, p->len, f) != p->len) {
         /* The card filled up or went away: close, and let the next packet try a new file. */
         fclose(f);
         s_cap[p->link].f = NULL;

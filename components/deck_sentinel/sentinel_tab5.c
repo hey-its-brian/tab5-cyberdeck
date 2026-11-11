@@ -21,6 +21,7 @@
 
 #include <string.h>
 
+#include "deck_attr.h"
 #include "deck_hal.h"
 #include "driver/gpio.h"
 #include "driver/uart.h"
@@ -71,6 +72,8 @@ static TaskHandle_t      s_task, s_writer;
 static volatile bool     s_on;
 static bool              s_uart;
 static uint32_t          s_q_drop_events, s_q_drop_packets; /* the queue was full */
+/* The Bluetooth devices in earshot and the track watch: under s_lock, like the state. */
+static sentinel_blehost_t s_ble DECK_PSRAM_BSS;
 
 uint32_t sentinel_now_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
 
@@ -151,7 +154,28 @@ static void sink_packet(void *user, const sentinel_pkt_t *p)
     if (!s_queue || xQueueSend(s_queue, &it, 0) != pdTRUE) s_q_drop_packets++;
 }
 
-static const sentinel_sink_t s_sink = {sink_event, sink_packet, NULL};
+static const sentinel_sink_t s_sink;
+
+/* A Bluetooth device row: the table, the track watch, and an event when the
+ * watch fires (which comes straight back through sink_event). */
+static void sink_device(void *user, const sentinel_bdv_t *d)
+{
+    (void)user;
+    sentinel_blehost_device(&s_ble, &s_state, d, sentinel_now_ms(), &s_sink);
+}
+
+static const sentinel_sink_t s_sink = {sink_event, sink_packet, sink_device, NULL};
+
+/* The addresses the user marked as their own, kept across restarts. */
+static void mine_load(void)
+{
+    uint8_t buf[SENTINEL_MINE_MAX * 6];
+    size_t  len = sizeof(buf);
+    s_ble.watch.mine_n = 0;
+    if (!hal_cfg_get_blob("rf_mine", buf, &len) || len % 6 || len > sizeof(buf)) return;
+    memcpy(s_ble.watch.mine, buf, len);
+    s_ble.watch.mine_n = (int)(len / 6);
+}
 
 static void writer(void *arg)
 {
@@ -220,6 +244,8 @@ void sentinel_start(void)
     s_lines.len = 0;
     /* "rf_baud" is an escape hatch: set it to 115200 to never negotiate. */
     sentinel_host_init(&s_host, (uint32_t)hal_cfg_get_i32("rf_baud", SENTINEL_BAUD_FAST));
+    sentinel_blehost_init(&s_ble);
+    mine_load();
     xSemaphoreGive(s_lock);
 
     lines_init();
@@ -291,6 +317,64 @@ void sentinel_note(bool warn, const char *text)
     xSemaphoreTake(s_lock, portMAX_DELAY);
     sentinel_push_event(&s_state, warn, "deck", text, sentinel_now_ms(), &s_sink);
     xSemaphoreGive(s_lock);
+}
+
+void sentinel_tool(const char *mode)
+{
+    if (!s_lock) return;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    sentinel_host_mode(&s_host, mode);
+    xSemaphoreGive(s_lock);
+}
+
+void sentinel_capture(bool on)
+{
+    if (!s_lock) return;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    sentinel_host_capture(&s_host, on);
+    xSemaphoreGive(s_lock);
+}
+
+void sentinel_ble_table(sentinel_bletab_t *out)
+{
+    out->n = 0;
+    if (!s_lock) return;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    sentinel_bletab_expire(&s_ble.tab, sentinel_now_ms());
+    memcpy(out, &s_ble.tab, sizeof(*out));
+    xSemaphoreGive(s_lock);
+    sentinel_bletab_sort(out); /* on the caller's copy, outside the lock */
+}
+
+bool sentinel_ble_track(const uint8_t addr[6], sentinel_track_t *out)
+{
+    if (!s_lock) return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    const sentinel_track_t *t = sentinel_trackwatch_find(&s_ble.watch, addr);
+    if (t) *out = *t;
+    xSemaphoreGive(s_lock);
+    return t != NULL;
+}
+
+bool sentinel_ble_mine(const uint8_t addr[6])
+{
+    if (!s_lock) return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    bool mine = sentinel_trackwatch_mine(&s_ble.watch, addr);
+    xSemaphoreGive(s_lock);
+    return mine;
+}
+
+void sentinel_ble_set_mine(const uint8_t addr[6], bool mine)
+{
+    if (!s_lock) return;
+    uint8_t buf[SENTINEL_MINE_MAX * 6];
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    sentinel_trackwatch_set_mine(&s_ble.watch, addr, mine);
+    size_t len = (size_t)s_ble.watch.mine_n * 6;
+    memcpy(buf, s_ble.watch.mine, len);
+    xSemaphoreGive(s_lock);
+    hal_cfg_set_blob("rf_mine", len ? buf : NULL, len); /* settings writes can be slow: not under the lock */
 }
 
 void sentinel_stats(sentinel_store_stats_t *out)

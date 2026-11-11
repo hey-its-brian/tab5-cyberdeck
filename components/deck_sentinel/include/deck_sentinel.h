@@ -27,6 +27,7 @@
  */
 #pragma once
 
+#include "sentinel_blehost.h"
 #include "sentinel_core.h"
 #include "sentinel_proto.h"
 #include "sentinel_store.h"
@@ -71,6 +72,26 @@ void sentinel_note(bool warn, const char *text);
 
 /* What reached storage and what did not (store losses plus a full queue). */
 void sentinel_stats(sentinel_store_stats_t *out);
+
+/* ---- Bluetooth ----------------------------------------------------------- */
+
+/* Which tool owns the node's 2.4 GHz radio: "watch" (shared between the
+ * Wi-Fi presence scan and a Bluetooth scan, the background state) or "ble"
+ * (Bluetooth full time, for the BLUETOOTH tool). Asked until the node
+ * agrees; sentinel_start() begins in "watch". */
+void sentinel_tool(const char *mode);
+/* Have the node stream every advertisement, written to a pcap file on the
+ * SD card. Only does anything in the "ble" tool. */
+void sentinel_capture(bool on);
+
+/* The devices in earshot: a copy, devices silent for a minute dropped,
+ * strongest first. The table is 4 KB: give it static or PSRAM storage. */
+void sentinel_ble_table(sentinel_bletab_t *out);
+/* What the track watch knows about a tracker; false if it is not one. */
+bool sentinel_ble_track(const uint8_t addr[6], sentinel_track_t *out);
+/* "This one is mine": no alerts for it. Saved in settings ("rf_mine"). */
+bool sentinel_ble_mine(const uint8_t addr[6]);
+void sentinel_ble_set_mine(const uint8_t addr[6], bool mine);
 
 #ifdef __cplusplus
 }

@@ -130,12 +130,34 @@ int main(void)
     }
     CHECK(files >= 1 && total == 24 * files + (16 + 4) + (16 + 200) + (16 + 200));
 
+    /* A Bluetooth capture: link type 256, and each packet behind its 10-byte radio header. */
+    sentinel_pkt_t b = {.link = SENTINEL_LINK_BLE, .ch = 37, .rssi = -61, .us = 5000, .orig_len = 18, .len = 18};
+    memset(b.data, 0x5A, 18);
+    sentinel_store_packet(&b);
+    sentinel_store_close();
+    snprintf(cmd, sizeof(cmd), "ls %s/sentinel/cap-ble-*.pcap", root);
+    ls = popen(cmd, "r");
+    cap[0] = 0;
+    CHECK(ls && fgets(cap, sizeof(cap), ls));
+    if (ls) pclose(ls);
+    cap[strcspn(cap, "\n")] = 0;
+    CHECK(file_size(cap) == 24 + 16 + 10 + 18);
+    f = fopen(cap, "rb");
+    if (f) {
+        unsigned char h[24 + 16 + 10];
+        CHECK(fread(h, 1, sizeof(h), f) == sizeof(h));
+        CHECK(h[20] == 0x00 && h[21] == 0x01);        /* link type 256 */
+        CHECK(h[24 + 8] == 28 && h[24 + 12] == 28);   /* lengths include the radio header */
+        CHECK(h[40 + 1] == 0xC3 && h[40 + 8] == 0x13); /* -61 dBm; flags: CRC not checked */
+        fclose(f);
+    }
+
     /* captures are for the card only: on internal flash they are dropped, events still land */
     s_sd = false;
     sentinel_store_packet(&p);
     sentinel_store_event(&e, 0, 0, 0);
     sentinel_store_stats(&st);
-    CHECK(st.packets == 3 && st.packets_dropped == 2 && st.events == 3);
+    CHECK(st.packets == 4 && st.packets_dropped == 2 && st.events == 3);
 
     snprintf(cmd, sizeof(cmd), "rm -rf %s", root);
     if (system(cmd) != 0) printf("could not remove %s\n", root);
