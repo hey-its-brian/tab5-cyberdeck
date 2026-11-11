@@ -206,7 +206,8 @@ transmits is aimed at one chosen target, only in a RED TEAM session with
 the arm lease held. The full list is in the rf-sentinel ROADMAP; each phase
 adds a tool behind one of the placeholder tiles.
 
-- [ ] Phase 2, BLUETOOTH: scan, tracker alert (AirTag and friends), Flock and Axon detect, capture to pcap
+- [x] Phase 2, BLUETOOTH (with rf-sentinel 0.4.0): a passive scan on the C5, every advertiser listed with what it is, trackers and surveillance devices labelled, a warning when a tracker stays with the deck (ten minutes and 300 m, or thirty minutes without a fix), mark-as-mine, capture to pcap; detection runs in the background
+- [x] Checkpoint on hardware (2026-11-11): 62 real devices listed with names and vendors, Find My devices told apart by whether their owner is near, about 30 advertisements a second while sharing the radio with Wi-Fi and about 190 with the tool open, 2,057 frames captured to SD in 12 s with none lost, the radio handed back on leaving. The following rule is covered by tests only: it cannot be walked on a bench
 - [ ] Phase 3, WI-FI: packet monitor waterfall, channel analyzer, drone detect, attack detectors, honeypot
 - [ ] Phase 4: wardriving across every radio with GPS, record-only
 - [ ] Phase 5, SUB-GHZ and 2.4 GHZ: spectrum analyzer with history, IoT site survey, TPMS (433.92 MHz), jam detection

@@ -56,9 +56,22 @@ health, the session, GNSS (fix, satellites, position, C/N0), the networks
 the C5 hears, the 433 MHz sweep (21 channels with peak hold), 2.4 GHz
 occupancy (126 channels of nRF24 carrier detect) and the newest events;
 `H` asks the C5 for HELLO, `P` pings it, `T` knocks on the transmit gate.
-**LOG** shows today's events from storage, newest first, with where the
-deck was. WI-FI, SUB-GHZ, 2.4 GHZ and BLUETOOTH are placeholders for the
+**BLUETOOTH** lists every BLE advertiser in earshot, strongest first, and
+labels what it recognises: trackers away from their owner (AirTag and other
+Find My tags, SmartTag, Tile, Chipolo, Google trackers) in yellow,
+surveillance devices (Flock by name, Axon by address prefix) in red. `F`
+filters, `M` marks a device as yours so it never alerts, `C` records every
+advertisement to a pcap file on the SD card. The scan is passive: the C5
+sends nothing. **LOG** shows today's events from storage, newest first, with
+where the deck was. WI-FI, SUB-GHZ and 2.4 GHZ are placeholders for the
 phases in the rf-sentinel ROADMAP.
+
+Tracker and surveillance detection run in the background too, in any app.
+A tracker heard for the first time is a line in the log. A tracker that
+stays with you is a warning: heard for ten minutes while the deck moved
+300 m, or for thirty minutes when there is no GPS fix to tell moving from
+sitting still. A label is a match against a published format, not proof,
+and a tracker that changes its address starts over as a new device.
 
 While RF WATCH is switched on in SETTINGS > APPLICATIONS the board is
 powered (EXT5V on the bus, CC1101 front end in receive: RX_EN on G16 high,
@@ -77,6 +90,8 @@ keyboard and nothing makes a sound. Switching the app off cuts EXT5V.
 | OVERVIEW | A warning while in TERMINAL |
 |---|---|
 | ![RF WATCH overview](docs/screenshots/rf_overview.png) | ![Notice banner](docs/screenshots/rf_banner.png) |
+
+![RF WATCH Bluetooth](docs/screenshots/rf_bluetooth.png)
 
 The protocol, the state record, the link state machine and the log formats
 are `sentinel_core`, a portable library in the rf-sentinel repo that the C5

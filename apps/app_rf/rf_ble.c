@@ -59,7 +59,7 @@ static lv_color_t kind_color(const sentinel_bdv_t *d, bool mine)
     if (mine) return g_pal.ok;
     if (sentinel_ble_is_surveillance(d->kind)) return g_pal.danger;
     if (sentinel_ble_is_tracker(d->kind)) return g_pal.warn;
-    return d->kind == SENTINEL_BLE_UNKNOWN ? g_pal.text : g_pal.accent2;
+    return d->kind == SENTINEL_BLE_UNKNOWN ? g_pal.text : g_pal.accent; /* recognised and harmless */
 }
 
 static void upper(char *s)
@@ -264,7 +264,7 @@ void rf_ble_build(lv_obj_t *parent)
     s_ble.sel_kind  = deck_label(p, g_font.disp_s, g_pal.text, "");
     s_ble.sel_who   = deck_label(p, g_font.mono_s, g_pal.text, "");
     s_ble.sel_sig   = deck_label(p, g_font.mono_s, g_pal.dim, "");
-    s_ble.sel_track = deck_label(p, g_font.mono_s, g_pal.accent2, "");
+    s_ble.sel_track = deck_label(p, g_font.mono_s, g_pal.dim, "");
     lv_obj_t *wrap[] = {s_ble.sel_who, s_ble.sel_track, s_ble.sel_kind};
     for (size_t i = 0; i < sizeof(wrap) / sizeof(wrap[0]); i++) {
         lv_obj_set_width(wrap[i], LV_PCT(100));

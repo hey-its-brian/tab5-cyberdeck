@@ -101,3 +101,11 @@ a fix, marking, and address rotation. Simulator screenshots of the tool.
 Hardware: the C5 lists the real devices in the room, the deck shows them,
 capture writes frames. The following rule cannot be walked on the bench; it
 is covered by the core tests only.
+
+## As built (2026-11-11)
+
+Built as designed. On the Tab5 board the C5's table (48 devices) fills in a
+flat with many neighbours; the deck's table holds 96, so it keeps devices
+the node has already let go of for up to a minute. Flock and Axon labels
+and the following rule are untested against the real thing: no such device
+was in the room and the bench cannot walk.
