@@ -21,6 +21,7 @@
 #include "deck_attr.h"
 #include "deck_theme.h"
 #include "deck_widgets.h"
+#include "sentinel_cmd.h"
 
 #define TICK_MS 500
 #define ROWS    15
@@ -103,7 +104,10 @@ static void render_summary(void)
         lv_label_set_text_fmt(s_ble.capture, "CAPTURE ON  ::  %u FRAMES TO SD", (unsigned)(log.packets - s_ble.cap_base));
         lv_obj_set_style_text_color(s_ble.capture, g_pal.accent, 0);
     } else {
-        lv_label_set_text(s_ble.capture, s_ble.cap_wanted ? "CAPTURE: ASKING THE C5" : "CAPTURE OFF");
+        /* Captured frames need the fast link; the core does not even ask on a slow one. */
+        if (s_ble.cap_wanted && st->host_baud < SENTINEL_CAP_MIN_BAUD)
+            lv_label_set_text_fmt(s_ble.capture, "CAPTURE NEEDS THE FAST LINK (NOW %u BAUD)", (unsigned)st->host_baud);
+        else lv_label_set_text(s_ble.capture, s_ble.cap_wanted ? "CAPTURE: ASKING THE C5" : "CAPTURE OFF");
         lv_obj_set_style_text_color(s_ble.capture, s_ble.cap_wanted ? g_pal.warn : g_pal.dim, 0);
         s_ble.cap_base = log.packets;
     }
