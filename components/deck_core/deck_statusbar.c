@@ -1,6 +1,7 @@
 /*
  * HUD status bar: brand or back button on the left, clock in the middle,
- * hardware indicators on the right. Refreshes once a second.
+ * hardware indicators on the right, plus an app's flag and the count of
+ * unseen warnings (deck_notice.h). Refreshes once a second.
  */
 #include "deck_statusbar.h"
 
@@ -15,6 +16,7 @@
 #include "deck_audio.h"
 #include "deck_portal.h"
 #include "deck_icons.h"
+#include "deck_notice.h"
 #include "deck_shell.h"
 #include "deck_theme.h"
 #include "deck_saver.h"
@@ -34,6 +36,8 @@ static lv_obj_t *s_pwr;
 static lv_obj_t *s_upd;
 static lv_obj_t *s_link;
 static lv_obj_t *s_music;
+static lv_obj_t *s_flag;  /* an app's standing flag, e.g. RED TEAM */
+static lv_obj_t *s_alert; /* unseen warnings */
 static lv_timer_t *s_timer;
 
 static void back_clicked(lv_event_t *e)
@@ -50,6 +54,13 @@ static void music_clicked(lv_event_t *e)
         /* switched off mid-track, the indicator can show for one more tick */
         if (strcmp(a->name, "PLAYER") == 0 && deck_app_enabled(a) && deck_shell_current() != a) deck_shell_launch(a);
     }
+}
+
+static void alert_clicked(lv_event_t *e)
+{
+    (void)e;
+    deck_app_t *a = deck_notice_app();
+    if (a && deck_app_enabled(a) && deck_shell_current() != a) deck_shell_launch(a);
 }
 
 static void clock_clicked(lv_event_t *e)
@@ -167,6 +178,23 @@ static void refresh(lv_timer_t *t)
         lv_obj_add_flag(s_link, LV_OBJ_FLAG_HIDDEN);
     }
 
+    const char *flag = deck_notice_flag();
+    if (flag) {
+        lv_obj_remove_flag(s_flag, LV_OBJ_FLAG_HIDDEN);
+        set_indicator(s_flag, ICON_BOLT, flag, g_pal.danger);
+    } else {
+        lv_obj_add_flag(s_flag, LV_OBJ_FLAG_HIDDEN);
+    }
+    unsigned unseen = deck_notice_unseen();
+    if (unseen) {
+        char count[12];
+        snprintf(count, sizeof(count), "%u", unseen > 99 ? 99 : unseen);
+        lv_obj_remove_flag(s_alert, LV_OBJ_FLAG_HIDDEN);
+        set_indicator(s_alert, ICON_ALERT, count, g_pal.warn);
+    } else {
+        lv_obj_add_flag(s_alert, LV_OBJ_FLAG_HIDDEN);
+    }
+
     hal_power_t p;
     hal_power_read(&p);
     char buf[32];
@@ -268,6 +296,12 @@ void deck_statusbar_create(lv_obj_t *parent)
     lv_obj_add_event_cb(s_music, music_clicked, LV_EVENT_CLICKED, NULL);
     s_link = indicator(right);
     lv_obj_add_flag(s_link, LV_OBJ_FLAG_HIDDEN);
+    s_flag = indicator(right); /* while an app holds a flag up */
+    lv_obj_add_flag(s_flag, LV_OBJ_FLAG_HIDDEN);
+    s_alert = indicator(right); /* unseen warnings; tap opens the app that raised them */
+    lv_obj_add_flag(s_alert, LV_OBJ_FLAG_HIDDEN | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(s_alert, 10);
+    lv_obj_add_event_cb(s_alert, alert_clicked, LV_EVENT_CLICKED, NULL);
     s_kbd = indicator(right);
     s_sd  = indicator(right);
     s_net = indicator(right);
@@ -281,6 +315,11 @@ void deck_statusbar_create(lv_obj_t *parent)
 void deck_statusbar_set_path(deck_group_t *group, deck_app_t *app)
 {
     if (s_left) build_left(group, app);
+}
+
+void deck_statusbar_refresh(void)
+{
+    if (s_timer) lv_timer_ready(s_timer);
 }
 
 void deck_statusbar_destroy(void)

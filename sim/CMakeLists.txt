@@ -97,6 +97,7 @@ add_executable(deck_sim
     ${ROOT}/components/deck_core/deck_boot.c
     ${ROOT}/components/deck_core/deck_stub.c
     ${ROOT}/components/deck_core/deck_modal.c
+    ${ROOT}/components/deck_core/deck_notice.c
     ${ROOT}/components/deck_md/deck_md.c
     ${ROOT}/components/deck_sync/deck_sync.c
     ${ROOT}/components/deck_sync/ls_sync.c
