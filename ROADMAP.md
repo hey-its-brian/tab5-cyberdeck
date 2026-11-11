@@ -160,7 +160,7 @@ Home screen first, then the two modules, one at a time.
 - [x] The NET TOOLS tile became a WIRELESS group: NET TOOLS plus RF WATCH, the Sentinel M5-Bus board (placeholder until the PCB exists)
 - [ ] Checkpoint on hardware: scan, ping the router, trace to github.com, sweep the LAN, run a speed test
 - [x] RF WATCH (v1.5): the $RFS link to the Stamp C5 over the M5-Bus UART (G6/G7), EXT5V on, sub-GHz sweep, 2.4 GHz occupancy, GPS, events; the E07 RX_EN/TX_EN and GDO lines on G16/G17/G45/G52/G4 (`components/deck_sentinel`, a fake board in the sim, a parser test)
-- [ ] Checkpoint on hardware: board plugged in, RF WATCH switched on, EXT5V and RX_EN measured, HELLO within a few seconds, the two sweeps and the GPS live on screen; switched off, pin 28 drops
+- [x] Checkpoint on hardware: board plugged in, RF WATCH switched on, HELLO within a few seconds, the two sweeps, the C5's Wi-Fi list and the GPS live on screen; switched off, the board loses power (the C5 side needed rf-sentinel b6e10c3 and the JP1 jumper on TAB5)
 - [x] Obsidian sync: NOTES picks LOCAL (`/notes`) or VAULT (`/vault`); the vault syncs with Obsidian Self-hosted LiveSync (CouchDB) in the plugin's own format (chunks, E2EE v2, matching chunk ids), behind a sync-backend interface so other platforms can follow
 - [x] NOTES browses folders (Enter opens, Backspace goes up)
 - [x] Checkpoint in the simulator: pull, push, delete and a two-sided conflict against a seeded database, verified by the plugin's own JavaScript (chunks decrypt, ids match)
