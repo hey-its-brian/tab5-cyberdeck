@@ -1,12 +1,20 @@
 /*
  * deck_sentinel on the Tab5: EXT5V, the E07 control lines, UART1 on the
- * M5-Bus and a reader task that feeds the parser.
+ * M5-Bus, a reader task that feeds the parser and runs the link machine,
+ * and a writer task that puts events and captured frames on storage.
+ *
+ * Two tasks because an SD card can stall for a tenth of a second while it
+ * allocates clusters, and at 921600 baud that is nine kilobytes of UART
+ * arriving. The reader never touches a file: the parser's sink copies each
+ * event and frame into a queue and the writer drains it.
  *
  * Order matters at start: TX_EN low and RX_EN high first (the radios sit on
  * the bus 3V3 rail and are already powered), then EXT5V for the C5 and GPS,
  * then the UART. The C5 says HELLO once at boot; if EXT5V was already on
- * (the board driver leaves it high) that HELLO is long gone, so the task
- * asks for one every few seconds until it gets an answer.
+ * (the board driver leaves it high) that HELLO is long gone, so the link
+ * machine (sentinel_host in the core) asks for one every few seconds until
+ * it gets an answer. The same machine moves the link to 921600 baud once
+ * the node is known to speak protocol 2, and back if that does not hold.
  */
 #include "deck_sentinel.h"
 #include "sentinel_proto.h"
@@ -19,8 +27,10 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "sentinel_host.h"
 
 static const char *TAG = "sentinel";
 
@@ -33,18 +43,34 @@ static const char *TAG = "sentinel";
 #define PIN_NRF_IRQ GPIO_NUM_4  /* M5-Bus 20, nRF24 IRQ, active low */
 
 #define UART_PORT   UART_NUM_1
-#define UART_BAUD   115200
-#define RX_BUF      2048 /* driver ring: a burst of SUB + NRF + 8 WAP fits twice over */
+#define RX_BUF      8192 /* driver ring: 90 ms of a saturated link at 921600 baud */
 #define TX_BUF      256
-#define READ_CHUNK  256
-#define HELLO_MS    5000 /* re-ask for HELLO this often until one arrives */
+#define READ_CHUNK  512
+#define TICK_MS     100  /* how often the link machine runs */
+#define QUEUE_DEPTH 32   /* events and frames waiting for the writer */
+
+/* One thing for the writer: an event with where it happened, or a frame. */
+typedef struct {
+    bool is_packet;
+    union {
+        struct {
+            sentinel_event_t e;
+            uint8_t          fix;
+            double           lat, lon;
+        } ev;
+        sentinel_pkt_t pkt;
+    } u;
+} store_item_t;
 
 static sentinel_state_t  s_state;
 static sentinel_lines_t  s_lines;
+static sentinel_host_t   s_host;  /* under s_lock, like the state */
 static SemaphoreHandle_t s_lock;
-static TaskHandle_t      s_task;
+static QueueHandle_t     s_queue;
+static TaskHandle_t      s_task, s_writer;
 static volatile bool     s_on;
 static bool              s_uart;
+static uint32_t          s_q_drop_events, s_q_drop_packets; /* the queue was full */
 
 uint32_t sentinel_now_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
 
@@ -82,7 +108,7 @@ static bool uart_init(void)
 {
     if (s_uart) return true;
     uart_config_t cfg = {
-        .baud_rate  = UART_BAUD,
+        .baud_rate  = SENTINEL_BAUD_DEFAULT,
         .data_bits  = UART_DATA_8_BITS,
         .parity     = UART_PARITY_DISABLE,
         .stop_bits  = UART_STOP_BITS_1,
@@ -101,29 +127,86 @@ static bool uart_init(void)
     return true;
 }
 
+/* ---- Storage: the parser's sink fills a queue, the writer empties it ------ */
+
+/* Both run in the reader task with s_lock held, so they only copy. */
+static void sink_event(void *user, const sentinel_event_t *e)
+{
+    (void)user;
+    static store_item_t it; /* static: 280 bytes the reader's stack need not carry */
+    it.is_packet = false;
+    it.u.ev.e    = *e;
+    it.u.ev.fix  = s_state.fix;
+    it.u.ev.lat  = s_state.lat;
+    it.u.ev.lon  = s_state.lon;
+    if (!s_queue || xQueueSend(s_queue, &it, 0) != pdTRUE) s_q_drop_events++;
+}
+
+static void sink_packet(void *user, const sentinel_pkt_t *p)
+{
+    (void)user;
+    static store_item_t it;
+    it.is_packet = true;
+    it.u.pkt     = *p;
+    if (!s_queue || xQueueSend(s_queue, &it, 0) != pdTRUE) s_q_drop_packets++;
+}
+
+static const sentinel_sink_t s_sink = {sink_event, sink_packet, NULL};
+
+static void writer(void *arg)
+{
+    (void)arg;
+    static store_item_t it;
+    for (;;) {
+        if (xQueueReceive(s_queue, &it, pdMS_TO_TICKS(1000)) == pdTRUE) {
+            if (it.is_packet) sentinel_store_packet(&it.u.pkt);
+            else sentinel_store_event(&it.u.ev.e, it.u.ev.fix, it.u.ev.lat, it.u.ev.lon);
+        } else if (s_on) {
+            sentinel_store_flush(); /* a quiet second: get the capture onto the card */
+        } else {
+            sentinel_store_close(); /* board off: the session's captures are complete */
+        }
+    }
+}
+
+/* ---- The link ------------------------------------------------------------ */
+
 static void reader(void *arg)
 {
     (void)arg;
-    static char chunk[READ_CHUNK];
-    uint32_t    hello_at = 0;
+    static char                chunk[READ_CHUNK];
+    static sentinel_host_out_t out;
+    uint32_t                   ticked = 0;
     for (;;) {
         if (!s_on) {
             vTaskDelay(pdMS_TO_TICKS(200));
             continue;
         }
-        int n = uart_read_bytes(UART_PORT, chunk, sizeof(chunk), pdMS_TO_TICKS(100));
+        int n = uart_read_bytes(UART_PORT, chunk, sizeof(chunk), pdMS_TO_TICKS(50));
         xSemaphoreTake(s_lock, portMAX_DELAY);
         uint32_t now = sentinel_now_ms();
-        if (n > 0) sentinel_proto_feed(&s_lines, &s_state, chunk, (size_t)n, now);
+        if (n > 0) sentinel_proto_feed(&s_lines, &s_state, chunk, (size_t)n, now, &s_sink);
         s_state.gdo0    = gpio_get_level(PIN_GDO0) != 0;
         s_state.gdo2    = gpio_get_level(PIN_GDO2) != 0;
         s_state.nrf_irq = gpio_get_level(PIN_NRF_IRQ) != 0;
-        bool ask        = !s_state.hello && (hello_at == 0 || (uint32_t)(now - hello_at) >= HELLO_MS);
-        xSemaphoreGive(s_lock);
-        if (ask) {
-            hello_at = now;
-            sentinel_send("CMD,HELLO");
+        bool tick       = (uint32_t)(now - ticked) >= TICK_MS;
+        if (tick) {
+            ticked = now;
+            sentinel_host_tick(&s_host, &s_state, now, &out);
+            if (out.note[0]) sentinel_push_event(&s_state, out.note_warn, "deck", out.note, now, &s_sink);
+            if (out.set_baud) s_lines.len = 0; /* half a line at the old rate is noise at the new one */
         }
+        xSemaphoreGive(s_lock);
+        if (!tick) continue;
+        if (out.set_baud) {
+            /* Order matters: what was sent at the old rate must leave first. */
+            uart_wait_tx_done(UART_PORT, pdMS_TO_TICKS(200));
+            uart_set_baudrate(UART_PORT, out.set_baud);
+            uart_flush_input(UART_PORT);
+            ESP_LOGI(TAG, "UART1 now %u baud", (unsigned)out.set_baud);
+        }
+        for (int i = 0; i < out.n_send; i++) sentinel_send(out.send[i]);
+        if (out.note[0]) ESP_LOGI(TAG, "%s", out.note);
     }
 }
 
@@ -131,9 +214,12 @@ void sentinel_start(void)
 {
     if (!s_lock) s_lock = xSemaphoreCreateMutex();
     if (s_on) return;
+    if (!s_queue) s_queue = xQueueCreate(QUEUE_DEPTH, sizeof(store_item_t));
     xSemaphoreTake(s_lock, portMAX_DELAY);
     sentinel_state_init(&s_state);
     s_lines.len = 0;
+    /* "rf_baud" is an escape hatch: set it to 115200 to never negotiate. */
+    sentinel_host_init(&s_host, (uint32_t)hal_cfg_get_i32("rf_baud", SENTINEL_BAUD_FAST));
     xSemaphoreGive(s_lock);
 
     lines_init();
@@ -143,16 +229,21 @@ void sentinel_start(void)
         front_end(false);
         return;
     }
+    uart_set_baudrate(UART_PORT, SENTINEL_BAUD_DEFAULT); /* a freshly powered node listens here */
     uart_flush_input(UART_PORT);
     xSemaphoreTake(s_lock, portMAX_DELAY);
     s_state.powered = true;
     xSemaphoreGive(s_lock);
     s_on = true;
-    if (!s_task && xTaskCreatePinnedToCore(reader, "sentinel", 4096, NULL, 4, &s_task, 0) != pdPASS) {
+    if (!s_task && xTaskCreatePinnedToCore(reader, "sentinel", 6144, NULL, 4, &s_task, 0) != pdPASS) {
         ESP_LOGE(TAG, "reader task not started");
         s_task = NULL;
     }
-    ESP_LOGI(TAG, "board on: EXT5V, RX_EN high, UART1 %d baud", UART_BAUD);
+    if (s_queue && !s_writer && xTaskCreatePinnedToCore(writer, "sentinel_log", 8192, NULL, 3, &s_writer, 0) != pdPASS) {
+        ESP_LOGE(TAG, "writer task not started: nothing will be logged");
+        s_writer = NULL;
+    }
+    ESP_LOGI(TAG, "board on: EXT5V, RX_EN high, UART1 %d baud", SENTINEL_BAUD_DEFAULT);
 }
 
 void sentinel_stop(void)
@@ -164,6 +255,8 @@ void sentinel_stop(void)
     if (s_lock) {
         xSemaphoreTake(s_lock, portMAX_DELAY);
         s_state.powered = false;
+        sentinel_host_arm(&s_host, false); /* the node lost power; nothing to hold */
+        sentinel_arm_set(&s_state.arm, false, 0, 0);
         xSemaphoreGive(s_lock);
     }
     ESP_LOGI(TAG, "board off: EXT5V cut, RX_EN low");
@@ -180,6 +273,30 @@ void sentinel_snapshot(sentinel_state_t *out)
     xSemaphoreTake(s_lock, portMAX_DELAY);
     memcpy(out, &s_state, sizeof(*out));
     xSemaphoreGive(s_lock);
+}
+
+void sentinel_arm(bool on)
+{
+    if (!s_lock) return;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    sentinel_host_arm(&s_host, on);
+    xSemaphoreGive(s_lock);
+    ESP_LOGI(TAG, "arm lease %s", on ? "wanted" : "dropped");
+}
+
+void sentinel_note(bool warn, const char *text)
+{
+    if (!s_lock) return;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    sentinel_push_event(&s_state, warn, "deck", text, sentinel_now_ms(), &s_sink);
+    xSemaphoreGive(s_lock);
+}
+
+void sentinel_stats(sentinel_store_stats_t *out)
+{
+    sentinel_store_stats(out);
+    out->events_dropped += s_q_drop_events;
+    out->packets_dropped += s_q_drop_packets;
 }
 
 bool sentinel_send(const char *payload)

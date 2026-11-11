@@ -18,14 +18,18 @@
  * firmware and the other hosts. This header is the Tab5's side of it.
  *
  * sentinel_start() runs from RF WATCH's on_enable, sentinel_stop() from its
- * on_disable, both on the LVGL task. The reader task fills the state;
- * sentinel_snapshot() copies it out under the lock. The simulator provides
- * a fake node that speaks the same sentences (sim/sentinel_sim.c).
+ * on_disable, both on the LVGL task. The reader task fills the state and
+ * runs the core's link machine (HELLO, the baud rate, the arm lease);
+ * sentinel_snapshot() copies the state out under the lock. A writer task
+ * puts every event and captured frame on storage (sentinel_store.h). The
+ * simulator provides a fake node that speaks the same sentences
+ * (sim/sentinel_sim.c).
  */
 #pragma once
 
 #include "sentinel_core.h"
 #include "sentinel_proto.h"
+#include "sentinel_store.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,8 +52,25 @@ void sentinel_snapshot(sentinel_state_t *out);
 static inline bool sentinel_link(const sentinel_state_t *s) { return sentinel_link_up(s, sentinel_now_ms()); }
 
 /* Send a command to the C5: "CMD,HELLO", "CMD,PING", "CMD,QUIET", "CMD,STREAM",
- * "CMD,RATE,<ms>". Returns false when the board is off. */
+ * "CMD,RATE,<ms>", "CMD,TX,<test>". Returns false when the board is off. */
 bool sentinel_send(const char *payload);
+
+/* RED TEAM mode: hold the node's arm lease (refreshed until dropped), or
+ * drop it. The node refuses every transmit test without it, and lets it
+ * lapse by itself if the refreshes stop. */
+void sentinel_arm(bool on);
+/* The node currently confirms the lease. */
+static inline bool sentinel_armed(const sentinel_state_t *s)
+{
+    return sentinel_arm_active(&s->arm, sentinel_now_ms());
+}
+
+/* Record something the deck did or noticed, as an event from source "deck":
+ * it shows in EVENTS and goes to the log like the node's own. */
+void sentinel_note(bool warn, const char *text);
+
+/* What reached storage and what did not (store losses plus a full queue). */
+void sentinel_stats(sentinel_store_stats_t *out);
 
 #ifdef __cplusplus
 }
