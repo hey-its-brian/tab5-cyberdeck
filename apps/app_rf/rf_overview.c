@@ -136,9 +136,10 @@ static void render_link(void)
     snprintf(tool, sizeof(tool), "%s", st->mode);
     for (char *c = tool; *c; c++)
         if (*c >= 'a' && *c <= 'z') *c = (char)(*c - 'a' + 'A');
-    lv_label_set_text_fmt(s_ui.lines, "FRAMES %u  BAD %u  ::  %u BAUD  ::  TOOL %s", (unsigned)st->frames,
-                          (unsigned)st->bad, (unsigned)st->host_baud, tool);
-    lv_label_set_text_fmt(s_ui.pins, "GDO0 %d  GDO2 %d  NRF IRQ %s", st->gdo0, st->gdo2, st->nrf_irq ? "IDLE" : "LOW");
+    lv_label_set_text_fmt(s_ui.lines, "FRAMES %u  BAD %u  ::  %u BAUD", (unsigned)st->frames, (unsigned)st->bad,
+                          (unsigned)st->host_baud);
+    lv_label_set_text_fmt(s_ui.pins, "TOOL %s  ::  GDO0 %d  GDO2 %d  NRF IRQ %s", tool, st->gdo0, st->gdo2,
+                          st->nrf_irq ? "IDLE" : "LOW");
 
     /* The session: what was chosen at the gate, and whether the node agrees. */
     if (rf_mode() == RF_MODE_SAFE) {

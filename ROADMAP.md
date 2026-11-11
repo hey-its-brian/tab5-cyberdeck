@@ -161,6 +161,8 @@ Home screen first, then the two modules, one at a time.
 - [ ] Checkpoint on hardware: scan, ping the router, trace to github.com, sweep the LAN, run a speed test
 - [x] RF WATCH (v1.5): the $RFS link to the Stamp C5 over the M5-Bus UART (G6/G7), EXT5V on, sub-GHz sweep, 2.4 GHz occupancy, GPS, events; the E07 RX_EN/TX_EN and GDO lines on G16/G17/G45/G52/G4 (`components/deck_sentinel`, a fake board in the sim, a parser test)
 - [x] Checkpoint on hardware: board plugged in, RF WATCH switched on, HELLO within a few seconds, the two sweeps, the C5's Wi-Fi list and the GPS live on screen; switched off, the board loses power (the C5 side needed rf-sentinel b6e10c3 and the JP1 jumper on TAB5)
+- [x] RF WATCH becomes a safeguarding suite (phase 1 of six, see the rf-sentinel ROADMAP): a SAFE / RED TEAM gate on opening, a chooser of tools (OVERVIEW, LOG, four placeholders), protocol 2 on the link (921600 baud held by keepalives, the arm lease, the transmit gate), an event log and pcap captures on SD, and notices (a status bar count and a banner) in any app. The protocol code moved to `sentinel_core` in the rf-sentinel repo, pulled in as a submodule at `external/rf-sentinel`
+- [x] Checkpoint on hardware (2026-11-11, with rf-sentinel 0.3.0 on the C5): link at 921600 with no bad frames; the gate answers "not armed" in SAFE and "no such test" in RED TEAM; leaving by Alt+Esc, the screen sleeping and a deck restart each disarm the node; after a deck restart the link is back within ten seconds; events land on the SD card; a warning outside the app shows as an unseen count
 - [x] Obsidian sync: NOTES picks LOCAL (`/notes`) or VAULT (`/vault`); the vault syncs with Obsidian Self-hosted LiveSync (CouchDB) in the plugin's own format (chunks, E2EE v2, matching chunk ids), behind a sync-backend interface so other platforms can follow
 - [x] NOTES browses folders (Enter opens, Backspace goes up)
 - [x] Checkpoint in the simulator: pull, push, delete and a two-sided conflict against a seeded database, verified by the plugin's own JavaScript (chunks decrypt, ids match)
@@ -195,14 +197,23 @@ Home screen first, then the two modules, one at a time.
 - Alerts in the status bar when a storm or a strong flare is in progress
 - Checkpoint: numbers match the SWPC dashboard; an alert shows during an active storm
 
-## Later: RF watch (receive-only)
+## Next: RF WATCH phases 2 to 6
 
-A passive monitoring suite that listens and alerts, never transmits.
+RF WATCH is a safeguarding suite: it watches, detects and logs, and it will
+carry tests that transmit, for equipment you own or have the owner's full
+permission and knowledge to test. Jamming is never built. Anything that
+transmits is aimed at one chosen target, only in a RED TEAM session with
+the arm lease held. The full list is in the rf-sentinel ROADMAP; each phase
+adds a tool behind one of the placeholder tiles.
 
-- External radio modules on the expansion port: nRF24 (2.4 GHz), CC1101 (sub-GHz), RFID/NFC reader
-- Activity view per band, baseline of what is normal around you, alerts on anything new or unusual
-- Event log to SD, alert in the status bar
-- Hardware decision first: which modules, and how they share the expansion port with the keyboard (I2C on G0/G1)
+- [ ] Phase 2, BLUETOOTH: scan, tracker alert (AirTag and friends), Flock and Axon detect, capture to pcap
+- [ ] Phase 3, WI-FI: packet monitor waterfall, channel analyzer, drone detect, attack detectors, honeypot
+- [ ] Phase 4: wardriving across every radio with GPS, record-only
+- [ ] Phase 5, SUB-GHZ and 2.4 GHZ: spectrum analyzer with history, IoT site survey, TPMS (433.92 MHz), jam detection
+- [ ] Phase 6: targeted deauth test (one network, one client, a permission warning on every run, a counted burst) and a self test per radio
+- [ ] A learned baseline on the deck, tagged with the GPS position it was learned at, so alerts are about change at this spot
+- [ ] Thresholds and the banner's behaviour in SETTINGS; quiet mode for the board when the screen sleeps
+- [ ] RFID/NFC reader on the expansion port
 
 ## Later: Wi-Fi presence radar
 

@@ -187,3 +187,20 @@ dialogs.
   115200 and the result is reported either way.
 - The submodule pins an rf-sentinel commit that is not on GitHub until that
   branch is pushed. Push `rf-sentinel` first, then `tab5-cyberdeck`.
+
+## As built (2026-11-11)
+
+Two things changed on the bench, both in how the baud rate is held:
+
+- The C5 reads commands once per sweep pass (about 0.6 s), so the host waits
+  up to 1.5 s for the `BAUD` answer and gives the new rate 3 s, not 2 s, to
+  prove itself. It asks for the rate alone and for `MODE` afterwards.
+- The node no longer keeps a proven fast rate forever. The host sends
+  `CMD,PING` every 1.5 s at the fast rate and the node returns to 115200
+  after 5 s without a command. Without this a deck restart left the node at
+  921600 and the deck at 115200, deaf to each other.
+
+LOG was added as a sixth tile so the event log can be read on the device.
+The capture path has no hardware source until phase 2; it is exercised by
+the simulator's board and the host tests only. The CYD host was built, not
+run.

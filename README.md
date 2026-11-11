@@ -36,18 +36,55 @@ NEON (each home tile in its own color).
 |---|---|---|
 | ![Home](docs/screenshots/home.png) | ![Apps](docs/screenshots/apps.png) | ![Applications](docs/screenshots/applications.png) |
 
-**v1.5: RF WATCH**, the RF Sentinel carrier board on the rear M5-Bus (a
-Stamp C5 with a CC1101, an nRF24L01+ and a GPS; `hardware/tab5-board` in the
-rf-sentinel repo). Switching RF WATCH on in SETTINGS > APPLICATIONS powers
-the board (EXT5V on the bus), puts the CC1101 front end in receive (RX_EN on
-G16 high, TX_EN on G17 low) and reads the C5's `$RFS` sentences on UART1
-(G7 in, G6 out, 115200 8N1). The screen shows the link and board health,
-GNSS (fix, satellites, position, C/N0), the networks the C5 hears, the
-433 MHz sweep (21 channels with peak hold), 2.4 GHz occupancy (126 channels
-of nRF24 carrier detect) and the C5's events; the home panel carries a live
-one-line summary. `H` asks the C5 for a fresh HELLO, `P` pings it. Switching
-the app off cuts EXT5V again. The simulator has a pretend board
-(`sim/sentinel_sim.c`) and the parser has a host test (`sim/sentinel_test.c`).
+**v1.5: RF WATCH**, a safeguarding suite on the RF Sentinel carrier board
+on the rear M5-Bus (a Stamp C5 with a CC1101, an nRF24L01+ and a GPS;
+`hardware/tab5-board` in the rf-sentinel repo). It watches, detects and
+logs; it never jams; and tests that transmit, when they arrive, are aimed
+at one chosen target on equipment you own or have the owner's full
+permission and knowledge to test.
+
+Opening RF WATCH asks one question first: **SAFE** or **RED TEAM**. SAFE
+cannot transmit. RED TEAM also holds the node's arm lease, which the node
+checks before any transmit test, and shows RED TEAM in the status bar. The
+choice holds until you leave the app; to change it, leave and reopen.
+Leaving by any route, switching the app off, the screen sleeping or the
+deck restarting all disarm the node: the lease is a dead man's switch that
+the deck must keep renewing.
+
+Behind the gate is a chooser of tools. **OVERVIEW** shows the link and board
+health, the session, GNSS (fix, satellites, position, C/N0), the networks
+the C5 hears, the 433 MHz sweep (21 channels with peak hold), 2.4 GHz
+occupancy (126 channels of nRF24 carrier detect) and the newest events;
+`H` asks the C5 for HELLO, `P` pings it, `T` knocks on the transmit gate.
+**LOG** shows today's events from storage, newest first, with where the
+deck was. WI-FI, SUB-GHZ, 2.4 GHZ and BLUETOOTH are placeholders for the
+phases in the rf-sentinel ROADMAP.
+
+While RF WATCH is switched on in SETTINGS > APPLICATIONS the board is
+powered (EXT5V on the bus, CC1101 front end in receive: RX_EN on G16 high,
+TX_EN on G17 low) and read on UART1 (G7 in, G6 out), whatever is on screen.
+The link starts at 115200 and moves to 921600 once the node is known to
+speak protocol 2. Every event goes to `sentinel/events-YYYYMMDD.csv` on the
+SD card (or internal storage) and captured frames to pcap files beside it.
+A warning from the board reaches you in any app: a count in the status bar
+until you open RF WATCH, and a banner for a few seconds. Nothing takes the
+keyboard and nothing makes a sound. Switching the app off cuts EXT5V.
+
+| Mode gate | Tools (RED TEAM) |
+|---|---|
+| ![RF WATCH mode gate](docs/screenshots/rf_gate.png) | ![RF WATCH tools](docs/screenshots/rf_tools.png) |
+
+| OVERVIEW | A warning while in TERMINAL |
+|---|---|
+| ![RF WATCH overview](docs/screenshots/rf_overview.png) | ![Notice banner](docs/screenshots/rf_banner.png) |
+
+The protocol, the state record, the link state machine and the log formats
+are `sentinel_core`, a portable library in the rf-sentinel repo that the C5
+firmware and the other hosts build too. It comes in as a git submodule at
+`external/rf-sentinel` (`git submodule update --init` after cloning).
+`components/deck_sentinel` is only the Tab5's side: power, pins, the UART
+and the SD files. The simulator has a pretend board (`sim/sentinel_sim.c`)
+and the core's tests run with `tools/check.sh`.
 
 **v1.4: NET TOOLS**, the Tab5's own radio as a toolkit (in APPS), next to
 RF WATCH. NET TOOLS has four tabs: **SCAN**
