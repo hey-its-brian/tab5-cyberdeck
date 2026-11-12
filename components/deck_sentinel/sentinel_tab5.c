@@ -80,6 +80,8 @@ static uint8_t       s_queue_mem[QUEUE_DEPTH * sizeof(store_item_t)] DECK_PSRAM_
 static StaticQueue_t s_queue_ctl;
 /* The Bluetooth devices in earshot and the track watch: under s_lock, like the state. */
 static sentinel_blehost_t s_ble DECK_PSRAM_BSS;
+/* And what the node has reported about Wi-Fi: access points, channels, the waterfall, drones. */
+static sentinel_wifihost_t s_wifi DECK_PSRAM_BSS;
 
 uint32_t sentinel_now_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
 
@@ -170,7 +172,28 @@ static void sink_device(void *user, const sentinel_bdv_t *d)
     sentinel_blehost_device(&s_ble, &s_state, d, sentinel_now_ms(), &s_sink);
 }
 
-static const sentinel_sink_t s_sink = {sink_event, sink_packet, sink_device, NULL};
+/* Wi-Fi rows, the same way. */
+static void sink_channel(void *user, const sentinel_wch_t *c)
+{
+    (void)user;
+    sentinel_wifihost_channel(&s_wifi, c);
+}
+
+static void sink_ap(void *user, const sentinel_wbs_t *a)
+{
+    (void)user;
+    sentinel_wifihost_ap(&s_wifi, a, sentinel_now_ms());
+}
+
+static void sink_drone(void *user, const sentinel_drn_t *d)
+{
+    (void)user;
+    sentinel_wifihost_drone(&s_wifi, &s_state, d, sentinel_now_ms(), &s_sink);
+}
+
+static const sentinel_sink_t s_sink = {
+    .event = sink_event, .packet = sink_packet, .device = sink_device, .channel = sink_channel, .ap = sink_ap, .drone = sink_drone,
+};
 
 /* The addresses the user marked as their own, kept across restarts. */
 static void mine_load(void)
@@ -251,6 +274,7 @@ void sentinel_start(void)
     /* "rf_baud" is an escape hatch: set it to 115200 to never negotiate. */
     sentinel_host_init(&s_host, (uint32_t)hal_cfg_get_i32("rf_baud", SENTINEL_BAUD_FAST));
     sentinel_blehost_init(&s_ble);
+    sentinel_wifihost_init(&s_wifi);
     mine_load();
     xSemaphoreGive(s_lock);
 
@@ -338,6 +362,28 @@ void sentinel_capture(bool on)
     if (!s_lock) return;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     sentinel_host_capture(&s_host, on);
+    xSemaphoreGive(s_lock);
+}
+
+void sentinel_wifi_copy(sentinel_wifihost_t *out)
+{
+    if (!s_lock) {
+        sentinel_wifihost_init(out);
+        return;
+    }
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    sentinel_wifihost_expire(&s_wifi, sentinel_now_ms());
+    memcpy(out, &s_wifi, sizeof(*out));
+    xSemaphoreGive(s_lock);
+    sentinel_wifihost_sort(out); /* on the caller's copy, outside the lock */
+}
+
+void sentinel_honeypot(uint8_t channel, const char *ssid)
+{
+    if (!s_lock) return;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    sentinel_host_honeypot(&s_host, channel, ssid);
+    sentinel_host_mode(&s_host, "hpot");
     xSemaphoreGive(s_lock);
 }
 

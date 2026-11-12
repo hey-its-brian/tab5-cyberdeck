@@ -31,6 +31,7 @@
 #include "sentinel_core.h"
 #include "sentinel_proto.h"
 #include "sentinel_store.h"
+#include "sentinel_wifihost.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -73,12 +74,27 @@ void sentinel_note(bool warn, const char *text);
 /* What reached storage and what did not (store losses plus a full queue). */
 void sentinel_stats(sentinel_store_stats_t *out);
 
+/* ---- Wi-Fi --------------------------------------------------------------- */
+
+/* Everything the node has reported about Wi-Fi: access points (strongest
+ * first, silent ones dropped), the latest dwell on each channel, the
+ * waterfall and the drones. A copy, about 8 KB: give it static or PSRAM
+ * storage. sentinel_tool("wifi") makes the node hop every channel. */
+void sentinel_wifi_copy(sentinel_wifihost_t *out);
+
+/* The honeypot: an open access point with this name on this channel and
+ * nothing behind it. It transmits, so the node only runs it while it
+ * confirms the arm lease (RED TEAM); in a SAFE session this does nothing.
+ * sentinel_tool("watch") or the lease ending stops it. */
+void sentinel_honeypot(uint8_t channel, const char *ssid);
+
 /* ---- Bluetooth ----------------------------------------------------------- */
 
-/* Which tool owns the node's 2.4 GHz radio: "watch" (shared between the
- * Wi-Fi presence scan and a Bluetooth scan, the background state) or "ble"
- * (Bluetooth full time, for the BLUETOOTH tool). Asked until the node
- * agrees; sentinel_start() begins in "watch". */
+/* Which tool owns the node's own radio: "watch" (shared between the Wi-Fi
+ * presence scan and a Bluetooth scan, the background state), "ble"
+ * (Bluetooth full time), "wifi" (hopping every Wi-Fi channel) or "hpot"
+ * (the honeypot, see above). Asked until the node agrees;
+ * sentinel_start() begins in "watch". */
 void sentinel_tool(const char *mode);
 /* Have the node stream every advertisement, written to a pcap file on the
  * SD card. Only does anything in the "ble" tool. */

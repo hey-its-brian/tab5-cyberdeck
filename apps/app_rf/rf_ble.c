@@ -293,6 +293,7 @@ void rf_ble_build(lv_obj_t *parent)
         lv_obj_set_style_bg_color(row, g_pal.panel_hi, 0);
         lv_obj_set_style_pad_ver(row, 4, 0);
         lv_obj_set_style_pad_hor(row, 6, 0);
+        lv_obj_set_height(row, lv_font_get_line_height(g_font.mono_m) + 8); /* one line: a long name ends in dots, it does not wrap */
         lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(row, row_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)r);
         s_ble.row[r]   = row;

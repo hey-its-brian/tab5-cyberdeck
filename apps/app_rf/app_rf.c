@@ -18,7 +18,8 @@
  * warnings into notices (the status bar count and a banner) that reach the
  * user in any app. That part is always in the safe posture.
  *
- * Screens: this file (gate, chooser), rf_overview.c, rf_ble.c, rf_log.c.
+ * Screens: this file (gate, chooser), rf_overview.c, rf_wifi.c, rf_ble.c,
+ * rf_log.c.
  */
 #include "app_rf.h"
 
@@ -48,7 +49,7 @@ typedef struct {
 
 static const rf_tool_t s_tools[] = {
     {"OVERVIEW", "LINK, GNSS, SWEEPS, EVENTS", ICON_RADAR, NULL, rf_overview_build, rf_overview_destroy, rf_overview_key},
-    {"WI-FI", "MONITOR, ANALYZER, DETECTORS", ICON_WIFI, "PHASE 3", NULL, NULL, NULL},
+    {"WI-FI", "MONITOR, NETWORKS, DRONES", ICON_WIFI, NULL, rf_wifi_build, rf_wifi_destroy, rf_wifi_key},
     {"SUB-GHZ", "SPECTRUM, SURVEY, TPMS", ICON_ANTENNA, "PHASE 5", NULL, NULL, NULL},
     {"2.4 GHZ", "SPECTRUM, SURVEY, JAM DETECT", ICON_GAUGE, "PHASE 5", NULL, NULL, NULL},
     {"BLUETOOTH", "SCAN, TRACKERS, CAPTURE", ICON_WIRELESS, NULL, rf_ble_build, rf_ble_destroy, rf_ble_key},

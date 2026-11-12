@@ -29,6 +29,12 @@ void rf_ble_build(lv_obj_t *parent);
 void rf_ble_destroy(void);
 bool rf_ble_key(const deck_key_t *k);
 
+/* WI-FI: the waterfall, the access points, drones, and (RED TEAM only) the
+ * honeypot. Makes the node hop every channel while it is up. */
+void rf_wifi_build(lv_obj_t *parent);
+void rf_wifi_destroy(void);
+bool rf_wifi_key(const deck_key_t *k);
+
 /* LOG: today's events file from storage, newest first. */
 void rf_log_build(lv_obj_t *parent);
 void rf_log_destroy(void);

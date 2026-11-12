@@ -18,6 +18,13 @@
  * and a Flock battery) whose hand-built advertisements go through the same
  * table the C5 uses (sentinel_bleagg), so the BDV rows, the labels and the
  * track watch are the real code. MODE,ble and CAP work as on the node.
+ *
+ * Wi-Fi: the same idea. Hand-built beacons for the scene's access points go
+ * through the node's monitor (sentinel_wifimon), so the WBS rows and the
+ * detectors are the real code. A minute in, someone deauths Afterlife, an
+ * open copy of NIGHTCITY-5G appears, and a drone flies past broadcasting
+ * its Remote ID. In MODE,wifi the monitor hops and reports each dwell; the
+ * honeypot answers MODE,hpot only while the pretend node is armed.
  */
 #include "deck_sentinel.h"
 #include "sentinel_bleagg.h"
@@ -44,6 +51,13 @@ static bool             s_node_armed_shown;
 static sentinel_bleagg_t  s_node_ble;  /* the node's Bluetooth table */
 static sentinel_blehost_t s_ble;       /* the deck's: devices and the track watch */
 static bool               s_node_ble_mode, s_node_cap;
+static sentinel_wifimon_t  s_node_wifi; /* the node's Wi-Fi monitor */
+static sentinel_wifihost_t s_wifi;      /* the deck's tables */
+static enum { NODE_WATCH, NODE_BLE, NODE_WIFI, NODE_HPOT } s_node_tool;
+static int     s_hop;                   /* the slot the pretend radio is on */
+static uint8_t s_hp_ch;
+static char    s_hp_ssid[SENTINEL_WIFI_SSID_MAX + 1];
+static int     s_hp_tick, s_hp_joins, s_hp_probes;
 
 uint32_t sentinel_now_ms(void) { return lv_tick_get(); }
 
@@ -70,31 +84,30 @@ static void sink_device(void *user, const sentinel_bdv_t *d)
     (void)user;
     sentinel_blehost_device(&s_ble, &s_state, d, sentinel_now_ms(), &s_sink);
 }
-static const sentinel_sink_t s_sink = {sink_event, sink_packet, sink_device, NULL};
+static void sink_channel(void *user, const sentinel_wch_t *c)
+{
+    (void)user;
+    sentinel_wifihost_channel(&s_wifi, c);
+}
+static void sink_ap(void *user, const sentinel_wbs_t *a)
+{
+    (void)user;
+    sentinel_wifihost_ap(&s_wifi, a, sentinel_now_ms());
+}
+static void sink_drone(void *user, const sentinel_drn_t *d)
+{
+    (void)user;
+    sentinel_wifihost_drone(&s_wifi, &s_state, d, sentinel_now_ms(), &s_sink);
+}
+static const sentinel_sink_t s_sink = {
+    .event = sink_event, .packet = sink_packet, .device = sink_device, .channel = sink_channel, .ap = sink_ap, .drone = sink_drone,
+};
 
 static void emit(const char *payload)
 {
     char frame[SENTINEL_LINE_MAX + 8];
     int  n = sentinel_proto_frame(frame, sizeof(frame), payload);
     if (n > 0) sentinel_proto_feed(&s_lines, &s_state, frame, (size_t)n, sentinel_now_ms(), &s_sink);
-}
-
-/* A beacon from NIGHTCITY-5G, as the C5's monitor mode would hand it over. */
-static void emit_pkt(void)
-{
-    static const uint8_t beacon[] = {
-        0x80, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,             /* beacon, to everyone */
-        0xa4, 0xc3, 0xf0, 0x11, 0x22, 0x33, 0xa4, 0xc3, 0xf0, 0x11, 0x22, 0x33, /* from and BSSID */
-        0x10, 0x00,                                                             /* sequence */
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x00, 0x11, 0x04, /* timestamp, interval, capabilities */
-        0x00, 0x0c, 'N',  'I',  'G',  'H',  'T',  'C',  'I',  'T',  'Y',  '-',  '5', 'G', /* SSID */
-        0x03, 0x01, 0x01,                                                       /* channel 1 */
-    };
-    sentinel_pkt_t p = {.link = SENTINEL_LINK_WIFI, .ch = 1, .rssi = -41, .us = (lv_tick_get() - s_started) * 1000u};
-    p.len = p.orig_len = sizeof(beacon);
-    memcpy(p.data, beacon, sizeof(beacon));
-    char payload[SENTINEL_LINE_MAX];
-    if (sentinel_proto_pkt(payload, sizeof(payload), &p)) emit(payload);
 }
 
 /* ---- The pretend room, on Bluetooth ---------------------------------------- */
@@ -137,7 +150,7 @@ static void ble_tick(void)
         if (s_tick < d->from_tick || rnd(3) == 0) continue; /* not here yet, or not heard this time */
         int8_t rssi = (int8_t)(d->rssi - 3 + (int)rnd(7));
         sentinel_bleagg_feed(&s_node_ble, d->addr, d->pub, rssi, d->adv, d->len, now);
-        if (s_node_cap) { /* the same advertisement, as a captured packet */
+        if (s_node_cap && s_node_tool == NODE_BLE) { /* the same advertisement, as a captured packet */
             sentinel_pkt_t p = {.link = SENTINEL_LINK_BLE, .ch = 37, .rssi = rssi, .us = (lv_tick_get() - s_started) * 1000u + (uint32_t)i};
             p.len = p.orig_len = (uint16_t)sentinel_ble_ll_frame(p.data, sizeof(p.data), d->addr, d->pub, 0, d->adv, d->len);
             char payload[SENTINEL_LINE_MAX];
@@ -154,6 +167,144 @@ static void ble_tick(void)
         snprintf(payload, sizeof(payload), "BLE,%u,%u,%u,%d", sum.devices, sum.rate, sum.trackers, sum.strongest);
         emit(payload);
     }
+}
+
+/* ---- The pretend room, on Wi-Fi --------------------------------------------- */
+
+typedef struct {
+    uint8_t     bssid[6];
+    const char *ssid;
+    uint8_t     ch;
+    int8_t      rssi;
+    int         sec;       /* 0 open, 3 WPA2, 4 WPA3 */
+    int         from_tick; /* appears at this tick */
+} sim_ap_t;
+
+static const sim_ap_t s_aps[] = {
+    {{0xA4, 0xC3, 0xF0, 0x11, 0x22, 0x33}, "NIGHTCITY-5G", 1, -41, 3, 0},
+    {{0xA4, 0xC3, 0xF0, 0x11, 0x22, 0x34}, "ARASAKA-GUEST", 6, -52, 0, 0},
+    {{0x3C, 0x22, 0xFB, 0x44, 0x55, 0x66}, "Afterlife", 11, -63, 3, 0},
+    {{0x3C, 0x22, 0xFB, 0x44, 0x55, 0x67}, "", 11, -70, 4, 0},
+    {{0xF0, 0xB4, 0xD2, 0x77, 0x88, 0x99}, "netwatch_honeypot", 6, -77, 3, 0},
+    {{0xF0, 0xB4, 0xD2, 0x77, 0x88, 0x9A}, "Kiroshi, Optics", 1, -84, 3, 0},
+    {{0xA4, 0xC3, 0xF0, 0x11, 0x22, 0x40}, "NIGHTCITY-5G", 36, -55, 3, 0},
+    {{0x3C, 0x22, 0xFB, 0x44, 0x55, 0x70}, "Afterlife", 149, -68, 3, 0},
+    {{0x9C, 0x1E, 0x95, 0x02, 0x03, 0x04}, "Militech-IoT", 44, -79, 4, 0},
+    {{0x02, 0xDE, 0xAD, 0xBE, 0xEF, 0x01}, "NIGHTCITY-5G", 1, -47, 0, 240}, /* the open twin */
+};
+#define APS_N ((int)(sizeof(s_aps) / sizeof(s_aps[0])))
+
+/* A beacon for one of them, as it would come off the air. */
+static size_t sim_beacon(uint8_t *f, const sim_ap_t *a)
+{
+    size_t n = 0;
+    static const uint8_t head[10] = {0x80, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+    memcpy(f, head, 10), n = 10;
+    memcpy(f + n, a->bssid, 6), n += 6;
+    memcpy(f + n, a->bssid, 6), n += 6;
+    f[n++] = 0x10, f[n++] = 0;
+    memset(f + n, 0, 8), n += 8;
+    f[n++] = 0x64, f[n++] = 0, f[n++] = (uint8_t)(0x01 | (a->sec ? 0x10 : 0)), f[n++] = 0;
+    size_t sl = strlen(a->ssid);
+    f[n++] = 0, f[n++] = (uint8_t)sl;
+    memcpy(f + n, a->ssid, sl), n += sl;
+    f[n++] = 3, f[n++] = 1, f[n++] = a->ch;
+    if (a->sec) { /* an RSN element: WPA2 personal, or WPA3 with protected management frames required */
+        const uint8_t rsn[] = {48, 20, 1, 0, 0x00, 0x0F, 0xAC, 4, 1, 0, 0x00, 0x0F, 0xAC, 4, 1, 0, 0x00, 0x0F, 0xAC, (uint8_t)(a->sec == 4 ? 8 : 2), (uint8_t)(a->sec == 4 ? 0xC0 : 0), 0};
+        memcpy(f + n, rsn, sizeof(rsn)), n += sizeof(rsn);
+    }
+    return n;
+}
+
+/* What the node's monitor makes of one frame: alerts and drones out, the
+ * frame itself too when capturing. */
+static void wifi_frame(const uint8_t *f, size_t n, uint8_t ch, int8_t rssi)
+{
+    sentinel_wifimon_out_t out;
+    char                   line[160];
+    sentinel_wifimon_frame(&s_node_wifi, f, n, ch, rssi, sentinel_now_ms(), &out);
+    if (out.alert) {
+        snprintf(line, sizeof(line), "EVT,warn,%s,%s", out.a.src, out.a.text);
+        emit(line);
+    }
+    if (out.drone && sentinel_proto_drn(line, sizeof(line), &out.d)) emit(line);
+    if (s_node_cap && s_node_tool == NODE_WIFI) {
+        sentinel_pkt_t p = {.link = SENTINEL_LINK_WIFI, .ch = ch, .rssi = rssi, .us = (lv_tick_get() - s_started) * 1000u};
+        p.orig_len = (uint16_t)n;
+        p.len      = (uint16_t)(n > SENTINEL_PKT_MAX ? SENTINEL_PKT_MAX : n);
+        memcpy(p.data, f, p.len);
+        char payload[SENTINEL_LINE_MAX]; /* a captured frame needs the long buffer */
+        if (sentinel_proto_pkt(payload, sizeof(payload), &p)) emit(payload);
+    }
+}
+
+/* Everything on one channel for one dwell. */
+static void wifi_dwell(uint8_t ch)
+{
+    uint8_t f[200];
+    for (int i = 0; i < APS_N; i++) {
+        if (s_aps[i].ch != ch || s_tick < s_aps[i].from_tick) continue;
+        wifi_frame(f, sim_beacon(f, &s_aps[i]), ch, (int8_t)(s_aps[i].rssi - 2 + (int)rnd(5)));
+    }
+    /* someone knocks Afterlife's clients off, a minute in, for a few seconds */
+    if (ch == 11 && s_tick >= 240 && s_tick < 264) {
+        uint8_t d[26] = {0xC0, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+        memcpy(d + 10, s_aps[2].bssid, 6), memcpy(d + 16, s_aps[2].bssid, 6);
+        d[24] = 7;
+        for (int k = 0; k < 14; k++) wifi_frame(d, sizeof(d), 11, -58);
+    }
+    /* a drone on channel 6: a beacon carrying its Remote ID, drifting north */
+    if (ch == 6 && s_tick >= 280 && s_tick < 520) {
+        static const sim_ap_t drone = {{0x60, 0x60, 0x1F, 0xAA, 0xBB, 0xCC}, "RID-1581F5FKD229", 6, -66, 0, 0};
+        size_t  n = sim_beacon(f, &drone);
+        int32_t lat = 407430000 + (s_tick - 280) * 300, lon = -739880000;
+        uint8_t ie[60] = {221, 58, 0xFA, 0x0B, 0xBC, 0x0D, (uint8_t)s_tick, 0xF2, 25, 2, 0x02, 0x12};
+        memcpy(ie + 12, "1581F5FKD229N00A12X", 19);
+        uint8_t *loc = ie + 35;
+        loc[0] = 0x12, loc[1] = 0x20, loc[3] = 48;
+        for (int k = 0; k < 4; k++) loc[5 + k] = (uint8_t)((uint32_t)lat >> (8 * k)), loc[9 + k] = (uint8_t)((uint32_t)lon >> (8 * k));
+        loc[15] = (uint8_t)2240, loc[16] = (uint8_t)(2240 >> 8); /* 120 m */
+        memcpy(f + n, ie, 60), n += 60; /* the element: 2 + 5 + a pack of two 25-byte messages */
+        wifi_frame(f, n, 6, -66);
+    }
+}
+
+static void wifi_tick(void)
+{
+    char line[160];
+    if (s_node_tool == NODE_WIFI) {
+        /* hop: three dwells a tick, so a sweep of all 38 channels takes about three seconds */
+        for (int k = 0; k < 3; k++) {
+            uint8_t ch = sentinel_wifi_channel[s_hop];
+            wifi_dwell(ch);
+            s_hop = (s_hop + 1) % SENTINEL_WIFI_CHANNELS;
+            sentinel_wch_t done;
+            sentinel_wifimon_dwell(&s_node_wifi, sentinel_wifi_channel[s_hop], ch <= 13 ? 120 : 80, &done);
+            /* the traffic the monitor does not look inside: busy where the busy networks are */
+            bool busy = ch == 1 || ch == 6 || ch == 11 || ch == 36 || ch == 149;
+            done.data = (uint16_t)(busy ? 30 + rnd(ch == 6 ? 500 : 120) : rnd(4) == 0 ? rnd(5) : 0);
+            done.ctrl = (uint16_t)(done.data ? done.data + rnd(20) : 0);
+            if (done.data && done.max_rssi < -80) done.max_rssi = (int8_t)(-80 + (int)rnd(20));
+            if (sentinel_proto_wch(line, sizeof(line), &done)) emit(line);
+        }
+    } else if (s_node_tool == NODE_WATCH && s_tick % 60 == 8) {
+        /* the presence scan passes every channel once: the detectors get a slow sweep */
+        for (int i = 0; i < SENTINEL_WIFI_CHANNELS; i++) wifi_dwell(sentinel_wifi_channel[i]);
+    } else if (s_node_tool == NODE_HPOT) {
+        s_hp_tick++;
+        if (s_hp_tick % 3 == 0) s_hp_probes += 1 + (int)rnd(3);
+        if (s_hp_tick == 24) { /* six seconds in, something takes the bait */
+            s_hp_joins++;
+            emit("EVT,warn,hpot,5A:11:0C:33:9E:01 joined the honeypot");
+        }
+        if (s_hp_tick % 8 == 1) {
+            snprintf(line, sizeof(line), "HPT,%u,%d,%d,%d,%s", (unsigned)s_hp_ch, s_hp_joins ? 1 : 0, s_hp_joins, s_hp_probes, s_hp_ssid);
+            emit(line);
+        }
+    }
+    sentinel_wbs_t ap;
+    for (int i = 0; i < 4 && sentinel_wifimon_next(&s_node_wifi, sentinel_now_ms(), &ap); i++)
+        if (sentinel_proto_wbs(line, sizeof(line), &ap)) emit(line);
 }
 
 static void node_capture(bool on)
@@ -176,6 +327,12 @@ static void node_arm_tick(void)
     if (armed != s_node_armed_shown) {
         s_node_armed_shown = armed;
         printf("[sim] sentinel arm %d\n", armed);
+    }
+    if (!armed && s_node_tool == NODE_HPOT) { /* no lease, no access point */
+        s_node_tool = NODE_WATCH;
+        emit("MODE,watch");
+        emit("EVT,info,hpot,honeypot stopped");
+        printf("[sim] sentinel mode watch\n");
     }
 }
 
@@ -232,9 +389,9 @@ static void tick(lv_timer_t *t)
     if (up < 2) return; /* the C5 is booting: commands sent now are lost */
     for (int i = 0; i < out.n_send; i++) sentinel_send(out.send[i]);
     node_arm_tick();
-    if (s_tick == 0) emit("HELLO,0.4.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1");
-    if (s_tick % 20 == 15) emit_pkt();
-    ble_tick();
+    if (s_tick == 0) emit("HELLO,0.5.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1");
+    if (s_node_tool != NODE_WIFI && s_node_tool != NODE_HPOT) ble_tick(); /* those two take the whole radio */
+    wifi_tick();
     if (!s_quiet) {
         emit_sub();
         if (s_tick % 8 == 7) emit_nrf();
@@ -276,6 +433,11 @@ void sentinel_start(void)
     sentinel_arm_set(&s_node_arm, false, 0, 0);
     sentinel_bleagg_init(&s_node_ble);
     sentinel_blehost_init(&s_ble);
+    sentinel_wifimon_init(&s_node_wifi);
+    sentinel_wifihost_init(&s_wifi);
+    s_node_tool     = NODE_WATCH;
+    s_hop           = 0;
+    s_hp_ssid[0]    = 0;
     s_node_ble_mode = s_node_cap = false;
     s_timer   = lv_timer_create(tick, 250, NULL);
     printf("[sim] sentinel on\n");
@@ -313,6 +475,19 @@ void sentinel_note(bool warn, const char *text)
 void sentinel_stats(sentinel_store_stats_t *out) { sentinel_store_stats(out); }
 
 void sentinel_tool(const char *mode) { sentinel_host_mode(&s_host, mode); }
+
+void sentinel_wifi_copy(sentinel_wifihost_t *out)
+{
+    sentinel_wifihost_expire(&s_wifi, sentinel_now_ms());
+    memcpy(out, &s_wifi, sizeof(*out));
+    sentinel_wifihost_sort(out);
+}
+
+void sentinel_honeypot(uint8_t channel, const char *ssid)
+{
+    sentinel_host_honeypot(&s_host, channel, ssid);
+    sentinel_host_mode(&s_host, "hpot");
+}
 void sentinel_capture(bool on) { sentinel_host_capture(&s_host, on); }
 
 void sentinel_ble_table(sentinel_bletab_t *out)
@@ -341,7 +516,7 @@ bool sentinel_send(const char *payload)
     uint32_t       now = sentinel_now_ms();
     char           buf[64];
     switch (c.id) {
-        case SENTINEL_CMD_HELLO: emit("HELLO,0.4.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1"); break;
+        case SENTINEL_CMD_HELLO: emit("HELLO,0.5.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1"); break;
         case SENTINEL_CMD_PING: emit("PONG,1234"); break;
         case SENTINEL_CMD_QUIET: s_quiet = true; break;
         case SENTINEL_CMD_STREAM: s_quiet = false; break;
@@ -353,21 +528,47 @@ bool sentinel_send(const char *payload)
             snprintf(buf, sizeof(buf), "BAUD,%ld", c.value);
             emit(buf);
             break;
-        case SENTINEL_CMD_MODE:
-            if (c.valid && (!strcmp(c.arg, "watch") || !strcmp(c.arg, "ble"))) {
-                bool ble = c.arg[0] == 'b';
-                if (!ble) node_capture(false); /* capture belongs to the tool that asked for it */
-                if (ble != s_node_ble_mode) printf("[sim] sentinel mode %s\n", c.arg);
-                s_node_ble_mode = ble;
-                emit(ble ? "MODE,ble" : "MODE,watch");
-            } else {
+        case SENTINEL_CMD_MODE: {
+            int tool = !c.valid ? -1 : !strcmp(c.arg, "watch") ? NODE_WATCH : !strcmp(c.arg, "ble") ? NODE_BLE
+                       : !strcmp(c.arg, "wifi") ? NODE_WIFI : !strcmp(c.arg, "hpot") ? NODE_HPOT : -1;
+            if (tool < 0) {
                 emit("ERR,unknown mode");
+            } else if (tool == NODE_HPOT && !sentinel_arm_active(&s_node_arm, now)) {
+                emit("ERR,not armed"); /* the honeypot transmits: the lease is the gate */
+            } else if (tool == NODE_HPOT && !s_hp_ssid[0]) {
+                emit("ERR,honeypot not set up");
+            } else {
+                if (tool != (int)s_node_tool) {
+                    node_capture(false); /* capture belongs to the tool that asked for it */
+                    printf("[sim] sentinel mode %s\n", c.arg);
+                    if (tool == NODE_WIFI) sentinel_wifimon_dwell(&s_node_wifi, sentinel_wifi_channel[s_hop = 0], 0, NULL);
+                    if (tool == NODE_HPOT) s_hp_tick = s_hp_joins = s_hp_probes = 0;
+                }
+                s_node_tool     = tool;
+                s_node_ble_mode = tool == NODE_BLE;
+                snprintf(buf, sizeof(buf), "MODE,%s", c.arg);
+                emit(buf);
+            }
+            break;
+        }
+        case SENTINEL_CMD_HPOT:
+            if (!c.valid) {
+                emit("ERR,bad honeypot");
+                break;
+            }
+            s_hp_ch = (uint8_t)c.value;
+            snprintf(s_hp_ssid, sizeof(s_hp_ssid), "%s", c.arg);
+            snprintf(buf, sizeof(buf), "HPT,%u,0,0,0,", (unsigned)s_hp_ch);
+            {
+                char row[96];
+                snprintf(row, sizeof(row), "%s%s", buf, s_hp_ssid);
+                emit(row);
             }
             break;
         case SENTINEL_CMD_CAP:
             if (!c.valid) emit("ERR,bad cap");
             else if (c.value == 0) s_node_cap ? node_capture(false) : emit("CAP,0");
-            else if (!s_node_ble_mode) emit("ERR,capture needs mode ble");
+            else if (s_node_tool != NODE_BLE && s_node_tool != NODE_WIFI) emit("ERR,capture needs mode ble or wifi");
             else s_node_cap ? emit("CAP,1") : node_capture(true);
             break;
         case SENTINEL_CMD_ARM: {
