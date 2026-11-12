@@ -75,8 +75,33 @@ surveillance devices (Flock by name, Axon by address prefix) in red. `F`
 filters, `M` marks a device as yours so it never alerts, `C` records every
 advertisement to a pcap file on the SD card. The scan is passive: the C5
 sends nothing. **LOG** shows today's events from storage, newest first, with
-where the deck was. SUB-GHZ, 2.4 GHZ and TESTS are placeholders for the
-phases in the rf-sentinel ROADMAP.
+where the deck was. TESTS is a placeholder for the last phase in the
+rf-sentinel ROADMAP.
+
+**SUB-GHZ** and **2.4 GHZ** are spectrum analyzers for the two bands the
+board has radios of its own for. SUB-GHZ > SPECTRUM draws the CC1101's sweep
+of 433.0 to 435.0 MHz with peak hold and the last minute or so as a
+waterfall, and gives the selected channel's floor, mean, peak and how often
+it was busy. SUB-GHZ > BURSTS parks the CC1101 on one frequency (433.92 MHz
+unless you tune it) and times every transmission there: how long, how
+strong, how long since the last. Bursts of the same shape are grouped into
+emitters, and one that keeps a rhythm gets its period ("every 43 s"): that
+is how a weather station, a remote or a tyre sensor shows up. It reads
+shapes, not contents; nothing is decoded. 2.4 GHZ draws the nRF24's view of
+2400 to 2525 MHz with its last sixty reports (about five minutes), marks where Wi-Fi channels 1,
+6 and 11 and the Bluetooth advertising channels sit, and says which of the
+three Wi-Fi channels carries the least energy. In both, `S` runs a site
+survey (a minute of both bands, then `sentinel/site-<time>.csv` with every
+channel's floor, mean, peak and busy share) and `B` tells the board that
+what it hears now is normal here.
+
+The **jam watch** runs in the background in any app. The board warns once
+when half the 433 MHz band rises together, or when 40 or more of the 126
+2.4 GHz channels are solid (busy Wi-Fi does not come near that: the most
+measured in a flat full of it was 4). The deck then adds what else it
+knows: saturation with Bluetooth fallen to a quarter of its usual rate, or
+either alarm with the GPS losing satellites or signal, is reported as
+likely jamming and names both. RF WATCH detects jamming; it never does it.
 
 **WARDRIVE** writes down what the deck hears and where. `Enter` starts a
 drive and `Enter` again, or leaving the screen, ends it. The C5 hops every
@@ -140,6 +165,10 @@ keyboard and nothing makes a sound. Switching the app off cuts EXT5V.
 | BLUETOOTH | WARDRIVE |
 |---|---|
 | ![RF WATCH Bluetooth](docs/screenshots/rf_bluetooth.png) | ![RF WATCH wardrive](docs/screenshots/rf_wardrive.png) |
+
+| SUB-GHZ spectrum | SUB-GHZ bursts | 2.4 GHZ |
+|---|---|---|
+| ![RF WATCH sub-GHz](docs/screenshots/rf_subghz.png) | ![RF WATCH bursts](docs/screenshots/rf_bursts.png) | ![RF WATCH 2.4 GHz](docs/screenshots/rf_2g4.png) |
 
 The protocol, the state record, the link state machine and the log formats
 are `sentinel_core`, a portable library in the rf-sentinel repo that the C5

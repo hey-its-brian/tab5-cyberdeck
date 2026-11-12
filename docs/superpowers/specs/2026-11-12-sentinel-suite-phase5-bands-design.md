@@ -10,8 +10,8 @@ decisions below are assumptions and are his to overrule.
 **SUB-GHZ** (tile 3), two views:
 
 - **SPECTRUM**: the 433 MHz band as the CC1101 sweeps it (21 channels,
-  433.0 to 435.0 MHz): the latest sweep with peak hold, a minute of history
-  as a waterfall, and for the selected channel its floor, mean, peak and how
+  433.0 to 435.0 MHz): the latest sweep with peak hold, the last minute or
+  so as a waterfall, and for the selected channel its floor, mean, peak and how
   often it was busy.
 - **BURSTS**: the CC1101 stops sweeping and listens to one frequency
   (433.92 MHz unless changed), timing every transmission it hears: when,
@@ -21,8 +21,8 @@ decisions below are assumptions and are his to overrule.
   remote shows up.
 
 **2.4 GHZ** (tile 4): the band as the nRF24 sees it (126 channels of
-carrier detect, 2400 to 2525 MHz): the latest report, two minutes of
-history as a waterfall, where Wi-Fi channels 1, 6 and 11 and the three
+carrier detect, 2400 to 2525 MHz): the latest report, the last sixty
+reports (about five minutes) as a waterfall, where Wi-Fi channels 1, 6 and 11 and the three
 Bluetooth advertising channels sit, and which of 1, 6 and 11 carries the
 least energy (the WI-FI tool answers the same question by counting access
 points; this one measures).
@@ -88,14 +88,50 @@ alarm coincides with the GPS losing satellites or signal, the warning says
 | Direction | Sentence | Meaning |
 |---|---|---|
 | node to host | `HELLO,...,sub=1` | this node has the band watch, `LEARN` and the burst listener |
-| node to host | `BND,<sub or nrf>,<0 normal, 1 up, 2 low>,<channels>,<dB>` | a band's state, on change and every 10 s while it is not normal |
+| node to host | `BND,<sub or nrf>,<0 normal, 1 up, 2 low>,<channels>,<dB>` | a band's state, on change and every 10 s |
 | node to host | `SBD,<kHz>,<floor dBm>,<bursts>` | the burst listener is on this frequency; every 2 s. `SBD,0,0,0` once when it stops |
-| node to host | `BRS,<kHz>,<ms long>,<peak dBm>,<ms since the last one ended>` | one burst, when it ends (or every 5 s while a carrier stays up) |
+| node to host | `BRS,<kHz>,<ms long>,<peak dBm>,<ms since the last one ended>,<0 or 1>` | one burst, when it ends; `1` for a carrier still up, sent every 5 s while it lasts |
 | host to node | `CMD,LEARN` | what you hear now is normal: start both baselines again |
 | host to node | `CMD,SUB,sweep` / `CMD,SUB,dwell,<kHz>` | sweep the band, or listen to one frequency (433000 to 435000) |
 
 Fixed on the way: the first sweep after boot reported +120 dBm on
 433.0 MHz (the RSSI conversion wrapped below -128).
+
+## As built (2026-11-12)
+
+- Measured on the node: with everything else it does, a 433 MHz sweep comes
+  round about twice a second and a 2.4 GHz report every five seconds or so.
+  So the waterfalls hold about a minute and a half and about five minutes,
+  the baseline's warm-up is about 40 s, "two sweeps running" is a second
+  and "two reports running" is ten.
+- Found on the bench and by review, and fixed:
+  - The burst listener was deaf after its first moment. The CC1101 leaves
+    receive when it takes noise for a packet, and its signal strength
+    reading then freezes. The listener now asks for a sync word (so noise is
+    rarely a packet) and puts the chip back into receive whenever it finds
+    it has left.
+  - Once it could hear, it called single noise spikes bursts: about one a
+    second, a millisecond long, 5 to 9 dB over the floor. A burst now needs
+    four strong samples (two milliseconds on the node).
+  - A signal that rises and stays is taken for the new floor after about
+    half a minute, instead of being a carrier that hides every burst for
+    good.
+  - While the listener has the radio the band's state is not known, so an
+    alarm is not left standing; and band rows are sent every 10 s whatever
+    the state, so a lost "back to normal" cannot leave a host believing an
+    alarm.
+  - The jam verdict is dropped when the link is lost.
+  - Statistics are exact over any length of run (a float running sum stops
+    adding -100 exactly after eleven hours).
+  - A survey with nothing swept is not written; a band with nothing swept
+    has blank rows, not zeros.
+- The link at 921600 baud lost a pair of frames every few minutes. The
+  Tab5's UART interrupt fired with 8 bytes of FIFO left, which at that rate
+  is 87 microseconds. It now fires with 96 left, and stays in RAM so a
+  flash write cannot hold it off.
+- Switching the CC1101's front end off and on from the Tab5 (the 2026-11-11
+  case) moved nothing measurable on this board, so the "band went quiet"
+  rule could not be seen on hardware and rests on its tests.
 
 ## Where the code goes
 
