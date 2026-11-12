@@ -47,7 +47,7 @@ static struct {
     wifi_view_t view;
     int      sel_slot;     /* MONITOR: the channel under the cursor */
     int      sel_index;    /* NETWORKS: the row */
-    bool     cap_wanted, hp_wanted;
+    bool     cap_wanted, hp_wanted, hp_seen_on; /* hp_seen_on: the node confirmed it was on air */
     uint32_t cap_base, lost_base;
     uint8_t  hp_ch;
     char     hp_ssid[SENTINEL_WIFI_SSID_MAX + 1];
@@ -352,8 +352,15 @@ static void render_honeypot(void)
     lv_label_set_text(s_wf.line[5], radio_line());
     lv_label_set_text(s_wf.line[6], "");
     lv_label_set_text(s_wf.line[7], "");
-    /* The lease went (the session ended, the screen slept): the node has stopped it, so stop wanting it. */
-    if (s_wf.hp_wanted && !red) s_wf.hp_wanted = false;
+    /* The honeypot has gone off the air without being asked to here: the
+     * session ended (the screen slept), or the node's lease ran out. Stop
+     * wanting it, and have the node go back to hopping, or the other three
+     * views would sit on a node that is doing nothing for them. */
+    if (on) s_wf.hp_seen_on = true;
+    if (s_wf.hp_wanted && (!red || (s_wf.hp_seen_on && !on))) {
+        s_wf.hp_wanted = s_wf.hp_seen_on = false;
+        sentinel_tool("wifi");
+    }
 }
 
 /* ---- The screen ----------------------------------------------------------- */
@@ -541,7 +548,8 @@ static bool honeypot_key(const deck_key_t *k)
     }
     if (k->code == HID_ENTER) {
         if (rf_mode() != RF_MODE_RED) return true; /* the screen says why */
-        s_wf.hp_wanted = !on;
+        s_wf.hp_wanted  = !on;
+        s_wf.hp_seen_on = false;
         if (s_wf.hp_wanted) sentinel_honeypot(s_wf.hp_ch, s_wf.hp_ssid);
         else sentinel_tool("wifi");
         render();

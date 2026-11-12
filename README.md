@@ -56,6 +56,18 @@ health, the session, GNSS (fix, satellites, position, C/N0), the networks
 the C5 hears, the 433 MHz sweep (21 channels with peak hold), 2.4 GHz
 occupancy (126 channels of nRF24 carrier detect) and the newest events;
 `H` asks the C5 for HELLO, `P` pings it, `T` knocks on the transmit gate.
+**WI-FI** makes the C5 hop all 38 channels (2.4 GHz 1 to 13, 5 GHz 36 to
+165) and has four views. MONITOR draws the latest sweep as bars and forty
+sweeps of history as a waterfall, red where deauthentication frames were
+heard. NETWORKS lists every access point with its channel, security and
+whether its management frames are protected, marks an open copy of a
+protected name, and says which of channels 1, 6 and 11 has the fewest
+neighbours. DRONES lists aircraft broadcasting Remote ID, with the ID and
+position they claim. HONEYPOT, in a RED TEAM session only, puts an open
+access point with a name you choose on the air, with nothing behind it,
+and counts who joins: it is the one thing in RF WATCH that transmits so
+far. `C` captures management frames to a pcap file.
+
 **BLUETOOTH** lists every BLE advertiser in earshot, strongest first, and
 labels what it recognises: trackers away from their owner (AirTag and other
 Find My tags, SmartTag, Tile, Chipolo, Google trackers) in yellow,
@@ -63,8 +75,18 @@ surveillance devices (Flock by name, Axon by address prefix) in red. `F`
 filters, `M` marks a device as yours so it never alerts, `C` records every
 advertisement to a pcap file on the SD card. The scan is passive: the C5
 sends nothing. **LOG** shows today's events from storage, newest first, with
-where the deck was. WI-FI, SUB-GHZ and 2.4 GHZ are placeholders for the
-phases in the rf-sentinel ROADMAP.
+where the deck was. SUB-GHZ and 2.4 GHZ are placeholders for the phases in
+the rf-sentinel ROADMAP.
+
+The C5 also watches Wi-Fi all the time, in any app, and warns about four
+things: a deauth flood (ten deauthentication frames for one network within
+two seconds), an evil twin (a name heard open from one access point and
+protected from another; a mesh repeating its name is not one), a beacon
+flood (thirty never-heard access points within ten seconds) and karma (one
+access point answering for five different names). A drone broadcasting
+Remote ID is a warning too. In the background the C5 only passes each
+channel briefly every fifteen seconds, so a sustained attack is caught and
+a single burst may be missed; with the WI-FI tile open coverage is full.
 
 Tracker and surveillance detection run in the background too, in any app.
 A tracker heard for the first time is a line in the log. A tracker that
@@ -90,6 +112,10 @@ keyboard and nothing makes a sound. Switching the app off cuts EXT5V.
 | OVERVIEW | A warning while in TERMINAL |
 |---|---|
 | ![RF WATCH overview](docs/screenshots/rf_overview.png) | ![Notice banner](docs/screenshots/rf_banner.png) |
+
+| WI-FI monitor | WI-FI networks |
+|---|---|
+| ![RF WATCH Wi-Fi monitor](docs/screenshots/rf_wifi.png) | ![RF WATCH networks](docs/screenshots/rf_networks.png) |
 
 ![RF WATCH Bluetooth](docs/screenshots/rf_bluetooth.png)
 

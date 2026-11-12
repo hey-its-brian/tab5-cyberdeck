@@ -90,6 +90,17 @@ DECK//OS: `deck_sentinel` holds a `sentinel_wifihost_t` under its lock;
 through the same core code: hand-built beacons, a deauth burst, an open
 twin, a drone.
 
+## As built (2026-11-12)
+
+Built as designed, with one addition: `HELLO` carries `mon=0/1`, and a host
+only asks for `wifi` or `hpot` of a node that says it has the monitor, so
+firmware before 0.5.0 is not asked every three seconds.
+
+Not run on the C5: it was not on USB when this was built, so the node side
+(promiscuous receive, hopping, the honeypot access point) is compiled and
+unit-tested through the core, and nothing more. The deck side ran on the
+Tab5 against the older node.
+
 ## Testing
 
 Core tests with hand-built frames for every detector and its near misses
