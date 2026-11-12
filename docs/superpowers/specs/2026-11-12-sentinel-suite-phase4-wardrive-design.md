@@ -112,6 +112,29 @@ c1:22:33:44:55:66,Tile,[BLE],2026-11-12 15:04:07,0,7936,-71,40.741895,-73.989308
 - `sim/sentinel_sim.c`: the pretend deck walks down a street so the
   simulator writes real files.
 
+## As built (2026-11-12)
+
+- The rules and the writer are `sentinel_drive` and `sentinel_wigle` in the
+  core; the session that joins them to the queue and the files is
+  `components/deck_sentinel/sentinel_drivelog.c`, the same code on the
+  Tab5 and in the simulator.
+- A position is only a place while it is fresh: one that last arrived 3 s
+  ago or more is not used. When the link drops mid-drive nothing more is
+  written with the last fix.
+- A row that cannot be queued for the card is taken back, so the device is
+  written at its next sighting instead of being counted as on file.
+- The writer task opens, syncs and closes the files. It closes them itself
+  in a quiet second if the request to close was lost, and raises a warning
+  if the card stops taking rows.
+- Back from any tool (Esc, Del or the status bar's BACK) returns to the
+  tools page: a module can now have levels of its own (`on_back`).
+- Found on the bench and fixed in the node: a tool that hops channels,
+  started while the background presence scan was running, had all but one
+  of its 38 channels written off as unusable until the node restarted
+  (the driver refuses to tune during a scan, except to the channel the scan
+  is on). The WI-FI tool from phase 3 had the same fault. The monitor now
+  waits for the scan, and starting a tool cancels it.
+
 ## Testing
 
 - Host tests for the row rules (fix, distance, opt-outs, private

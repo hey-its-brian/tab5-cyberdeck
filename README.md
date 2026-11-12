@@ -75,8 +75,27 @@ surveillance devices (Flock by name, Axon by address prefix) in red. `F`
 filters, `M` marks a device as yours so it never alerts, `C` records every
 advertisement to a pcap file on the SD card. The scan is passive: the C5
 sends nothing. **LOG** shows today's events from storage, newest first, with
-where the deck was. SUB-GHZ and 2.4 GHZ are placeholders for the phases in
-the rf-sentinel ROADMAP.
+where the deck was. SUB-GHZ, 2.4 GHZ and TESTS are placeholders for the
+phases in the rf-sentinel ROADMAP.
+
+**WARDRIVE** writes down what the deck hears and where. `Enter` starts a
+drive and `Enter` again, or leaving the screen, ends it. The C5 hops every
+Wi-Fi channel with its Bluetooth scan beside it, listening only (no probe
+requests, so it works in a SAFE session), and the deck writes two files to
+the SD card: `sentinel/wigle-<time>.csv`, access points and Bluetooth
+devices with the GPS position in WiGLE's own format (WigleWifi-1.6, ready
+to upload to wigle.net), and `sentinel/survey-<time>.csv`, the 433 MHz and
+2.4 GHz bands along the same route every five seconds. A row needs a
+position and a time and both come from the GPS, so nothing is written
+before a fix and the deck's own clock does not matter. A device is written
+once per place and again after the deck has moved 25 m. Two things are
+never written: networks that opt out of mapping (a name ending `_nomap` or
+containing `_optout`) and Bluetooth addresses that rotate (phones, watches,
+earbuds). The screen shows each count, and the drive keeps running while
+the screen sleeps.
+
+Back from a tool (`Esc`, `Del` or the BACK button in the status bar) returns
+to the tools page; back from there leaves RF WATCH and ends the session.
 
 The C5 also watches Wi-Fi all the time, in any app, and warns about four
 things: a deauth flood (ten deauthentication frames for one network within
@@ -100,7 +119,8 @@ powered (EXT5V on the bus, CC1101 front end in receive: RX_EN on G16 high,
 TX_EN on G17 low) and read on UART1 (G7 in, G6 out), whatever is on screen.
 The link starts at 115200 and moves to 921600 once the node is known to
 speak protocol 2. Every event goes to `sentinel/events-YYYYMMDD.csv` on the
-SD card (or internal storage) and captured frames to pcap files beside it.
+SD card (or internal storage), captured frames to pcap files beside it, and
+a wardrive to its two CSV files there.
 A warning from the board reaches you in any app: a count in the status bar
 until you open RF WATCH, and a banner for a few seconds. Nothing takes the
 keyboard and nothing makes a sound. Switching the app off cuts EXT5V.
@@ -117,7 +137,9 @@ keyboard and nothing makes a sound. Switching the app off cuts EXT5V.
 |---|---|
 | ![RF WATCH Wi-Fi monitor](docs/screenshots/rf_wifi.png) | ![RF WATCH networks](docs/screenshots/rf_networks.png) |
 
-![RF WATCH Bluetooth](docs/screenshots/rf_bluetooth.png)
+| BLUETOOTH | WARDRIVE |
+|---|---|
+| ![RF WATCH Bluetooth](docs/screenshots/rf_bluetooth.png) | ![RF WATCH wardrive](docs/screenshots/rf_wardrive.png) |
 
 The protocol, the state record, the link state machine and the log formats
 are `sentinel_core`, a portable library in the rf-sentinel repo that the C5
