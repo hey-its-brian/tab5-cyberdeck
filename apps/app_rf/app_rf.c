@@ -18,7 +18,7 @@
  * warnings into notices (the status bar count and a banner) that reach the
  * user in any app. That part is always in the safe posture.
  *
- * Screens: this file (gate, chooser), rf_overview.c, rf_wifi.c, rf_ble.c,
+ * Screens: this file (gate, chooser), rf_overview.c, rf_wifi.c, rf_ble.c, rf_drive.c,
  * rf_log.c.
  */
 #include "app_rf.h"
@@ -54,9 +54,11 @@ static const rf_tool_t s_tools[] = {
     {"2.4 GHZ", "SPECTRUM, SURVEY, JAM DETECT", ICON_GAUGE, "PHASE 5", NULL, NULL, NULL},
     {"BLUETOOTH", "SCAN, TRACKERS, CAPTURE", ICON_WIRELESS, NULL, rf_ble_build, rf_ble_destroy, rf_ble_key},
     {"LOG", "EVENTS ON STORAGE", ICON_HISTORY, NULL, rf_log_build, rf_log_destroy, rf_log_key},
+    {"WARDRIVE", "WI-FI AND BLUETOOTH WITH GPS", ICON_PIN, NULL, rf_drive_build, rf_drive_destroy, rf_drive_key},
+    {"TESTS", "TARGETED, RED TEAM ONLY", ICON_BOLT, "PHASE 6", NULL, NULL, NULL},
 };
 #define TOOL_N    ((int)(sizeof(s_tools) / sizeof(s_tools[0])))
-#define TOOL_COLS 3
+#define TOOL_COLS 4
 
 typedef enum { SCR_NONE, SCR_GATE, SCR_CHOOSER, SCR_TOOL } rf_screen_t;
 
@@ -278,14 +280,14 @@ static void show_chooser(void)
         const rf_tool_t *tl = &s_tools[i];
         char             num[4];
         snprintf(num, sizeof(num), "%d", i + 1);
-        s_ui.tile[i] = tile(grid, 390, 236, tl->icon, tl->name, tl->tagline, tl->eta ? tl->eta : num, g_pal.accent,
+        s_ui.tile[i] = tile(grid, 290, 250, tl->icon, tl->name, tl->tagline, tl->eta ? tl->eta : num, g_pal.accent,
                             tl->eta != NULL);
         lv_obj_add_event_cb(s_ui.tile[i], tool_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)i);
     }
     select_tile(TOOL_N, s_ui.tool);
 
     deck_label(root, g_font.mono_s, g_pal.dim,
-               "[ARROWS] CHOOSE   [ENTER] OPEN   [1-6] JUMP   [ESC] LEAVE RF WATCH (ENDS THE SESSION)");
+               "[ARROWS] CHOOSE   [ENTER] OPEN   [1-8] JUMP   [ESC] LEAVE RF WATCH (ENDS THE SESSION)");
     s_ui.timer = lv_timer_create(chooser_tick, 500, NULL);
     chooser_tick(s_ui.timer);
 }

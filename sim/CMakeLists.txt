@@ -70,6 +70,7 @@ add_executable(deck_sim
     ${ROOT}/components/deck_net/net_tools.c
     sentinel_sim.c
     ${ROOT}/components/deck_sentinel/sentinel_store.c
+    ${ROOT}/components/deck_sentinel/sentinel_drivelog.c
     ota_sim.c
     term_link_pty.c
     term_chat_sim.c
@@ -114,6 +115,7 @@ target_include_directories(deck_sim PRIVATE
     ${ROOT}/components/deck_md/include
     ${ROOT}/components/deck_net/include
     ${ROOT}/components/deck_sentinel/include
+    ${ROOT}/components/deck_sentinel
     ${ROOT}/components/deck_ota/include
     ${ROOT}/components/deck_term/include
     ${ROOT}/components/deck_term
@@ -164,6 +166,12 @@ target_include_directories(store_test PRIVATE ${ROOT}/components/deck_sentinel/i
 target_compile_options(store_test PRIVATE -Wall -Wextra)
 target_link_libraries(store_test PRIVATE sentinel_core)
 add_test(NAME sentinel_store COMMAND store_test)
+
+add_executable(drivelog_test drivelog_test.c ${ROOT}/components/deck_sentinel/sentinel_drivelog.c)
+target_include_directories(drivelog_test PRIVATE ${ROOT}/components/deck_sentinel ${ROOT}/components/deck_sentinel/include ${ROOT}/components/deck_hal/include)
+target_compile_options(drivelog_test PRIVATE -Wall -Wextra)
+target_link_libraries(drivelog_test PRIVATE sentinel_core)
+add_test(NAME sentinel_drivelog COMMAND drivelog_test)
 
 add_executable(weather_test weather_test.c ${ROOT}/apps/app_weather/weather_data.c)
 target_include_directories(weather_test PRIVATE ${ROOT}/apps/app_weather ${ROOT}/components/deck_ui/include)

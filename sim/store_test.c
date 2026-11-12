@@ -9,6 +9,7 @@
 
 #include "sentinel_log.h"
 #include "sentinel_store.h"
+#include "sentinel_wigle.h"
 
 static int s_fail;
 #define CHECK(cond)                                                       \
@@ -158,6 +159,60 @@ int main(void)
     sentinel_store_event(&e, 0, 0, 0);
     sentinel_store_stats(&st);
     CHECK(st.packets == 4 && st.packets_dropped == 2 && st.events == 3);
+
+    /* A wardrive: two files, each opened with its header, rows appended as
+     * they come, and nothing written once the drive has ended. */
+    s_sd = true;
+    sentinel_wigle_id_t id = {.app = "1.5.0", .model = "Tab5", .release = "0.6.0", .board = "ESP32-P4", .brand = "M5Stack"};
+    char head[400], wigle[400], survey[400], got[1200];
+    int  head_n = sentinel_wigle_head(head, sizeof(head), &id);
+    const char *row1 = "a4:c3:f0:11:22:33,Afterlife,[WPA2][ESS],2026-11-12 15:04:05,11,2462,-63,40.741895,-73.989308,12,6.0,,,WIFI\n";
+    const char *row2 = "c1:22:33:44:55:66,Tile,[BLE],2026-11-12 15:04:07,0,7936,-71,40.741895,-73.989308,12,6.0,,,BLE\n";
+    const char *srow = "2026-11-12T15:04:05Z,40.741895,-73.989308,12,6.0,-61,433.9,2,2462,-104,0\n";
+    sentinel_store_drive_row(SENTINEL_DRIVE_WIGLE, row1, strlen(row1)); /* no drive yet: lost, and counted */
+    sentinel_store_stats(&st);
+    CHECK(!st.drive_open && st.drive_rows == 0 && st.drive_dropped == 1);
+    CHECK(sentinel_store_drive_open(&id));
+    sentinel_store_stats(&st);
+    CHECK(st.drive_open && strncmp(st.drive_file, "wigle-", 6) == 0 && strstr(st.drive_file, ".csv"));
+    snprintf(wigle, sizeof(wigle), "%s/sentinel/%s", root, st.drive_file);
+    snprintf(survey, sizeof(survey), "%s/sentinel/survey-%s", root, st.drive_file + 6);
+    sentinel_store_drive_row(SENTINEL_DRIVE_WIGLE, row1, strlen(row1));
+    sentinel_store_drive_row(SENTINEL_DRIVE_SURVEY, srow, strlen(srow));
+    sentinel_store_drive_row(SENTINEL_DRIVE_WIGLE, row2, strlen(row2));
+    sentinel_store_flush(); /* on the card without closing: a deck that loses power keeps what it wrote */
+    CHECK(file_size(wigle) == head_n + (long)strlen(row1) + (long)strlen(row2));
+    CHECK(file_size(survey) == (long)strlen(SENTINEL_SURVEY_HEADER) + (long)strlen(srow));
+    /* Opened again within the same second (stop and start): the same files, one header each. */
+    sentinel_store_drive_close();
+    CHECK(sentinel_store_drive_open(&id));
+    sentinel_store_drive_row(SENTINEL_DRIVE_WIGLE, row2, strlen(row2));
+    sentinel_store_drive_close();
+    sentinel_store_stats(&st);
+    CHECK(!st.drive_open && st.drive_rows == 4 && st.drive_dropped == 1);
+    snprintf(cmd, sizeof(cmd), "cat %s/sentinel/wigle-*.csv", root);
+    FILE *cat = popen(cmd, "r");
+    size_t got_n = cat ? fread(got, 1, sizeof(got) - 1, cat) : 0;
+    if (cat) pclose(cat);
+    got[got_n] = 0;
+    CHECK(strncmp(got, head, (size_t)head_n) == 0 && strstr(got + head_n, row1) && strstr(got, row2));
+    int heads = 0;
+    for (const char *q = got; (q = strstr(q, "WigleWifi-1.6")) != NULL; q++) heads++;
+    snprintf(cmd, sizeof(cmd), "ls %s/sentinel/wigle-*.csv | wc -l", root);
+    wc = popen(cmd, "r");
+    if (wc) {
+        if (fscanf(wc, "%ld", &files) != 1) files = -1;
+        pclose(wc);
+    }
+    CHECK(heads == files && files >= 1); /* one header per file, however often it was opened */
+    sentinel_store_drive_row(SENTINEL_DRIVE_WIGLE, row1, strlen(row1)); /* after the end: not written */
+    sentinel_store_stats(&st);
+    CHECK(st.drive_rows == 4 && st.drive_dropped == 2);
+    /* Like captures, a drive is for the card: internal flash would fill within the hour. */
+    s_sd = false;
+    CHECK(!sentinel_store_drive_open(&id));
+    sentinel_store_stats(&st);
+    CHECK(!st.drive_open);
 
     snprintf(cmd, sizeof(cmd), "rm -rf %s", root);
     if (system(cmd) != 0) printf("could not remove %s\n", root);

@@ -35,6 +35,12 @@ void rf_wifi_build(lv_obj_t *parent);
 void rf_wifi_destroy(void);
 bool rf_wifi_key(const deck_key_t *k);
 
+/* WARDRIVE: Wi-Fi and Bluetooth with the GPS position, written to the SD
+ * card in WiGLE's format. Listening only. The drive ends with the screen. */
+void rf_drive_build(lv_obj_t *parent);
+void rf_drive_destroy(void);
+bool rf_drive_key(const deck_key_t *k);
+
 /* LOG: today's events file from storage, newest first. */
 void rf_log_build(lv_obj_t *parent);
 void rf_log_destroy(void);

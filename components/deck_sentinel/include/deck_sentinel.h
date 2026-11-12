@@ -93,7 +93,8 @@ void sentinel_honeypot(uint8_t channel, const char *ssid);
 /* Which tool owns the node's own radio: "watch" (shared between the Wi-Fi
  * presence scan and a Bluetooth scan, the background state), "ble"
  * (Bluetooth full time), "wifi" (hopping every Wi-Fi channel) or "hpot"
- * (the honeypot, see above). Asked until the node agrees;
+ * (the honeypot, see above); "drive" belongs to sentinel_drive_start().
+ * Asked until the node agrees;
  * sentinel_start() begins in "watch". */
 void sentinel_tool(const char *mode);
 /* Have the node stream every advertisement, written to a pcap file on the
@@ -108,6 +109,42 @@ bool sentinel_ble_track(const uint8_t addr[6], sentinel_track_t *out);
 /* "This one is mine": no alerts for it. Saved in settings ("rf_mine"). */
 bool sentinel_ble_mine(const uint8_t addr[6]);
 void sentinel_ble_set_mine(const uint8_t addr[6], bool mine);
+
+/* ---- Wardriving ---------------------------------------------------------- */
+
+#define SENTINEL_DRIVE_RECENT 10
+#define SENTINEL_DRIVE_TEXT   48
+
+/* A drive, as the WARDRIVE screen shows it. The counts stay after it ends. */
+typedef struct {
+    bool     on;          /* a drive is running */
+    bool     writing;     /* its two files are open on the SD card */
+    bool     placed;      /* the GPS gives a place and a time, so sightings are being written */
+    uint32_t started_ms;
+    uint32_t wifi, ble;   /* access points and Bluetooth devices on file */
+    uint32_t rows, survey_rows;
+    uint32_t nofix, optout, priv; /* sightings not written: no place, an opted-out network, a rotating address */
+    uint32_t lost;        /* rows that did not reach the card */
+    float    distance_m;
+    char     file[32];    /* the WiGLE file's name */
+    int      recent_n;
+    struct {
+        bool   ble;
+        int8_t rssi;
+        char   text[SENTINEL_DRIVE_TEXT];
+    } recent[SENTINEL_DRIVE_RECENT]; /* the last rows written, newest first */
+} sentinel_drive_info_t;
+
+/* Start a wardrive: the node hops every Wi-Fi channel with its Bluetooth
+ * scan beside it (the "drive" tool, all of it listening), and what it hears
+ * goes into sentinel/wigle-<time>.csv with the GPS position, in WiGLE's
+ * format, plus sentinel/survey-<time>.csv for the two swept bands. The
+ * rules for what is written are in sentinel_drive.h. SD card only.
+ * `app_version` goes in the file's first line. Stop hands the radio back
+ * ("watch") and closes the files; so does sentinel_stop(). */
+void sentinel_drive_start(const char *app_version);
+void sentinel_drive_stop(void);
+void sentinel_drive_info(sentinel_drive_info_t *out);
 
 #ifdef __cplusplus
 }

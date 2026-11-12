@@ -1,4 +1,4 @@
-/* The event log and capture files. See sentinel_store.h. */
+/* The event log, capture files and a wardrive's files. See sentinel_store.h. */
 #include "sentinel_store.h"
 
 #include <errno.h>
@@ -6,16 +6,26 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "deck_hal.h"
 #include "sentinel_log.h"
 #include "sentinel_pcap.h"
+#include "sentinel_wigle.h"
 
 #define FLUSH_EVERY 16 /* packets between flushes while frames keep coming */
 #define DIR_MAX     200 /* "/sdcard/sentinel" on the device; the simulator's root is a long host path */
 #define PATH_MAX_   256
 
+#define DRIVE_SYNC_S 5 /* a wardrive's rows reach the card at least this often */
+
 static sentinel_store_stats_t s_stats;
+static struct {
+    FILE  *f[SENTINEL_DRIVE_FILES];
+    bool   unsynced[SENTINEL_DRIVE_FILES];
+    time_t synced;
+} s_drive;
+static void drive_sync(void);
 static struct {
     FILE                 *f;
     sentinel_pcap_clock_t clock;
@@ -136,6 +146,7 @@ void sentinel_store_flush(void)
             s_cap[i].unflushed = 0;
         }
     }
+    drive_sync();
 }
 
 void sentinel_store_close(void)
@@ -179,4 +190,93 @@ int sentinel_store_tail(char *out, size_t n)
         memmove(out, nl + 1, got + 1);
     }
     return (int)got;
+}
+
+/* ---- A wardrive's files --------------------------------------------------- */
+
+static void drive_sync(void)
+{
+    bool failed = false;
+    for (int i = 0; i < SENTINEL_DRIVE_FILES; i++) {
+        if (!s_drive.f[i] || !s_drive.unsynced[i]) continue;
+        /* fflush hands the bytes to the file system; only fsync makes FAT
+         * write the file's new length, which is what a power cut would lose.
+         * A buffered write "succeeds" long after a card is gone: this is
+         * where its absence shows. */
+        if (fflush(s_drive.f[i]) != 0 || fsync(fileno(s_drive.f[i])) != 0) failed = true;
+        s_drive.unsynced[i] = false;
+    }
+    s_drive.synced = time(NULL);
+    if (failed) {
+        s_stats.drive_dropped++; /* at least what was waiting in the buffer */
+        sentinel_store_drive_close();
+    }
+}
+
+/* Append, never truncate (see capture_open); only an empty file gets `head`. */
+static FILE *drive_file(const char *dir, const char *name, const char *head, size_t head_n)
+{
+    char path[PATH_MAX_];
+    snprintf(path, sizeof(path), "%s/%s", dir, name);
+    FILE *f = fopen(path, "a");
+    if (!f) return NULL;
+    struct stat st;
+    if ((stat(path, &st) != 0 || st.st_size == 0) && fwrite(head, 1, head_n, f) != head_n) {
+        fclose(f);
+        return NULL;
+    }
+    return f;
+}
+
+bool sentinel_store_drive_open(const sentinel_wigle_id_t *id)
+{
+    char      dir[DIR_MAX], wigle[32], survey[32], head[400];
+    struct tm t;
+    sentinel_store_drive_close();
+    local_now(&t, NULL);
+    int head_n = sentinel_wigle_head(head, sizeof(head), id);
+    if (!hal_storage_is_sd() || !store_dir(dir, sizeof(dir)) || head_n <= 0 ||
+        !sentinel_log_drive_name(wigle, sizeof(wigle), "wigle", &t) ||
+        !sentinel_log_drive_name(survey, sizeof(survey), "survey", &t))
+        return false;
+    s_drive.f[SENTINEL_DRIVE_WIGLE]  = drive_file(dir, wigle, head, (size_t)head_n);
+    s_drive.f[SENTINEL_DRIVE_SURVEY] = drive_file(dir, survey, SENTINEL_SURVEY_HEADER, strlen(SENTINEL_SURVEY_HEADER));
+    if (!s_drive.f[SENTINEL_DRIVE_WIGLE] || !s_drive.f[SENTINEL_DRIVE_SURVEY]) {
+        sentinel_store_drive_close();
+        return false;
+    }
+    s_drive.unsynced[SENTINEL_DRIVE_WIGLE] = s_drive.unsynced[SENTINEL_DRIVE_SURVEY] = true; /* the headers */
+    drive_sync();
+    snprintf(s_stats.drive_file, sizeof(s_stats.drive_file), "%s", wigle);
+    s_stats.drive_open = true;
+    return true;
+}
+
+void sentinel_store_drive_row(sentinel_drive_file_t which, const char *row, size_t len)
+{
+    if ((int)which < 0 || which >= SENTINEL_DRIVE_FILES || !s_drive.f[which]) {
+        s_stats.drive_dropped++;
+        return;
+    }
+    if (fwrite(row, 1, len, s_drive.f[which]) != len) {
+        /* The card filled up or went away: the drive's files are done. */
+        sentinel_store_drive_close();
+        s_stats.drive_dropped++;
+        return;
+    }
+    s_stats.drive_rows++;
+    s_drive.unsynced[which] = true;
+    /* (A clock set backwards, by NTP say, must not put the next sync hours away.) */
+    time_t now = time(NULL);
+    if (now - s_drive.synced >= DRIVE_SYNC_S || now < s_drive.synced) drive_sync();
+}
+
+void sentinel_store_drive_close(void)
+{
+    for (int i = 0; i < SENTINEL_DRIVE_FILES; i++) {
+        if (s_drive.f[i]) fclose(s_drive.f[i]);
+        s_drive.f[i]        = NULL;
+        s_drive.unsynced[i] = false;
+    }
+    s_stats.drive_open = false;
 }

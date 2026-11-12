@@ -27,6 +27,7 @@
  * honeypot answers MODE,hpot only while the pretend node is armed.
  */
 #include "deck_sentinel.h"
+#include "sentinel_drivelog.h"
 #include "sentinel_bleagg.h"
 #include "sentinel_cmd.h"
 #include "sentinel_host.h"
@@ -53,7 +54,9 @@ static sentinel_blehost_t s_ble;       /* the deck's: devices and the track watc
 static bool               s_node_ble_mode, s_node_cap;
 static sentinel_wifimon_t  s_node_wifi; /* the node's Wi-Fi monitor */
 static sentinel_wifihost_t s_wifi;      /* the deck's tables */
-static enum { NODE_WATCH, NODE_BLE, NODE_WIFI, NODE_HPOT } s_node_tool;
+static enum { NODE_WATCH, NODE_BLE, NODE_WIFI, NODE_HPOT, NODE_DRIVE } s_node_tool;
+static double  s_street_m;              /* how far up the street a wardrive has carried the deck */
+static uint32_t s_drive_lost_base;
 static int     s_hop;                   /* the slot the pretend radio is on */
 static uint8_t s_hp_ch;
 static char    s_hp_ssid[SENTINEL_WIFI_SSID_MAX + 1];
@@ -79,10 +82,17 @@ static void sink_packet(void *user, const sentinel_pkt_t *p)
     sentinel_store_packet(p);
 }
 static const sentinel_sink_t s_sink;
+/* A wardrive's rows go straight to the store too. */
+static bool drive_row(sentinel_drive_file_t file, const char *row, int len)
+{
+    sentinel_store_drive_row(file, row, (size_t)len);
+    return true;
+}
 static void sink_device(void *user, const sentinel_bdv_t *d)
 {
     (void)user;
     sentinel_blehost_device(&s_ble, &s_state, d, sentinel_now_ms(), &s_sink);
+    sentinel_drivelog_device(&s_state, d, sentinel_now_ms(), drive_row);
 }
 static void sink_channel(void *user, const sentinel_wch_t *c)
 {
@@ -93,6 +103,7 @@ static void sink_ap(void *user, const sentinel_wbs_t *a)
 {
     (void)user;
     sentinel_wifihost_ap(&s_wifi, a, sentinel_now_ms());
+    sentinel_drivelog_ap(&s_state, a, sentinel_now_ms(), drive_row);
 }
 static void sink_drone(void *user, const sentinel_drn_t *d)
 {
@@ -246,6 +257,20 @@ static void wifi_dwell(uint8_t ch)
         if (s_aps[i].ch != ch || s_tick < s_aps[i].from_tick) continue;
         wifi_frame(f, sim_beacon(f, &s_aps[i]), ch, (int8_t)(s_aps[i].rssi - 2 + (int)rnd(5)));
     }
+    /* On a wardrive the deck moves up a street with an access point every
+     * 15 m, each in earshot for 40 m either side: the room falls behind and
+     * new networks keep coming. One of them asks not to be mapped. */
+    if (s_node_tool == NODE_DRIVE) {
+        static const uint8_t chans[] = {1, 6, 11, 36, 44, 149};
+        for (int k = (int)((s_street_m - 40) / 15); k <= (int)((s_street_m + 40) / 15); k++) {
+            if (k < 1 || chans[k % 6] != ch) continue;
+            char     name[24];
+            sim_ap_t a = {{0x10, 0x5A, 0xB1, 0x00, (uint8_t)(k >> 8), (uint8_t)k}, name, ch, 0, k % 5 == 0 ? 0 : k % 3 ? 3 : 4, 0};
+            snprintf(name, sizeof(name), k == 7 ? "Corpo-Plaza_nomap" : "STREET-%03d", k);
+            double off = s_street_m - k * 15.0;
+            wifi_frame(f, sim_beacon(f, &a), ch, (int8_t)(-45 - (int)((off < 0 ? -off : off) * 0.9) - (int)rnd(4)));
+        }
+    }
     /* someone knocks Afterlife's clients off, a minute in, for a few seconds */
     if (ch == 11 && s_tick >= 240 && s_tick < 264) {
         uint8_t d[26] = {0xC0, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -272,7 +297,7 @@ static void wifi_dwell(uint8_t ch)
 static void wifi_tick(void)
 {
     char line[160];
-    if (s_node_tool == NODE_WIFI) {
+    if (s_node_tool == NODE_WIFI || s_node_tool == NODE_DRIVE) {
         /* hop: three dwells a tick, so a sweep of all 38 channels takes about three seconds */
         for (int k = 0; k < 3; k++) {
             uint8_t ch = sentinel_wifi_channel[s_hop];
@@ -285,7 +310,7 @@ static void wifi_tick(void)
             done.data = (uint16_t)(busy ? 30 + rnd(ch == 6 ? 500 : 120) : rnd(4) == 0 ? rnd(5) : 0);
             done.ctrl = (uint16_t)(done.data ? done.data + rnd(20) : 0);
             if (done.data && done.max_rssi < -80) done.max_rssi = (int8_t)(-80 + (int)rnd(20));
-            if (sentinel_proto_wch(line, sizeof(line), &done)) emit(line);
+            if (s_node_tool == NODE_WIFI && sentinel_proto_wch(line, sizeof(line), &done)) emit(line); /* a drive has no waterfall */
         }
     } else if (s_node_tool == NODE_WATCH && s_tick % 60 == 8) {
         /* the presence scan passes every channel once: the detectors get a slow sweep */
@@ -303,7 +328,7 @@ static void wifi_tick(void)
         }
     }
     sentinel_wbs_t ap;
-    for (int i = 0; i < 4 && sentinel_wifimon_next(&s_node_wifi, sentinel_now_ms(), &ap); i++)
+    for (int i = 0; i < (s_node_tool == NODE_DRIVE ? 10 : 4) && sentinel_wifimon_next(&s_node_wifi, sentinel_now_ms(), &ap); i++)
         if (sentinel_proto_wbs(line, sizeof(line), &ap)) emit(line);
 }
 
@@ -384,12 +409,13 @@ static void tick(lv_timer_t *t)
     /* The deck's link machine runs whether or not the node is up yet. */
     sentinel_host_out_t out;
     sentinel_host_tick(&s_host, &s_state, sentinel_now_ms(), &out);
+    sentinel_drivelog_tick(&s_state, sentinel_now_ms(), drive_row);
     if (out.note[0]) sentinel_push_event(&s_state, out.note_warn, "deck", out.note, sentinel_now_ms(), &s_sink);
     if (out.set_baud) printf("[sim] sentinel baud %u\n", (unsigned)out.set_baud);
     if (up < 2) return; /* the C5 is booting: commands sent now are lost */
     for (int i = 0; i < out.n_send; i++) sentinel_send(out.send[i]);
     node_arm_tick();
-    if (s_tick == 0) emit("HELLO,0.5.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1");
+    if (s_tick == 0) emit("HELLO,0.6.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1,drv=1");
     if (s_node_tool != NODE_WIFI && s_node_tool != NODE_HPOT) ble_tick(); /* those two take the whole radio */
     wifi_tick();
     if (!s_quiet) {
@@ -401,10 +427,13 @@ static void tick(lv_timer_t *t)
         snprintf(buf, sizeof(buf), "STAT,%u,1,1,0,1,%u", (unsigned)up, 212000u - (unsigned)rnd(3000));
         emit(buf);
         if (up < 8) {
-            emit("GPS,0,0,6,99.9,0.000000,0.000000,0.0,0.0,0,0");
+            emit("GPS,0,0,6,99.9,0.000000,0.000000,0.0,0.0,0,0,0");
         } else {
-            snprintf(buf, sizeof(buf), "GPS,3,%d,12,0.9,40.741895,-73.989308,17.2,%.1f,45,%02u%02u%02u", 8 + (int)rnd(3),
-                     36.0 + rnd(50) / 10.0, 14u + (unsigned)(up / 3600) % 10, (unsigned)(up / 60) % 60, (unsigned)up % 60);
+            /* On a wardrive the deck goes north up the street at 12 m/s. */
+            if (s_node_tool == NODE_DRIVE) s_street_m += 12.0;
+            snprintf(buf, sizeof(buf), "GPS,3,%d,12,0.9,%.6f,-73.989308,17.2,%.1f,45,%02u%02u%02u.00,121126", 8 + (int)rnd(3),
+                     40.741895 + s_street_m / 111195.0, 36.0 + rnd(50) / 10.0, 14u + (unsigned)(up / 3600) % 10,
+                     (unsigned)(up / 60) % 60, (unsigned)up % 60);
             emit(buf);
         }
     }
@@ -436,6 +465,7 @@ void sentinel_start(void)
     sentinel_wifimon_init(&s_node_wifi);
     sentinel_wifihost_init(&s_wifi);
     s_node_tool     = NODE_WATCH;
+    s_street_m      = 0;
     s_hop           = 0;
     s_hp_ssid[0]    = 0;
     s_node_ble_mode = s_node_cap = false;
@@ -446,6 +476,7 @@ void sentinel_start(void)
 void sentinel_stop(void)
 {
     if (!s_on) return;
+    sentinel_drive_stop();
     s_on = false;
     s_state.powered = false;
     if (s_timer) lv_timer_delete(s_timer);
@@ -473,6 +504,50 @@ void sentinel_note(bool warn, const char *text)
 }
 
 void sentinel_stats(sentinel_store_stats_t *out) { sentinel_store_stats(out); }
+
+/* Wardriving, as on the device but with no writer task in between. */
+void sentinel_drive_start(const char *app_version)
+{
+    if (!s_on || sentinel_drivelog_on()) return;
+    sentinel_store_stats_t st;
+    sentinel_store_stats(&st);
+    s_drive_lost_base = st.drive_dropped;
+    sentinel_host_mode(&s_host, "drive");
+    sentinel_wigle_id_t id = {.app = app_version, .model = "Simulator", .release = s_state.fw, .board = "host", .brand = "DECK//OS"};
+    char                note[64];
+    if (sentinel_store_drive_open(&id)) {
+        sentinel_store_stats(&st);
+        snprintf(note, sizeof(note), "wardrive started: %s", st.drive_file);
+        sentinel_note(false, note);
+    } else {
+        sentinel_note(true, "wardrive: no file on the SD card, nothing is written");
+    }
+    sentinel_drivelog_begin(sentinel_now_ms());
+}
+
+void sentinel_drive_stop(void)
+{
+    if (!sentinel_drivelog_on()) return;
+    sentinel_drivelog_end();
+    sentinel_host_mode(&s_host, "watch");
+    sentinel_store_drive_close();
+    sentinel_drive_info_t info;
+    char                  note[64];
+    sentinel_drive_info(&info);
+    snprintf(note, sizeof(note), "wardrive ended: %u rows, %u wifi, %u ble", (unsigned)info.rows, (unsigned)info.wifi,
+             (unsigned)info.ble);
+    sentinel_note(false, note);
+}
+
+void sentinel_drive_info(sentinel_drive_info_t *out)
+{
+    sentinel_drivelog_info(out);
+    sentinel_store_stats_t st;
+    sentinel_store_stats(&st);
+    out->writing = st.drive_open;
+    out->lost    = st.drive_dropped - s_drive_lost_base;
+    memcpy(out->file, st.drive_file, sizeof(out->file));
+}
 
 void sentinel_tool(const char *mode) { sentinel_host_mode(&s_host, mode); }
 
@@ -516,7 +591,7 @@ bool sentinel_send(const char *payload)
     uint32_t       now = sentinel_now_ms();
     char           buf[64];
     switch (c.id) {
-        case SENTINEL_CMD_HELLO: emit("HELLO,0.5.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1"); break;
+        case SENTINEL_CMD_HELLO: emit("HELLO,0.6.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1,drv=1"); break;
         case SENTINEL_CMD_PING: emit("PONG,1234"); break;
         case SENTINEL_CMD_QUIET: s_quiet = true; break;
         case SENTINEL_CMD_STREAM: s_quiet = false; break;
@@ -530,7 +605,8 @@ bool sentinel_send(const char *payload)
             break;
         case SENTINEL_CMD_MODE: {
             int tool = !c.valid ? -1 : !strcmp(c.arg, "watch") ? NODE_WATCH : !strcmp(c.arg, "ble") ? NODE_BLE
-                       : !strcmp(c.arg, "wifi") ? NODE_WIFI : !strcmp(c.arg, "hpot") ? NODE_HPOT : -1;
+                       : !strcmp(c.arg, "wifi") ? NODE_WIFI : !strcmp(c.arg, "hpot") ? NODE_HPOT
+                       : !strcmp(c.arg, "drive") ? NODE_DRIVE : -1;
             if (tool < 0) {
                 emit("ERR,unknown mode");
             } else if (tool == NODE_HPOT && !sentinel_arm_active(&s_node_arm, now)) {
@@ -541,7 +617,7 @@ bool sentinel_send(const char *payload)
                 if (tool != (int)s_node_tool) {
                     node_capture(false); /* capture belongs to the tool that asked for it */
                     printf("[sim] sentinel mode %s\n", c.arg);
-                    if (tool == NODE_WIFI) sentinel_wifimon_dwell(&s_node_wifi, sentinel_wifi_channel[s_hop = 0], 0, NULL);
+                    if (tool == NODE_WIFI || tool == NODE_DRIVE) sentinel_wifimon_dwell(&s_node_wifi, sentinel_wifi_channel[s_hop = 0], 0, NULL);
                     if (tool == NODE_HPOT) s_hp_tick = s_hp_joins = s_hp_probes = 0;
                 }
                 s_node_tool     = tool;

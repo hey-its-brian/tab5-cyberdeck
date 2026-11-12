@@ -1,7 +1,8 @@
 /*
  * deck_sentinel on the Tab5: EXT5V, the E07 control lines, UART1 on the
  * M5-Bus, a reader task that feeds the parser and runs the link machine,
- * and a writer task that puts events and captured frames on storage.
+ * and a writer task that puts events, captured frames and a wardrive's rows
+ * on storage.
  *
  * Two tasks because an SD card can stall for a tenth of a second while it
  * allocates clusters, and at 921600 baud that is nine kilobytes of UART
@@ -19,6 +20,7 @@
 #include "deck_sentinel.h"
 #include "sentinel_proto.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "deck_attr.h"
@@ -31,6 +33,7 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "sentinel_drivelog.h"
 #include "sentinel_host.h"
 
 static const char *TAG = "sentinel";
@@ -53,9 +56,12 @@ static const char *TAG = "sentinel";
  * capture brings about 180 frames a second: 128 slots is most of a second. */
 #define QUEUE_DEPTH 128
 
-/* One thing for the writer: an event with where it happened, or a frame. */
+/* One thing for the writer: an event with where it happened, a captured
+ * frame, a row of a wardrive, or the opening or closing of its files (the
+ * writer does those too, so they stay in order with the rows). */
+typedef enum { ITEM_EVENT, ITEM_PACKET, ITEM_DRIVE_ROW, ITEM_DRIVE_OPEN, ITEM_DRIVE_CLOSE } item_kind_t;
 typedef struct {
-    bool is_packet;
+    item_kind_t kind;
     union {
         struct {
             sentinel_event_t e;
@@ -63,6 +69,14 @@ typedef struct {
             double           lat, lon;
         } ev;
         sentinel_pkt_t pkt;
+        struct {
+            sentinel_drive_file_t file;
+            uint16_t              len;
+            char                  text[SENTINEL_SURVEY_LINE_MAX];
+        } row;
+        struct {
+            char app[16], fw[12];
+        } open;
     } u;
 } store_item_t;
 
@@ -75,7 +89,9 @@ static TaskHandle_t      s_task, s_writer;
 static volatile bool     s_on;
 static bool              s_uart;
 static uint32_t          s_q_drop_events, s_q_drop_packets; /* the queue was full */
-/* The queue's storage: 36 KB, so in PSRAM (nothing here runs in an interrupt). */
+static uint32_t          s_q_drop_rows, s_drive_lost_base;  /* the same for a wardrive's rows; losses before this drive */
+static volatile bool     s_drive_wanted; /* a drive is meant to be running: what the writer holds its files open for */
+/* The queue's storage: 53 KB, so in PSRAM (nothing here runs in an interrupt). */
 static uint8_t       s_queue_mem[QUEUE_DEPTH * sizeof(store_item_t)] DECK_PSRAM_BSS;
 static StaticQueue_t s_queue_ctl;
 /* The Bluetooth devices in earshot and the track watch: under s_lock, like the state. */
@@ -145,8 +161,8 @@ static void sink_event(void *user, const sentinel_event_t *e)
 {
     (void)user;
     static store_item_t it; /* static: 280 bytes the reader's stack need not carry */
-    it.is_packet = false;
-    it.u.ev.e    = *e;
+    it.kind   = ITEM_EVENT;
+    it.u.ev.e = *e;
     it.u.ev.fix  = s_state.fix;
     it.u.ev.lat  = s_state.lat;
     it.u.ev.lon  = s_state.lon;
@@ -157,19 +173,37 @@ static void sink_packet(void *user, const sentinel_pkt_t *p)
 {
     (void)user;
     static store_item_t it;
-    it.is_packet = true;
-    it.u.pkt     = *p;
+    it.kind  = ITEM_PACKET;
+    it.u.pkt = *p;
     if (!s_queue || xQueueSend(s_queue, &it, 0) != pdTRUE) s_q_drop_packets++;
 }
 
 static const sentinel_sink_t s_sink;
+
+/* A row of a wardrive, on its way to the card. Reader task, s_lock held.
+ * False when the queue has no room: the drive rules then take the row back
+ * and write the device at its next sighting. */
+static bool drive_row(sentinel_drive_file_t file, const char *row, int len)
+{
+    static store_item_t it;
+    if (len <= 0 || (size_t)len > sizeof(it.u.row.text)) return false;
+    it.kind       = ITEM_DRIVE_ROW;
+    it.u.row.file = file;
+    it.u.row.len  = (uint16_t)len;
+    memcpy(it.u.row.text, row, (size_t)len);
+    if (s_queue && xQueueSend(s_queue, &it, 0) == pdTRUE) return true;
+    s_q_drop_rows++;
+    return false;
+}
 
 /* A Bluetooth device row: the table, the track watch, and an event when the
  * watch fires (which comes straight back through sink_event). */
 static void sink_device(void *user, const sentinel_bdv_t *d)
 {
     (void)user;
-    sentinel_blehost_device(&s_ble, &s_state, d, sentinel_now_ms(), &s_sink);
+    uint32_t now = sentinel_now_ms();
+    sentinel_blehost_device(&s_ble, &s_state, d, now, &s_sink);
+    sentinel_drivelog_device(&s_state, d, now, drive_row);
 }
 
 /* Wi-Fi rows, the same way. */
@@ -182,7 +216,9 @@ static void sink_channel(void *user, const sentinel_wch_t *c)
 static void sink_ap(void *user, const sentinel_wbs_t *a)
 {
     (void)user;
-    sentinel_wifihost_ap(&s_wifi, a, sentinel_now_ms());
+    uint32_t now = sentinel_now_ms();
+    sentinel_wifihost_ap(&s_wifi, a, now);
+    sentinel_drivelog_ap(&s_state, a, now, drive_row);
 }
 
 static void sink_drone(void *user, const sentinel_drn_t *d)
@@ -206,19 +242,50 @@ static void mine_load(void)
     s_ble.watch.mine_n = (int)(len / 6);
 }
 
+/* Writer task: make the drive's two files and say how it went. */
+static void drive_open(const char *app, const char *fw)
+{
+    sentinel_wigle_id_t id = {.app = app, .model = "Tab5", .release = fw, .board = "ESP32-P4", .brand = "M5Stack"};
+    char                note[64];
+    if (sentinel_store_drive_open(&id)) {
+        sentinel_store_stats_t st;
+        sentinel_store_stats(&st);
+        snprintf(note, sizeof(note), "wardrive started: %s", st.drive_file);
+        sentinel_note(false, note);
+    } else {
+        sentinel_note(true, "wardrive: no file on the SD card, nothing is written");
+    }
+}
+
 static void writer(void *arg)
 {
     (void)arg;
     static store_item_t it;
     for (;;) {
+        sentinel_store_stats_t before;
+        sentinel_store_stats(&before);
         if (xQueueReceive(s_queue, &it, pdMS_TO_TICKS(1000)) == pdTRUE) {
-            if (it.is_packet) sentinel_store_packet(&it.u.pkt);
-            else sentinel_store_event(&it.u.ev.e, it.u.ev.fix, it.u.ev.lat, it.u.ev.lon);
+            switch (it.kind) {
+                case ITEM_EVENT: sentinel_store_event(&it.u.ev.e, it.u.ev.fix, it.u.ev.lat, it.u.ev.lon); break;
+                case ITEM_PACKET: sentinel_store_packet(&it.u.pkt); break;
+                case ITEM_DRIVE_ROW: sentinel_store_drive_row(it.u.row.file, it.u.row.text, it.u.row.len); break;
+                case ITEM_DRIVE_OPEN: drive_open(it.u.open.app, it.u.open.fw); break;
+                case ITEM_DRIVE_CLOSE: sentinel_store_drive_close(); break;
+            }
         } else if (s_on) {
-            sentinel_store_flush(); /* a quiet second: get the capture onto the card */
+            sentinel_store_flush(); /* a quiet second: get the capture and the drive onto the card */
+            /* The request to close a drive's files can be lost to a full queue. Nothing
+             * is waiting now, so if no drive is wanted its files have no reason to be open. */
+            if (!s_drive_wanted) sentinel_store_drive_close();
         } else {
             sentinel_store_close(); /* board off: the session's captures are complete */
+            sentinel_store_drive_close();
         }
+        /* The card stopped taking a drive's rows (pulled, full, failing): say so once. */
+        sentinel_store_stats_t after;
+        sentinel_store_stats(&after);
+        if (before.drive_open && !after.drive_open && s_drive_wanted)
+            sentinel_note(true, "wardrive: the SD card stopped taking rows");
     }
 }
 
@@ -246,6 +313,7 @@ static void reader(void *arg)
         if (tick) {
             ticked = now;
             sentinel_host_tick(&s_host, &s_state, now, &out);
+            sentinel_drivelog_tick(&s_state, now, drive_row);
             if (out.note[0]) sentinel_push_event(&s_state, out.note_warn, "deck", out.note, now, &s_sink);
             if (out.set_baud) s_lines.len = 0; /* half a line at the old rate is noise at the new one */
         }
@@ -306,6 +374,7 @@ void sentinel_start(void)
 void sentinel_stop(void)
 {
     if (!s_on) return;
+    sentinel_drive_stop(); /* a drive ends with the board */
     s_on = false;
     front_end(false);
     hal_ext5v(false);
@@ -434,6 +503,85 @@ void sentinel_stats(sentinel_store_stats_t *out)
     sentinel_store_stats(out);
     out->events_dropped += s_q_drop_events;
     out->packets_dropped += s_q_drop_packets;
+    out->drive_dropped += s_q_drop_rows;
+}
+
+/* ---- Wardriving ---------------------------------------------------------- */
+
+/* Opening and closing go through the queue like the rows between them. From
+ * the LVGL task, so it may wait a moment for room but never for the card. */
+static bool drive_item(item_kind_t kind, const char *app, const char *fw)
+{
+    static store_item_t it;
+    it.kind = kind;
+    snprintf(it.u.open.app, sizeof(it.u.open.app), "%s", app ? app : "");
+    snprintf(it.u.open.fw, sizeof(it.u.open.fw), "%s", fw ? fw : "");
+    if (s_queue && xQueueSend(s_queue, &it, pdMS_TO_TICKS(500)) == pdTRUE) return true;
+    ESP_LOGW(TAG, "drive: the writer's queue is full");
+    return false;
+}
+
+void sentinel_drive_start(const char *app_version)
+{
+    if (!s_lock || !s_on) return;
+    char                   fw[sizeof(s_state.fw)];
+    sentinel_store_stats_t st;
+    sentinel_stats(&st);
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (sentinel_drivelog_on()) {
+        xSemaphoreGive(s_lock);
+        return;
+    }
+    memcpy(fw, s_state.fw, sizeof(fw));
+    xSemaphoreGive(s_lock);
+    /* The files first: rows queue up behind this. If even that cannot be
+     * queued the card is not keeping up, and a drive with no files is no drive. */
+    s_drive_wanted = true;
+    if (!drive_item(ITEM_DRIVE_OPEN, app_version, fw)) {
+        s_drive_wanted = false;
+        sentinel_note(true, "wardrive not started: storage is busy, try again");
+        return;
+    }
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_drive_lost_base = st.drive_dropped;
+    sentinel_host_mode(&s_host, "drive");
+    sentinel_drivelog_begin(sentinel_now_ms());
+    xSemaphoreGive(s_lock);
+}
+
+void sentinel_drive_stop(void)
+{
+    if (!s_lock) return;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    bool was = sentinel_drivelog_on();
+    sentinel_drivelog_end();
+    if (was) sentinel_host_mode(&s_host, "watch");
+    xSemaphoreGive(s_lock);
+    if (!was) return;
+    s_drive_wanted = false;
+    drive_item(ITEM_DRIVE_CLOSE, NULL, NULL); /* if this is lost the writer closes the files in its next quiet second */
+    sentinel_drive_info_t info;
+    char                  note[64];
+    sentinel_drive_info(&info);
+    snprintf(note, sizeof(note), "wardrive ended: %u rows, %u wifi, %u ble", (unsigned)info.rows, (unsigned)info.wifi,
+             (unsigned)info.ble);
+    sentinel_note(false, note);
+}
+
+void sentinel_drive_info(sentinel_drive_info_t *out)
+{
+    if (!s_lock) {
+        memset(out, 0, sizeof(*out));
+        return;
+    }
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    sentinel_drivelog_info(out);
+    xSemaphoreGive(s_lock);
+    sentinel_store_stats_t st;
+    sentinel_stats(&st);
+    out->writing = st.drive_open;
+    out->lost    = st.drive_dropped - s_drive_lost_base;
+    memcpy(out->file, st.drive_file, sizeof(out->file));
 }
 
 bool sentinel_send(const char *payload)
