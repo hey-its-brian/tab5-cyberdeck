@@ -125,10 +125,12 @@ void sentinel_band_learn(void);
  * 433 MHz sweep and no 433 MHz alert. */
 void sentinel_band_listen(uint32_t khz);
 /* A site survey: begin starts every channel's statistics again; write puts
- * them in sentinel/site-<time>.csv and gives the file's name. The caller
- * decides how long a survey is. Write blocks for a few hundred milliseconds. */
+ * them in sentinel/site-<time>.csv, or site-<time>-<tag>.csv when the place
+ * was given a name (`tag`, NULL or "" for none), and gives the file's name
+ * (SENTINEL_SITE_NAME_MAX holds any). The caller decides how long a survey
+ * is. Write blocks for a few hundred milliseconds. */
 void sentinel_site_begin(void);
-bool sentinel_site_write(char *name, size_t n);
+bool sentinel_site_write(const char *tag, char *name, size_t n);
 
 /* ---- Wardriving ---------------------------------------------------------- */
 

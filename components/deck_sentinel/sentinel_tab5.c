@@ -565,7 +565,7 @@ void sentinel_site_begin(void)
 }
 
 /* LVGL task. The copy is taken under the lock; the file is written outside it. */
-bool sentinel_site_write(char *name, size_t n)
+bool sentinel_site_write(const char *tag, char *name, size_t n)
 {
     static sentinel_state_t st;
     if (!s_lock) return false;
@@ -573,9 +573,9 @@ bool sentinel_site_write(char *name, size_t n)
     memcpy(&s_band_site, &s_band, sizeof(s_band_site));
     memcpy(&st, &s_state, sizeof(st));
     xSemaphoreGive(s_lock);
-    if (!sentinel_store_site_from(&s_band_site, &st, sentinel_now_ms(), name, n)) return false;
+    if (!sentinel_store_site_from(&s_band_site, &st, tag, sentinel_now_ms(), name, n)) return false;
     char note[64];
-    snprintf(note, sizeof(note), "site survey written: %.31s", name);
+    snprintf(note, sizeof(note), "site survey: %.49s", name); /* the longest name, and an event's 63 characters */
     sentinel_note(false, note);
     return true;
 }

@@ -16,9 +16,10 @@
  *             sit, and which of the three carries the least.
  *
  * The history, the statistics and the jam watch live in the driver and run
- * whatever is on screen (deck_sentinel.h); this file draws a copy. S runs a
- * site survey (a minute of both bands, then a file), B tells the node that
- * what it hears now is normal.
+ * whatever is on screen (deck_sentinel.h); this file draws a copy. S asks
+ * what the place is called and runs a site survey (a minute of both bands,
+ * then a file with that name in it), B tells the node that what it hears
+ * now is normal.
  */
 #include "rf_ui.h"
 
@@ -26,6 +27,7 @@
 #include <string.h>
 
 #include "deck_attr.h"
+#include "deck_modal.h"
 #include "deck_theme.h"
 #include "deck_widgets.h"
 
@@ -51,7 +53,8 @@ static struct {
     uint32_t    khz;       /* where BURSTS listens */
     bool        surveying, site_failed;
     uint32_t    survey_end_ms, learn_ms;
-    char        site_file[32];
+    char        site_file[SENTINEL_SITE_NAME_MAX];
+    char        site_tag[SENTINEL_SITE_TAG_MAX]; /* what the place being surveyed is called; "" for nothing */
     sentinel_state_t    st;
     sentinel_bandhost_t b;
 } s_bd DECK_PSRAM_BSS;
@@ -171,13 +174,15 @@ static void jam_and_site_lines(void)
     if (s_bd.learn_ms && now - s_bd.learn_ms < 4000) {
         lv_label_set_text(s_bd.site, "THE NODE IS LEARNING BOTH BANDS AGAIN (ABOUT 40 S)");
     } else if (s_bd.surveying) {
-        lv_label_set_text_fmt(s_bd.site, "SITE SURVEY  %u S LEFT", (unsigned)((s_bd.survey_end_ms - now + 999) / 1000));
+        unsigned left = (unsigned)((s_bd.survey_end_ms - now + 999) / 1000);
+        if (s_bd.site_tag[0]) lv_label_set_text_fmt(s_bd.site, "SITE SURVEY  \"%s\"  %u S LEFT", s_bd.site_tag, left);
+        else lv_label_set_text_fmt(s_bd.site, "SITE SURVEY  %u S LEFT", left);
     } else if (s_bd.site_failed) {
         lv_label_set_text(s_bd.site, "SITE SURVEY  NOTHING WRITTEN (NO SWEEPS, OR NO STORAGE)");
     } else if (s_bd.site_file[0]) {
         lv_label_set_text_fmt(s_bd.site, "SITE SURVEY  WRITTEN: sentinel/%s", s_bd.site_file);
     } else {
-        lv_label_set_text(s_bd.site, "SITE SURVEY  [S] A MINUTE OF BOTH BANDS, THEN A FILE");
+        lv_label_set_text(s_bd.site, "SITE SURVEY  [S] A NAME, A MINUTE, THEN A FILE");
     }
 }
 
@@ -346,7 +351,7 @@ static void tick(lv_timer_t *t)
     (void)t;
     if (s_bd.surveying && (int32_t)(sentinel_now_ms() - s_bd.survey_end_ms) >= 0) {
         s_bd.surveying   = false;
-        s_bd.site_failed = !sentinel_site_write(s_bd.site_file, sizeof(s_bd.site_file));
+        s_bd.site_failed = !sentinel_site_write(s_bd.site_tag, s_bd.site_file, sizeof(s_bd.site_file));
     }
     render();
 }
@@ -488,6 +493,22 @@ static void destroy(void)
     sentinel_band_listen(0); /* the CC1101 goes back to sweeping */
 }
 
+/* The survey starts when the place has its name: Enter on an empty box is a
+ * survey without one, Esc is no survey. The minute is counted from here, not
+ * from the S, so the typing is not part of what was measured. */
+static void site_named(const char *text, void *user)
+{
+    (void)user;
+    if (!text || !s_bd.timer || s_bd.surveying) return; /* cancelled, or the screen went while the dialog was up */
+    sentinel_site_tag(s_bd.site_tag, sizeof(s_bd.site_tag), text);
+    sentinel_site_begin();
+    s_bd.surveying     = true;
+    s_bd.site_failed   = false;
+    s_bd.site_file[0]  = 0;
+    s_bd.survey_end_ms = sentinel_now_ms() + SURVEY_MS;
+    render();
+}
+
 static bool key(const deck_key_t *k)
 {
     if (!s_bd.timer || (k->mods & (DECK_MOD_CTRL | DECK_MOD_ALT))) return false;
@@ -518,14 +539,7 @@ static bool key(const deck_key_t *k)
         return true;
     }
     if (k->code == HID_LETTER('S')) {
-        if (!s_bd.surveying) {
-            sentinel_site_begin();
-            s_bd.surveying     = true;
-            s_bd.site_failed   = false;
-            s_bd.site_file[0]  = 0;
-            s_bd.survey_end_ms = sentinel_now_ms() + SURVEY_MS;
-        }
-        render();
+        if (!s_bd.surveying) deck_modal_prompt("SITE NAME (ENTER FOR NONE, ESC CANCELS)", "", site_named, NULL);
         return true;
     }
     if (k->code == HID_LETTER('B')) {

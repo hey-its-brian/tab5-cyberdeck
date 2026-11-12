@@ -31,7 +31,9 @@ In both tools:
 
 - `S` runs a **site survey**: 60 s of both bands, then
   `sentinel/site-<time>.csv` with every channel's floor, mean, peak and
-  busy share, and the position when there is a fix.
+  busy share, and the position when there is a fix. (Added after the
+  phase closed: `S` first asks what the place is called. See "The site's
+  name" below.)
 - `B` tells the node that what it hears now is normal here (it learns its
   baseline again).
 - A line says what the jam watch thinks.
@@ -149,6 +151,31 @@ Fixed on the way: the first sweep after boot reported +120 dBm on
 - `apps/app_rf/rf_bands.c`: both tools (they share the chart).
 - `sim/sentinel_sim.c`: a remote and a periodic sensor for BURSTS, and a
   jam scene that can be switched on for screenshots.
+
+## The site's name (added 2026-11-12, after the phase closed)
+
+A survey indoors has no position, so two files from two rooms could only be
+told apart by their times. `S` now opens a prompt first:
+
+- Enter with a name starts the survey with it; Enter on an empty box
+  starts one without; Esc starts nothing. The minute is counted from the
+  Enter, so the typing is not part of what was measured.
+- The name goes in the first row as a new last column, `site`, as typed
+  less what a CSV field cannot hold (commas, quotes, anything that is not
+  printable ASCII), 31 characters at most. It is last so that the columns
+  before it stay where they were; files written before this have six
+  columns and no name.
+- It also goes in the file's name, as lowercase letters, digits and
+  dashes, 24 characters at most: `site-20261112-150405-kitchen.csv`.
+  Nothing typed can leave the `sentinel` directory.
+- Both rules are in `sentinel_bandhost.h` (`sentinel_site_tag`,
+  `sentinel_site_name`) with host tests; the screen keeps no name between
+  surveys.
+- Checked on the Tab5 the same day: `Bench desk, by the "window"` typed at
+  the prompt gave `site-20261112-125844-bench-desk-by-the-window.csv` on
+  the card (so the long name is fine on its FAT file system), 150 lines,
+  with `Bench desk by the window` ending the first row. That file was
+  removed afterwards.
 
 ## Testing
 

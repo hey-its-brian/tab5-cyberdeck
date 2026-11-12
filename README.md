@@ -91,8 +91,11 @@ shapes, not contents; nothing is decoded. 2.4 GHZ draws the nRF24's view of
 2400 to 2525 MHz with its last sixty reports (about five minutes), marks where Wi-Fi channels 1,
 6 and 11 and the Bluetooth advertising channels sit, and says which of the
 three Wi-Fi channels carries the least energy. In both, `S` runs a site
-survey (a minute of both bands, then `sentinel/site-<time>.csv` with every
-channel's floor, mean, peak and busy share) and `B` tells the board that
+survey: it asks what the place is called (Enter alone for no name), then
+measures a minute of both bands and writes `sentinel/site-<time>.csv`, or
+`site-<time>-kitchen.csv` with a name, with every channel's floor, mean,
+peak and busy share. The name is also in the file's first row as you typed
+it, so a survey still says where it was taken when you read it later and `B` tells the board that
 what it hears now is normal here.
 
 The **jam watch** runs in the background in any app. The board warns once

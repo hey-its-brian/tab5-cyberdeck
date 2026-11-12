@@ -591,12 +591,12 @@ void sentinel_band_listen(uint32_t khz)
     if (s_host.want_dwell_khz && s_host.want_dwell_khz != was) sentinel_bursthost_init(&s_band.bursts);
 }
 void sentinel_site_begin(void) { sentinel_bandhost_stats_reset(&s_band, sentinel_now_ms()); }
-bool sentinel_site_write(char *name, size_t n)
+bool sentinel_site_write(const char *tag, char *name, size_t n)
 {
     memcpy(&s_band_site, &s_band, sizeof(s_band_site));
-    if (!sentinel_store_site_from(&s_band_site, &s_state, sentinel_now_ms(), name, n)) return false;
+    if (!sentinel_store_site_from(&s_band_site, &s_state, tag, sentinel_now_ms(), name, n)) return false;
     char note[64];
-    snprintf(note, sizeof(note), "site survey written: %.31s", name);
+    snprintf(note, sizeof(note), "site survey: %.49s", name); /* the longest name, and an event's 63 characters */
     sentinel_note(false, note);
     return true;
 }

@@ -219,10 +219,10 @@ int main(void)
     sentinel_bandhost_init(&band, 1000);
     for (int i = 0; i < SENTINEL_SUB_CH; i++) band.sub_stat[i] = (sentinel_substat_t){.n = 40, .busy = i == 9 ? 4 : 0, .floor = -106, .peak = (int8_t)(i == 9 ? -61 : -97), .sum = -4160.0f};
     for (int i = 0; i < SENTINEL_NRF_CH; i++) band.nrf_stat[i] = (sentinel_nrfstat_t){.n = 10, .any = i == 62 ? 9 : 0, .sum = i == 62 ? 72 : 0, .peak = (uint8_t)(i == 62 ? 8 : 0)};
-    char site[40];
+    char site[SENTINEL_SITE_NAME_MAX];
     sentinel_where_t where = {.lat = 40.741895, .lon = -73.989308};
-    CHECK(sentinel_store_site(&band, "2026-11-12T15:04:05Z", &where, 61000, site, sizeof(site)));
-    CHECK(strncmp(site, "site-", 5) == 0 && strstr(site, ".csv"));
+    CHECK(sentinel_store_site(&band, "2026-11-12T15:04:05Z", &where, NULL, 61000, site, sizeof(site)));
+    CHECK(strncmp(site, "site-", 5) == 0 && strlen(site) == 24 && strcmp(site + 20, ".csv") == 0); /* no name: the time alone */
     char site_path[400];
     snprintf(site_path, sizeof(site_path), "%s/sentinel/%s", root, site);
     FILE *sf = fopen(site_path, "r");
@@ -232,8 +232,8 @@ int main(void)
         int  lines = 0, sub_rows = 0, nrf_rows = 0;
         while (fgets(line, sizeof(line), sf)) {
             lines++;
-            if (lines == 1) CHECK(strcmp(line, "time,lat,lon,seconds,sub_sweeps,nrf_reports\n") == 0);
-            if (lines == 2) CHECK(strcmp(line, "2026-11-12T15:04:05Z,40.741895,-73.989308,60,40,10\n") == 0);
+            if (lines == 1) CHECK(strcmp(line, "time,lat,lon,seconds,sub_sweeps,nrf_reports,site\n") == 0);
+            if (lines == 2) CHECK(strcmp(line, "2026-11-12T15:04:05Z,40.741895,-73.989308,60,40,10,\n") == 0);
             if (lines == 3) CHECK(strcmp(line, "band,mhz,floor,mean,peak,busy_pct\n") == 0);
             if (!strncmp(line, "433,", 4)) sub_rows++;
             if (!strncmp(line, "2400,", 5)) nrf_rows++;
@@ -243,12 +243,35 @@ int main(void)
         fclose(sf);
         CHECK(lines == 3 + SENTINEL_SUB_CH + SENTINEL_NRF_CH && sub_rows == SENTINEL_SUB_CH && nrf_rows == SENTINEL_NRF_CH);
     }
+    /* A survey with a name: the name is in the first row as it was typed
+     * (less what a CSV field cannot hold) and in the file's name as letters,
+     * digits and dashes, so two rooms are two files a listing can tell apart. */
+    char named[SENTINEL_SITE_NAME_MAX];
+    CHECK(sentinel_store_site(&band, "2026-11-12T15:04:05Z", NULL, " Kitchen, by the window ", 61000, named, sizeof(named)));
+    CHECK(strncmp(named, site, 20) == 0 && strcmp(named + 20, "-kitchen-by-the-window.csv") == 0);
+    snprintf(site_path, sizeof(site_path), "%s/sentinel/%s", root, named);
+    sf = fopen(site_path, "r");
+    CHECK(sf != NULL);
+    if (sf) {
+        char line[SENTINEL_SITE_LINE_MAX];
+        CHECK(fgets(line, sizeof(line), sf) && fgets(line, sizeof(line), sf) &&
+              strcmp(line, "2026-11-12T15:04:05Z,,,60,40,10,Kitchen by the window\n") == 0);
+        fclose(sf);
+    }
+    snprintf(site_path, sizeof(site_path), "%s/sentinel/%s", root, site);
+    CHECK(access(site_path, F_OK) == 0); /* the unnamed one is still there */
+    /* A name that is a path stays a name. */
+    CHECK(sentinel_store_site(&band, "2026-11-12T15:04:05Z", NULL, "../../up", 61000, named, sizeof(named)));
+    CHECK(strcmp(named + 20, "-up.csv") == 0 && !strchr(named, '/') && !strstr(named, ".."));
+    snprintf(site_path, sizeof(site_path), "%s/sentinel/%s", root, named);
+    CHECK(access(site_path, F_OK) == 0);
+
     /* Nothing swept on either band (no link for the whole minute): there is no survey to write. */
     static sentinel_bandhost_t empty;
     sentinel_bandhost_init(&empty, 1000);
-    CHECK(!sentinel_store_site(&empty, "2026-11-12T15:04:05Z", NULL, 61000, site, sizeof(site)));
+    CHECK(!sentinel_store_site(&empty, "2026-11-12T15:04:05Z", NULL, "Kitchen", 61000, site, sizeof(site)));
     s_root = NULL; /* no storage at all: it says so */
-    CHECK(!sentinel_store_site(&band, "2026-11-12T15:04:05Z", NULL, 61000, site, sizeof(site)));
+    CHECK(!sentinel_store_site(&band, "2026-11-12T15:04:05Z", NULL, "Kitchen", 61000, site, sizeof(site)));
     s_root = root;
 
     snprintf(cmd, sizeof(cmd), "rm -rf %s", root);

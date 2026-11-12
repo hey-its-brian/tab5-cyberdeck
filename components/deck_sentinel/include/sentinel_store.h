@@ -16,7 +16,7 @@
  *                                  card every few seconds so a power cut
  *                                  costs seconds, not the drive. SD only.
  *
- *   site-YYYYMMDD-HHMMSS.csv       a site survey: every channel of the two
+ *   site-YYYYMMDD-HHMMSS[-name].csv  a site survey: every channel of the two
  *                                  swept bands over a minute. Written whole
  *                                  in one call; SD card or internal flash.
  *
@@ -63,17 +63,20 @@ void sentinel_store_drive_row(sentinel_drive_file_t which, const char *row, size
 void sentinel_store_drive_close(void);
 
 /* Write a site survey file from the band statistics (sentinel_bandhost.h)
- * and put its name in `name`. Unlike the rest of this file it keeps nothing
+ * and put its name in `name` (SENTINEL_SITE_NAME_MAX holds any). `tag` is
+ * what the place is called, NULL or "" for nothing: it goes in the first
+ * row and, as letters, digits and dashes, in the file's name. Unlike the rest of this file it keeps nothing
  * between calls, so it may be called from any task; it blocks for as long as
  * 150 short lines take to write. False with no storage, a failed write, or
  * nothing swept on either band. A band with nothing swept has blank rows. */
-bool sentinel_store_site(const sentinel_bandhost_t *h, const char *time_text, const sentinel_where_t *w, uint32_t now_ms,
-                         char *name, size_t name_n);
+bool sentinel_store_site(const sentinel_bandhost_t *h, const char *time_text, const sentinel_where_t *w, const char *tag,
+                         uint32_t now_ms, char *name, size_t name_n);
 
 /* The same, with the time and place taken from the node's state: GPS time
  * and position when there is a fix, the deck's own clock and no position
  * when there is not. */
-bool sentinel_store_site_from(const sentinel_bandhost_t *h, const sentinel_state_t *s, uint32_t now_ms, char *name, size_t name_n);
+bool sentinel_store_site_from(const sentinel_bandhost_t *h, const sentinel_state_t *s, const char *tag, uint32_t now_ms, char *name,
+                              size_t name_n);
 
 /* The end of today's events file, starting at the beginning of a row, as a
  * NUL-terminated string of at most n - 1 bytes (the header row is included
