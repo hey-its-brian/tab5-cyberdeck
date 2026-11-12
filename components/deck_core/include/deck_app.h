@@ -5,6 +5,11 @@
  *   on_start(parent)        build the UI as children of `parent`
  *   on_key(key)             optional: see every key press first; return true
  *                           to consume it (shortcuts, terminal input)
+ *   on_back()               optional: a module with levels of its own (a
+ *                           chooser with tools under it) goes up one and
+ *                           returns true; false means it is at its top and
+ *                           the shell leaves it. Asked for every way of
+ *                           going back: Esc, Del and the status bar button
  *   on_exit()               optional: runs first when leaving, while the
  *                           module's widgets still exist (save work here)
  *   on_stop()               optional: free non-LVGL resources; runs after
@@ -13,8 +18,8 @@
  * The shell deletes everything under `parent` between on_exit() and
  * on_stop(), so LVGL children never need freeing by hand. All callbacks run on the LVGL task with the lock held.
  *
- * Esc goes back a level unless on_key consumes it; Alt+Esc always returns
- * home. Where a module sits on the home screen is decided by deck_home.h.
+ * Esc goes back a level unless on_key consumes it or on_back takes it;
+ * Alt+Esc always returns home. Where a module sits on the home screen is decided by deck_home.h.
  */
 #pragma once
 
@@ -47,6 +52,7 @@ struct deck_app {
     void (*on_exit)(deck_app_t *self);
     void (*on_stop)(deck_app_t *self);
     bool (*on_key)(deck_app_t *self, const deck_key_t *key);
+    bool (*on_back)(deck_app_t *self);
     /* Optional apps: start and stop background work (timers, tasks,
      * connections). on_disable may come before any on_enable, and on_enable
      * may be called twice; both must cope. */

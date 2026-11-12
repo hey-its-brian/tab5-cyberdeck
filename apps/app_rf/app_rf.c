@@ -9,9 +9,9 @@
  * Leaving by any route (Esc, Alt+Esc, another app's shortcut, switching
  * RF WATCH off, the screen sleeping) drops the lease.
  *
- * Behind the gate is a chooser of tools, drawn like the home screen. Esc in
- * a tool returns to the chooser; Esc in the chooser or the gate is left to
- * the shell, which goes back.
+ * Behind the gate is a chooser of tools, drawn like the home screen. Going
+ * back from a tool (Esc, Del or the status bar's button) returns to the
+ * chooser; from the chooser or the gate it leaves RF WATCH.
  *
  * Whatever is on screen, while RF WATCH is switched on in SETTINGS the board
  * is powered and read, and a background timer here turns the board's
@@ -375,13 +375,20 @@ static bool on_key(deck_app_t *self, const deck_key_t *k)
         case SCR_GATE: return gate_key(k);
         case SCR_CHOOSER: return chooser_key(k);
         case SCR_TOOL:
-            if (k->code == HID_ESC) {
-                show_chooser();
-                return true;
-            }
+            if (k->code == HID_ESC) return false; /* the shell's back: on_back takes it to the chooser */
             return s_tools[s_ui.tool].key ? s_tools[s_ui.tool].key(k) : false;
         default: return false;
     }
+}
+
+/* Back from a tool is the chooser, by whichever route: Esc, Del or the
+ * status bar's button. From the chooser and the gate the shell leaves. */
+static bool on_back(deck_app_t *self)
+{
+    (void)self;
+    if (s_ui.screen != SCR_TOOL) return false;
+    show_chooser();
+    return true;
 }
 
 /* ---- Background: warnings reach the user anywhere ------------------------- */
@@ -508,6 +515,7 @@ static deck_app_t s_app = {
     .on_exit  = leave,
     .on_stop  = stop,
     .on_key   = on_key,
+    .on_back  = on_back,
     .on_panel = on_panel,
 };
 

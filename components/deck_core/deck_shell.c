@@ -128,6 +128,8 @@ void deck_shell_back(void)
 {
     if (s_busy) return;
     if (s_current) {
+        /* A module with levels of its own goes up one of those first. */
+        if (s_current->on_back && s_current->on_back(s_current)) return;
         go(NULL, s_group); /* the app's group, or home */
     } else if (s_group) {
         go(NULL, NULL);
