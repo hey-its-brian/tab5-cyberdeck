@@ -280,3 +280,53 @@ void sentinel_store_drive_close(void)
     }
     s_stats.drive_open = false;
 }
+
+bool sentinel_store_site(const sentinel_bandhost_t *h, const char *time_text, const sentinel_where_t *w, uint32_t now_ms,
+                         char *name, size_t name_n)
+{
+    char      dir[DIR_MAX], file[32], path[PATH_MAX_], line[SENTINEL_SITE_LINE_MAX];
+    struct tm t;
+    time_t    now = time(NULL);
+    localtime_r(&now, &t);
+    if (h->sub_stat[0].n == 0 && h->nrf_stat[0].n == 0) return false; /* nothing was swept: there is no survey */
+    if (!store_dir(dir, sizeof(dir)) || !sentinel_log_drive_name(file, sizeof(file), "site", &t)) return false;
+    snprintf(path, sizeof(path), "%s/%s", dir, file);
+    FILE *f = fopen(path, "w");
+    if (!f) return false;
+    bool ok  = fputs("time,lat,lon,seconds,sub_sweeps,nrf_reports\n", f) >= 0;
+    int  len = sentinel_site_head(line, sizeof(line), h, time_text, w, now_ms);
+    ok       = ok && len > 0 && fwrite(line, 1, (size_t)len, f) == (size_t)len;
+    ok       = ok && fputs("band,mhz,floor,mean,peak,busy_pct\n", f) >= 0;
+    for (int i = 0; ok && i < SENTINEL_SUB_CH; i++) {
+        len = sentinel_site_sub_row(line, sizeof(line), h, i);
+        ok  = len > 0 && fwrite(line, 1, (size_t)len, f) == (size_t)len;
+    }
+    for (int i = 0; ok && i < SENTINEL_NRF_CH; i++) {
+        len = sentinel_site_nrf_row(line, sizeof(line), h, i);
+        ok  = len > 0 && fwrite(line, 1, (size_t)len, f) == (size_t)len;
+    }
+    ok = fclose(f) == 0 && ok;
+    if (!ok) {
+        remove(path); /* half a survey is worse than none */
+        return false;
+    }
+    snprintf(name, name_n, "%s", file);
+    return true;
+}
+
+bool sentinel_store_site_from(const sentinel_bandhost_t *h, const sentinel_state_t *s, uint32_t now_ms, char *name, size_t name_n)
+{
+    sentinel_where_t w;
+    char             text[32];
+    bool             placed = sentinel_where(&w, s, now_ms);
+    if (placed) {
+        snprintf(text, sizeof(text), "%04u-%02u-%02uT%02u:%02u:%02uZ", (unsigned)w.year, (unsigned)w.mon, (unsigned)w.day,
+                 (unsigned)w.hour, (unsigned)w.min, (unsigned)w.sec);
+    } else {
+        time_t    now = time(NULL);
+        struct tm t;
+        gmtime_r(&now, &t);
+        strftime(text, sizeof(text), "%Y-%m-%dT%H:%M:%SZ", &t);
+    }
+    return sentinel_store_site(h, text, placed ? &w : NULL, now_ms, name, name_n);
+}

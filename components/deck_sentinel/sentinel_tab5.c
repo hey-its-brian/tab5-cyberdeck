@@ -98,6 +98,8 @@ static StaticQueue_t s_queue_ctl;
 static sentinel_blehost_t s_ble DECK_PSRAM_BSS;
 /* And what the node has reported about Wi-Fi: access points, channels, the waterfall, drones. */
 static sentinel_wifihost_t s_wifi DECK_PSRAM_BSS;
+/* The two swept bands: history, statistics, bursts, the jam watch. And a second copy to write a site file from. */
+static sentinel_bandhost_t s_band DECK_PSRAM_BSS, s_band_site DECK_PSRAM_BSS;
 
 uint32_t sentinel_now_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
 
@@ -145,6 +147,13 @@ static bool uart_init(void)
     esp_err_t err = uart_driver_install(UART_PORT, RX_BUF, TX_BUF, 0, NULL, 0);
     if (err == ESP_OK) err = uart_param_config(UART_PORT, &cfg);
     if (err == ESP_OK) err = uart_set_pin(UART_PORT, PIN_TX, PIN_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    /* The driver's interrupt fires by default when 120 of the FIFO's 128 bytes
+     * are full. At 921600 baud the last 8 fill in 87 microseconds: an
+     * interrupt a little late loses bytes, and one lost stretch is two frames
+     * with a bad checksum (seen on the bench: a pair every few minutes).
+     * Fire at 32 instead, which leaves a millisecond. sdkconfig.defaults also
+     * keeps the UART interrupt in RAM so a flash write cannot hold it off. */
+    if (err == ESP_OK) err = uart_set_rx_full_threshold(UART_PORT, 32);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "UART1 on G6/G7 failed: %s", esp_err_to_name(err));
         uart_driver_delete(UART_PORT);
@@ -227,8 +236,16 @@ static void sink_drone(void *user, const sentinel_drn_t *d)
     sentinel_wifihost_drone(&s_wifi, &s_state, d, sentinel_now_ms(), &s_sink);
 }
 
+static void sink_burst(void *user, const sentinel_brs_t *b)
+{
+    (void)user;
+    /* A row from the frequency just left can still be on the wire: it is not part of the new list. */
+    if (b->khz == s_host.want_dwell_khz) sentinel_bursthost_add(&s_band.bursts, b, sentinel_now_ms());
+}
+
 static const sentinel_sink_t s_sink = {
     .event = sink_event, .packet = sink_packet, .device = sink_device, .channel = sink_channel, .ap = sink_ap, .drone = sink_drone,
+    .burst = sink_burst,
 };
 
 /* The addresses the user marked as their own, kept across restarts. */
@@ -314,6 +331,7 @@ static void reader(void *arg)
             ticked = now;
             sentinel_host_tick(&s_host, &s_state, now, &out);
             sentinel_drivelog_tick(&s_state, now, drive_row);
+            sentinel_bandhost_tick(&s_band, &s_state, now, &s_sink); /* may raise the jam watch's warning */
             if (out.note[0]) sentinel_push_event(&s_state, out.note_warn, "deck", out.note, now, &s_sink);
             if (out.set_baud) s_lines.len = 0; /* half a line at the old rate is noise at the new one */
         }
@@ -343,6 +361,7 @@ void sentinel_start(void)
     sentinel_host_init(&s_host, (uint32_t)hal_cfg_get_i32("rf_baud", SENTINEL_BAUD_FAST));
     sentinel_blehost_init(&s_ble);
     sentinel_wifihost_init(&s_wifi);
+    sentinel_bandhost_init(&s_band, sentinel_now_ms());
     mine_load();
     xSemaphoreGive(s_lock);
 
@@ -504,6 +523,61 @@ void sentinel_stats(sentinel_store_stats_t *out)
     out->events_dropped += s_q_drop_events;
     out->packets_dropped += s_q_drop_packets;
     out->drive_dropped += s_q_drop_rows;
+}
+
+/* ---- The two swept bands -------------------------------------------------- */
+
+void sentinel_band_copy(sentinel_bandhost_t *out)
+{
+    if (!s_lock) {
+        sentinel_bandhost_init(out, 0);
+        return;
+    }
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    memcpy(out, &s_band, sizeof(*out));
+    xSemaphoreGive(s_lock);
+}
+
+void sentinel_band_learn(void)
+{
+    if (!s_lock) return;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    sentinel_host_learn(&s_host);
+    xSemaphoreGive(s_lock);
+}
+
+void sentinel_band_listen(uint32_t khz)
+{
+    if (!s_lock) return;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    uint32_t was = s_host.want_dwell_khz;
+    sentinel_host_sub(&s_host, khz);
+    if (s_host.want_dwell_khz && s_host.want_dwell_khz != was) sentinel_bursthost_init(&s_band.bursts); /* a new frequency, a new list */
+    xSemaphoreGive(s_lock);
+}
+
+void sentinel_site_begin(void)
+{
+    if (!s_lock) return;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    sentinel_bandhost_stats_reset(&s_band, sentinel_now_ms());
+    xSemaphoreGive(s_lock);
+}
+
+/* LVGL task. The copy is taken under the lock; the file is written outside it. */
+bool sentinel_site_write(char *name, size_t n)
+{
+    static sentinel_state_t st;
+    if (!s_lock) return false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    memcpy(&s_band_site, &s_band, sizeof(s_band_site));
+    memcpy(&st, &s_state, sizeof(st));
+    xSemaphoreGive(s_lock);
+    if (!sentinel_store_site_from(&s_band_site, &st, sentinel_now_ms(), name, n)) return false;
+    char note[64];
+    snprintf(note, sizeof(note), "site survey written: %.31s", name);
+    sentinel_note(false, note);
+    return true;
 }
 
 /* ---- Wardriving ---------------------------------------------------------- */

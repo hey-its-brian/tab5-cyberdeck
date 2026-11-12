@@ -16,6 +16,10 @@
  *                                  card every few seconds so a power cut
  *                                  costs seconds, not the drive. SD only.
  *
+ *   site-YYYYMMDD-HHMMSS.csv       a site survey: every channel of the two
+ *                                  swept bands over a minute. Written whole
+ *                                  in one call; SD card or internal flash.
+ *
  * Plain stdio on hal_storage_root(), the same code on the device and in the
  * simulator. Not thread safe: on the device one writer task makes every
  * call except sentinel_store_tail(), which only reads.
@@ -26,6 +30,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "sentinel_bandhost.h"
 #include "sentinel_core.h"
 #include "sentinel_wigle.h"
 
@@ -56,6 +61,19 @@ typedef enum { SENTINEL_DRIVE_WIGLE, SENTINEL_DRIVE_SURVEY, SENTINEL_DRIVE_FILES
 bool sentinel_store_drive_open(const sentinel_wigle_id_t *id);
 void sentinel_store_drive_row(sentinel_drive_file_t which, const char *row, size_t len);
 void sentinel_store_drive_close(void);
+
+/* Write a site survey file from the band statistics (sentinel_bandhost.h)
+ * and put its name in `name`. Unlike the rest of this file it keeps nothing
+ * between calls, so it may be called from any task; it blocks for as long as
+ * 150 short lines take to write. False with no storage, a failed write, or
+ * nothing swept on either band. A band with nothing swept has blank rows. */
+bool sentinel_store_site(const sentinel_bandhost_t *h, const char *time_text, const sentinel_where_t *w, uint32_t now_ms,
+                         char *name, size_t name_n);
+
+/* The same, with the time and place taken from the node's state: GPS time
+ * and position when there is a fix, the deck's own clock and no position
+ * when there is not. */
+bool sentinel_store_site_from(const sentinel_bandhost_t *h, const sentinel_state_t *s, uint32_t now_ms, char *name, size_t name_n);
 
 /* The end of today's events file, starting at the beginning of a row, as a
  * NUL-terminated string of at most n - 1 bytes (the header row is included

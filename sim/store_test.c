@@ -214,6 +214,43 @@ int main(void)
     sentinel_store_stats(&st);
     CHECK(!st.drive_open);
 
+    /* A site survey: one file, written whole, wherever there is storage. */
+    static sentinel_bandhost_t band;
+    sentinel_bandhost_init(&band, 1000);
+    for (int i = 0; i < SENTINEL_SUB_CH; i++) band.sub_stat[i] = (sentinel_substat_t){.n = 40, .busy = i == 9 ? 4 : 0, .floor = -106, .peak = (int8_t)(i == 9 ? -61 : -97), .sum = -4160.0f};
+    for (int i = 0; i < SENTINEL_NRF_CH; i++) band.nrf_stat[i] = (sentinel_nrfstat_t){.n = 10, .any = i == 62 ? 9 : 0, .sum = i == 62 ? 72 : 0, .peak = (uint8_t)(i == 62 ? 8 : 0)};
+    char site[40];
+    sentinel_where_t where = {.lat = 40.741895, .lon = -73.989308};
+    CHECK(sentinel_store_site(&band, "2026-11-12T15:04:05Z", &where, 61000, site, sizeof(site)));
+    CHECK(strncmp(site, "site-", 5) == 0 && strstr(site, ".csv"));
+    char site_path[400];
+    snprintf(site_path, sizeof(site_path), "%s/sentinel/%s", root, site);
+    FILE *sf = fopen(site_path, "r");
+    CHECK(sf != NULL);
+    if (sf) {
+        char line[SENTINEL_SITE_LINE_MAX];
+        int  lines = 0, sub_rows = 0, nrf_rows = 0;
+        while (fgets(line, sizeof(line), sf)) {
+            lines++;
+            if (lines == 1) CHECK(strcmp(line, "time,lat,lon,seconds,sub_sweeps,nrf_reports\n") == 0);
+            if (lines == 2) CHECK(strcmp(line, "2026-11-12T15:04:05Z,40.741895,-73.989308,60,40,10\n") == 0);
+            if (lines == 3) CHECK(strcmp(line, "band,mhz,floor,mean,peak,busy_pct\n") == 0);
+            if (!strncmp(line, "433,", 4)) sub_rows++;
+            if (!strncmp(line, "2400,", 5)) nrf_rows++;
+            if (!strncmp(line, "433,433.9,", 10)) CHECK(strcmp(line, "433,433.9,-106,-104.0,-61,10.0\n") == 0);
+            if (!strncmp(line, "2400,2462,", 10)) CHECK(strcmp(line, "2400,2462,0,7.2,8,90.0\n") == 0);
+        }
+        fclose(sf);
+        CHECK(lines == 3 + SENTINEL_SUB_CH + SENTINEL_NRF_CH && sub_rows == SENTINEL_SUB_CH && nrf_rows == SENTINEL_NRF_CH);
+    }
+    /* Nothing swept on either band (no link for the whole minute): there is no survey to write. */
+    static sentinel_bandhost_t empty;
+    sentinel_bandhost_init(&empty, 1000);
+    CHECK(!sentinel_store_site(&empty, "2026-11-12T15:04:05Z", NULL, 61000, site, sizeof(site)));
+    s_root = NULL; /* no storage at all: it says so */
+    CHECK(!sentinel_store_site(&band, "2026-11-12T15:04:05Z", NULL, 61000, site, sizeof(site)));
+    s_root = root;
+
     snprintf(cmd, sizeof(cmd), "rm -rf %s", root);
     if (system(cmd) != 0) printf("could not remove %s\n", root);
     printf("%s (%d failures)\n", s_fail ? "FAIL" : "PASS", s_fail);

@@ -27,6 +27,7 @@
  */
 #pragma once
 
+#include "sentinel_bandhost.h"
 #include "sentinel_blehost.h"
 #include "sentinel_core.h"
 #include "sentinel_proto.h"
@@ -109,6 +110,25 @@ bool sentinel_ble_track(const uint8_t addr[6], sentinel_track_t *out);
 /* "This one is mine": no alerts for it. Saved in settings ("rf_mine"). */
 bool sentinel_ble_mine(const uint8_t addr[6]);
 void sentinel_ble_set_mine(const uint8_t addr[6], bool mine);
+
+/* ---- The two swept bands: 433 MHz and 2.4 GHz ----------------------------- */
+
+/* A minute of 433 MHz and two minutes of 2.4 GHz as waterfalls, every
+ * channel's statistics, the bursts the listener heard and what the jam
+ * watch thinks (sentinel_bandhost.h). Kept in the background whatever is on
+ * screen. A copy, about 13 KB: give it static or PSRAM storage. */
+void sentinel_band_copy(sentinel_bandhost_t *out);
+/* "What you hear now is normal here": the node starts its baselines again. */
+void sentinel_band_learn(void);
+/* Park the CC1101 on one frequency and time the bursts there (433000 to
+ * 435000 kHz); 0 puts it back to sweeping. While it listens there is no
+ * 433 MHz sweep and no 433 MHz alert. */
+void sentinel_band_listen(uint32_t khz);
+/* A site survey: begin starts every channel's statistics again; write puts
+ * them in sentinel/site-<time>.csv and gives the file's name. The caller
+ * decides how long a survey is. Write blocks for a few hundred milliseconds. */
+void sentinel_site_begin(void);
+bool sentinel_site_write(char *name, size_t n);
 
 /* ---- Wardriving ---------------------------------------------------------- */
 

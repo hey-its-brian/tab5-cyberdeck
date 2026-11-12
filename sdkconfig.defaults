@@ -117,3 +117,8 @@ CONFIG_LV_USE_CUSTOM_MALLOC=y
 CONFIG_LWIP_TCP_SND_BUF_DEFAULT=65535
 CONFIG_LWIP_TCP_WND_DEFAULT=65535
 CONFIG_LWIP_TCP_RECVMBOX_SIZE=32
+
+# RF WATCH reads the Sentinel board at 921600 baud. Keep the UART interrupt
+# in RAM so a flash write (settings, OTA) cannot hold it off long enough to
+# overflow the receive FIFO.
+CONFIG_UART_ISR_IN_IRAM=y

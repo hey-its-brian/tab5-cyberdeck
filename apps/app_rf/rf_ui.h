@@ -35,6 +35,16 @@ void rf_wifi_build(lv_obj_t *parent);
 void rf_wifi_destroy(void);
 bool rf_wifi_key(const deck_key_t *k);
 
+/* SUB-GHZ and 2.4 GHZ (rf_bands.c): the two swept bands as spectrum
+ * analyzers with history, the burst listener on 433 MHz, a site survey to
+ * a file, and what the jam watch thinks. */
+void rf_sub_build(lv_obj_t *parent);
+void rf_sub_destroy(void);
+bool rf_sub_key(const deck_key_t *k);
+void rf_nrf_build(lv_obj_t *parent);
+void rf_nrf_destroy(void);
+bool rf_nrf_key(const deck_key_t *k);
+
 /* WARDRIVE: Wi-Fi and Bluetooth with the GPS position, written to the SD
  * card in WiGLE's format. Listening only. The drive ends with the screen. */
 void rf_drive_build(lv_obj_t *parent);

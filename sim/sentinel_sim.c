@@ -34,6 +34,7 @@
 #include "sentinel_proto.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "lvgl.h"
@@ -54,6 +55,12 @@ static sentinel_blehost_t s_ble;       /* the deck's: devices and the track watc
 static bool               s_node_ble_mode, s_node_cap;
 static sentinel_wifimon_t  s_node_wifi; /* the node's Wi-Fi monitor */
 static sentinel_wifihost_t s_wifi;      /* the deck's tables */
+static sentinel_bandhost_t s_band, s_band_site; /* the deck's: band history, bursts, the jam watch */
+static sentinel_subwatch_t s_node_sub;  /* the node's band watches */
+static sentinel_nrfwatch_t s_node_nrf;
+static uint32_t s_node_dwell_khz;       /* where the node's CC1101 is parked, 0 while it sweeps */
+static int      s_dwell_tick, s_dwell_bursts;
+static uint32_t s_dwell_last_ms;
 static enum { NODE_WATCH, NODE_BLE, NODE_WIFI, NODE_HPOT, NODE_DRIVE } s_node_tool;
 static double  s_street_m;              /* how far up the street a wardrive has carried the deck */
 static uint32_t s_drive_lost_base;
@@ -63,6 +70,9 @@ static char    s_hp_ssid[SENTINEL_WIFI_SSID_MAX + 1];
 static int     s_hp_tick, s_hp_joins, s_hp_probes;
 
 uint32_t sentinel_now_ms(void) { return lv_tick_get(); }
+
+static int  s_jam_at = -1; /* the jam scene: see emit_nrf() */
+static bool jammed(void) { return s_jam_at >= 0 && (int)((lv_tick_get() - s_started) / 1000) >= s_jam_at; }
 
 static uint32_t rnd(uint32_t n)
 {
@@ -110,8 +120,14 @@ static void sink_drone(void *user, const sentinel_drn_t *d)
     (void)user;
     sentinel_wifihost_drone(&s_wifi, &s_state, d, sentinel_now_ms(), &s_sink);
 }
+static void sink_burst(void *user, const sentinel_brs_t *b)
+{
+    (void)user;
+    if (b->khz == s_host.want_dwell_khz) sentinel_bursthost_add(&s_band.bursts, b, sentinel_now_ms());
+}
 static const sentinel_sink_t s_sink = {
     .event = sink_event, .packet = sink_packet, .device = sink_device, .channel = sink_channel, .ap = sink_ap, .drone = sink_drone,
+    .burst = sink_burst,
 };
 
 static void emit(const char *payload)
@@ -159,6 +175,7 @@ static void ble_tick(void)
     for (int i = 0; i < ROOM_N; i++) {
         sim_ble_t *d = &s_room[i];
         if (s_tick < d->from_tick || rnd(3) == 0) continue; /* not here yet, or not heard this time */
+        if (jammed() && rnd(15) != 0) continue;             /* the jam scene: hardly any advertisement gets through */
         int8_t rssi = (int8_t)(d->rssi - 3 + (int)rnd(7));
         sentinel_bleagg_feed(&s_node_ble, d->addr, d->pub, rssi, d->adv, d->len, now);
         if (s_node_cap && s_node_tool == NODE_BLE) { /* the same advertisement, as a captured packet */
@@ -361,34 +378,86 @@ static void node_arm_tick(void)
     }
 }
 
+/* The jam scene, for screenshots and for watching the jam watch work:
+ * SIM_RF_JAM=<seconds> saturates 2.4 GHz from then on and takes Bluetooth
+ * down with it, the way a real jammer would. Nothing here transmits; it is
+ * a simulator. */
+
+/* What the node's band watch makes of a sweep: its events, and a BND row when the band changes. */
+static void say_band(const sentinel_bw_out_t *o, bool nrf)
+{
+    char line[96];
+    for (int i = 0; i < o->n; i++) {
+        snprintf(line, sizeof(line), "EVT,%s,%s,%s", o->a[i].warn ? "warn" : "info", o->a[i].src, o->a[i].text);
+        emit(line);
+    }
+    if (!o->band_changed) return;
+    if (nrf ? sentinel_proto_bnd(line, sizeof(line), true, s_node_nrf.state, s_node_nrf.channels, 0)
+            : sentinel_proto_bnd(line, sizeof(line), false, s_node_sub.state, s_node_sub.channels, s_node_sub.delta_db))
+        emit(line);
+}
+
 static void emit_sub(void)
 {
-    char buf[SENTINEL_LINE_MAX];
-    int  n = snprintf(buf, sizeof(buf), "SUB,%d", SENTINEL_SUB_CH);
-    bool fob = (s_tick % 40) < 6; /* 1.5 s chirp every 10 s */
+    char   buf[SENTINEL_LINE_MAX];
+    int8_t v[SENTINEL_SUB_CH];
+    int    n = snprintf(buf, sizeof(buf), "SUB,%d", SENTINEL_SUB_CH);
+    bool fob = (s_tick % 160) < 6; /* a remote: 1.5 s every 40 s */
     for (int i = 0; i < SENTINEL_SUB_CH; i++) {
-        int v = -112 + (int)rnd(9);
-        if (i == 9 && fob) v = -58 - (int)rnd(6);           /* 433.9 MHz */
-        if ((i == 8 || i == 10) && fob) v = -80 - (int)rnd(8); /* its shoulders */
-        n += snprintf(buf + n, sizeof(buf) - n, ",%d", v);
+        int x = -108 + (int)rnd(5);
+        if (i == 9 && fob) x = -58 - (int)rnd(6);            /* 433.9 MHz */
+        if ((i == 8 || i == 10) && fob) x = -104 + (int)rnd(4); /* its skirts, too weak to count */
+        v[i] = (int8_t)x;
+        n += snprintf(buf + n, sizeof(buf) - n, ",%d", x);
     }
-    emit(buf);
+    sentinel_bw_out_t o;
+    sentinel_subwatch_feed(&s_node_sub, v, &o);
+    say_band(&o, false);
+    if (!s_quiet) emit(buf);
 }
 
 static void emit_nrf(void)
 {
-    char buf[SENTINEL_LINE_MAX];
-    int  n = snprintf(buf, sizeof(buf), "NRF,%d,", SENTINEL_NRF_CH);
+    char    buf[SENTINEL_LINE_MAX];
+    uint8_t v[SENTINEL_NRF_CH];
+    int     n = snprintf(buf, sizeof(buf), "NRF,%d,", SENTINEL_NRF_CH);
     for (int i = 0; i < SENTINEL_NRF_CH; i++) {
         int mhz = SENTINEL_NRF_FIRST_MHZ + i, hits = rnd(10) == 0 ? 1 : 0;
-        if (mhz >= 2402 && mhz <= 2422) hits = 3 + (int)rnd(5); /* channel 1 */
-        if (mhz >= 2427 && mhz <= 2447) hits = 2 + (int)rnd(4); /* channel 6 */
-        if (mhz >= 2452 && mhz <= 2472) hits = 5 + (int)rnd(4); /* channel 11 */
+        if (mhz >= 2402 && mhz <= 2422) hits = 2 + (int)rnd(4); /* channel 1 */
+        if (mhz >= 2427 && mhz <= 2447) hits = 1 + (int)rnd(3); /* channel 6 */
+        if (mhz >= 2452 && mhz <= 2472) hits = 4 + (int)rnd(5); /* channel 11 */
         if (mhz == 2480) hits = 1 + (int)rnd(3);                /* a BLE advertiser */
+        if (jammed() && mhz <= 2500) hits = 7 + (int)rnd(2);
+        v[i]     = (uint8_t)hits;
         buf[n++] = "0123456789ABCDEF"[hits & 0xF];
     }
     buf[n] = 0;
-    emit(buf);
+    sentinel_bw_out_t o;
+    sentinel_nrfwatch_feed(&s_node_nrf, v, &o);
+    say_band(&o, true);
+    if (!s_quiet) emit(buf);
+}
+
+/* The burst listener: a sensor at 433.92 MHz every seven seconds, and a remote pressed twice. */
+static void dwell_tick(void)
+{
+    char line[64];
+    bool near = s_node_dwell_khz >= 433820 && s_node_dwell_khz <= 434020;
+    uint32_t now = sentinel_now_ms();
+    sentinel_brs_t b = {.khz = s_node_dwell_khz};
+    if (near && s_dwell_tick % 28 == 6) b.ms = 9, b.peak = (int8_t)(-71 + (int)rnd(3) - 1);
+    if (near && (s_dwell_tick == 40 || s_dwell_tick == 49)) b.ms = 600 + rnd(30), b.peak = -48;
+    if (b.ms) {
+        b.gap_ms        = s_dwell_bursts ? now - s_dwell_last_ms - b.ms : 0;
+        s_dwell_last_ms = now;
+        s_dwell_bursts++;
+        if (sentinel_proto_brs(line, sizeof(line), &b)) emit(line);
+    }
+    if (s_dwell_tick % 8 == 0) {
+        snprintf(line, sizeof(line), "SBD,%lu,%d,%d", (unsigned long)s_node_dwell_khz, -103 - (int)rnd(3), s_dwell_bursts);
+        emit(line);
+    }
+    s_dwell_tick++;
 }
 
 static void emit_wifi(void)
@@ -410,17 +479,22 @@ static void tick(lv_timer_t *t)
     sentinel_host_out_t out;
     sentinel_host_tick(&s_host, &s_state, sentinel_now_ms(), &out);
     sentinel_drivelog_tick(&s_state, sentinel_now_ms(), drive_row);
+    sentinel_bandhost_tick(&s_band, &s_state, sentinel_now_ms(), &s_sink);
     if (out.note[0]) sentinel_push_event(&s_state, out.note_warn, "deck", out.note, sentinel_now_ms(), &s_sink);
     if (out.set_baud) printf("[sim] sentinel baud %u\n", (unsigned)out.set_baud);
     if (up < 2) return; /* the C5 is booting: commands sent now are lost */
     for (int i = 0; i < out.n_send; i++) sentinel_send(out.send[i]);
     node_arm_tick();
-    if (s_tick == 0) emit("HELLO,0.6.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1,drv=1");
+    if (s_tick == 0) emit("HELLO,0.7.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1,drv=1,sub=1");
     if (s_node_tool != NODE_WIFI && s_node_tool != NODE_HPOT) ble_tick(); /* those two take the whole radio */
     wifi_tick();
-    if (!s_quiet) {
-        emit_sub();
-        if (s_tick % 8 == 7) emit_nrf();
+    if (s_node_dwell_khz) dwell_tick(); /* the CC1101 listens to one frequency: no sweep */
+    else emit_sub();
+    if (s_tick % 8 == 7) emit_nrf();
+    if (s_tick % 40 == 20) { /* each band's state again every ten seconds, normal or not */
+        char row[40];
+        if (sentinel_proto_bnd(row, sizeof(row), true, s_node_nrf.state, s_node_nrf.channels, 0)) emit(row);
+        if (sentinel_proto_bnd(row, sizeof(row), false, s_node_sub.state, s_node_sub.channels, s_node_sub.delta_db)) emit(row);
     }
     if (s_tick % 4 == 0) {
         char buf[160];
@@ -439,9 +513,6 @@ static void tick(lv_timer_t *t)
     }
     if (s_tick % 40 == 8) emit_wifi();
     if (s_tick == 12) emit("EVT,info,gps,3D fix, 9 satellites");
-    if (s_tick % 40 == 2) emit("EVT,warn,sub,433.9 MHz active (-61 dBm)");
-    if (s_tick % 40 == 9) emit("EVT,info,sub,433.9 MHz quiet");
-    if (s_tick == 60) emit("EVT,warn,nrf,2462 MHz busy (8/8)");
     s_tick++;
 }
 
@@ -464,6 +535,11 @@ void sentinel_start(void)
     sentinel_blehost_init(&s_ble);
     sentinel_wifimon_init(&s_node_wifi);
     sentinel_wifihost_init(&s_wifi);
+    sentinel_bandhost_init(&s_band, sentinel_now_ms());
+    sentinel_subwatch_init(&s_node_sub);
+    sentinel_nrfwatch_init(&s_node_nrf);
+    s_node_dwell_khz = 0;
+    s_jam_at         = getenv("SIM_RF_JAM") ? atoi(getenv("SIM_RF_JAM")) : -1;
     s_node_tool     = NODE_WATCH;
     s_street_m      = 0;
     s_hop           = 0;
@@ -504,6 +580,26 @@ void sentinel_note(bool warn, const char *text)
 }
 
 void sentinel_stats(sentinel_store_stats_t *out) { sentinel_store_stats(out); }
+
+/* The two swept bands, as on the device. */
+void sentinel_band_copy(sentinel_bandhost_t *out) { memcpy(out, &s_band, sizeof(*out)); }
+void sentinel_band_learn(void) { sentinel_host_learn(&s_host); }
+void sentinel_band_listen(uint32_t khz)
+{
+    uint32_t was = s_host.want_dwell_khz;
+    sentinel_host_sub(&s_host, khz);
+    if (s_host.want_dwell_khz && s_host.want_dwell_khz != was) sentinel_bursthost_init(&s_band.bursts);
+}
+void sentinel_site_begin(void) { sentinel_bandhost_stats_reset(&s_band, sentinel_now_ms()); }
+bool sentinel_site_write(char *name, size_t n)
+{
+    memcpy(&s_band_site, &s_band, sizeof(s_band_site));
+    if (!sentinel_store_site_from(&s_band_site, &s_state, sentinel_now_ms(), name, n)) return false;
+    char note[64];
+    snprintf(note, sizeof(note), "site survey written: %.31s", name);
+    sentinel_note(false, note);
+    return true;
+}
 
 /* Wardriving, as on the device but with no writer task in between. */
 void sentinel_drive_start(const char *app_version)
@@ -591,7 +687,7 @@ bool sentinel_send(const char *payload)
     uint32_t       now = sentinel_now_ms();
     char           buf[64];
     switch (c.id) {
-        case SENTINEL_CMD_HELLO: emit("HELLO,0.6.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1,drv=1"); break;
+        case SENTINEL_CMD_HELLO: emit("HELLO,0.7.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1,drv=1,sub=1"); break;
         case SENTINEL_CMD_PING: emit("PONG,1234"); break;
         case SENTINEL_CMD_QUIET: s_quiet = true; break;
         case SENTINEL_CMD_STREAM: s_quiet = false; break;
@@ -627,6 +723,27 @@ bool sentinel_send(const char *payload)
             }
             break;
         }
+        case SENTINEL_CMD_LEARN:
+            sentinel_subwatch_init(&s_node_sub);
+            sentinel_nrfwatch_init(&s_node_nrf);
+            emit("BND,sub,0,0,0");
+            emit("BND,nrf,0,0,0");
+            emit("EVT,info,node,learning the bands again");
+            break;
+        case SENTINEL_CMD_SUB:
+            if (!c.valid) {
+                emit("ERR,bad sub");
+                break;
+            }
+            if (c.value && sentinel_subwatch_pause(&s_node_sub)) emit("BND,sub,0,0,0");
+            if ((uint32_t)c.value != s_node_dwell_khz) {
+                printf("[sim] sentinel 433 MHz %s %ld\n", c.value ? "listening on" : "sweeping", c.value);
+                s_node_dwell_khz = (uint32_t)c.value;
+                s_dwell_tick = s_dwell_bursts = 0;
+            }
+            snprintf(buf, sizeof(buf), "SBD,%lu,%d,0", (unsigned long)s_node_dwell_khz, s_node_dwell_khz ? -104 : 0);
+            emit(buf);
+            break;
         case SENTINEL_CMD_HPOT:
             if (!c.valid) {
                 emit("ERR,bad honeypot");

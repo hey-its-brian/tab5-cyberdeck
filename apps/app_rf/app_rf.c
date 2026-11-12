@@ -18,7 +18,7 @@
  * warnings into notices (the status bar count and a banner) that reach the
  * user in any app. That part is always in the safe posture.
  *
- * Screens: this file (gate, chooser), rf_overview.c, rf_wifi.c, rf_ble.c, rf_drive.c,
+ * Screens: this file (gate, chooser), rf_overview.c, rf_wifi.c, rf_ble.c, rf_drive.c, rf_bands.c,
  * rf_log.c.
  */
 #include "app_rf.h"
@@ -50,8 +50,8 @@ typedef struct {
 static const rf_tool_t s_tools[] = {
     {"OVERVIEW", "LINK, GNSS, SWEEPS, EVENTS", ICON_RADAR, NULL, rf_overview_build, rf_overview_destroy, rf_overview_key},
     {"WI-FI", "MONITOR, NETWORKS, DRONES", ICON_WIFI, NULL, rf_wifi_build, rf_wifi_destroy, rf_wifi_key},
-    {"SUB-GHZ", "SPECTRUM, SURVEY, TPMS", ICON_ANTENNA, "PHASE 5", NULL, NULL, NULL},
-    {"2.4 GHZ", "SPECTRUM, SURVEY, JAM DETECT", ICON_GAUGE, "PHASE 5", NULL, NULL, NULL},
+    {"SUB-GHZ", "SPECTRUM, BURSTS, SURVEY", ICON_ANTENNA, NULL, rf_sub_build, rf_sub_destroy, rf_sub_key},
+    {"2.4 GHZ", "SPECTRUM, SURVEY, JAM WATCH", ICON_GAUGE, NULL, rf_nrf_build, rf_nrf_destroy, rf_nrf_key},
     {"BLUETOOTH", "SCAN, TRACKERS, CAPTURE", ICON_WIRELESS, NULL, rf_ble_build, rf_ble_destroy, rf_ble_key},
     {"LOG", "EVENTS ON STORAGE", ICON_HISTORY, NULL, rf_log_build, rf_log_destroy, rf_log_key},
     {"WARDRIVE", "WI-FI AND BLUETOOTH WITH GPS", ICON_PIN, NULL, rf_drive_build, rf_drive_destroy, rf_drive_key},
