@@ -187,6 +187,10 @@ What the screens do:
 |---|---|---|
 | ![Site survey](docs/screenshots/sentinel_survey.png) | ![Jam watch](docs/screenshots/sentinel_jam.png) | ![Wardrive](docs/screenshots/sentinel_wardrive.png) |
 
+| SELF TEST | DEAUTH TEST: the clients | DEAUTH TEST: every run asks | DEAUTH TEST: done, and seen |
+|---|---|---|---|
+| ![Self test](docs/screenshots/sentinel_selftest.png) | ![Choosing a client](docs/screenshots/sentinel_deauth_clients.png) | ![The permission question](docs/screenshots/sentinel_deauth_ask.png) | ![The run, and the detector firing](docs/screenshots/sentinel_deauth_done.png) |
+
 | LOG | PING | Entering OFFENSIVE | HONEYPOT |
 |---|---|---|---|
 | ![Log](docs/screenshots/sentinel_log.png) | ![Ping](docs/screenshots/sentinel_ping.png) | ![The question before OFFENSIVE](docs/screenshots/sentinel_ask.png) | ![Honeypot on air](docs/screenshots/sentinel_honeypot.png) |

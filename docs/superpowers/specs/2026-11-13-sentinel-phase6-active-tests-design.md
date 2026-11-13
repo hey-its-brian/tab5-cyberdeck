@@ -122,3 +122,50 @@ New, in `docs/protocol.md`:
 2. The node: the self tests, the station listener, then the burst.
 3. The deck: BOARD > SELF TEST, then the three pages of the deauth test.
 4. Checks, the simulator, then both boards.
+
+## As built (2026-11-13)
+
+- `sentinel_core/sentinel_test.h` holds the rules, the frame builder and
+  the self test's row format. Eight mutations of it were tried, one per
+  rule, and each one broke a test: that is what the rules being "pinned"
+  means here.
+- `SENTINEL_DEAUTH_BURST`, not `FRAMES`: `sentinel_wifimon.h` already had
+  `SENTINEL_DEAUTH_FRAMES` for how many a detector must see to call it a
+  flood, which is the other side of the same coin.
+- `CMD,TX` now keeps its whole argument, so a test carries its target. It
+  used to keep the first field only, and `v2_test.c` says so.
+- The client listener became a mode rather than a command of its own:
+  `CMD,STA` names the access point and `CMD,MODE,sta` starts it, the way
+  the honeypot works. The first attempt had `CMD,STA` change the mode
+  itself, and the deck and the board then spent their time putting each
+  other back, because the host keeps a list of modes it will ask for and
+  `sta` was not on it.
+- The technical risk was real. ESP-IDF refused every frame until
+  `main/raw_tx_gate.c` replaced `ieee80211_raw_frame_sanity_check`, and
+  the first attempt at that silently did nothing: with only `-z muldefs`
+  the linker never pulls in an archive member nothing has referenced, so
+  the library's version won. `-u ieee80211_raw_frame_sanity_check` asks
+  for the symbol before any library is searched, and the map then shows
+  our four-byte version placed and the library's 0x212-byte one dropped.
+- Both new screens are built from the same frame as the rest, so the
+  three pages of the test are pushed and popped like NETWORKS' list and
+  detail. One bug came out of that: pressing Enter on a row redrew the
+  list the next page had just replaced, which asserted inside LVGL. The
+  other list screens guard against it by checking their own "am I on the
+  detail page" flag after the call; this one now compares the step.
+- Checked in the simulator: the self test's five rows with one failure,
+  all three pages of the deauth test, the permission dialog with the
+  target in it, a run, and the deck's own deauth detector firing on that
+  run a second later.
+
+## Not done
+
+- The C5 was not on USB while this was built, so the node's half of phase
+  6 has never run on hardware. Everything the deck shows about it is
+  therefore from the simulator's pretend node. The first thing to do with
+  a cable is flash 0.8.0 and watch a real self test, then a real burst
+  with the deck's detector watching.
+- Whether a client actually drops is unknown and may well be no: only the
+  half of the usual pair that a detector reads is sent.
+- The deauth detector's own thresholds have never been tuned against a
+  real burst, which is the whole reason this phase exists.
