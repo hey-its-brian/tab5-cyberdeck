@@ -303,9 +303,12 @@ void hal_power_read(hal_power_t *out)
     if (err != ESP_OK) return;
     out->valid    = true;
     out->volts    = r.bus_voltage_v;
-    out->amps     = r.current_a;
+    /* The driver's comment says + is charge, but on this board the shunt
+     * reads + while the pack discharges: the bolt showed on battery and
+     * went away on USB. Turned round here so every reader gets + charging. */
+    out->amps     = -r.current_a;
     out->percent  = pack_percent(r.bus_voltage_v);
-    out->charging = r.current_a > 0.02f;
+    out->charging = out->amps > 0.02f;
 }
 
 /* ---- Clock --------------------------------------------------------------- */
