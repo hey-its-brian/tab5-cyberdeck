@@ -50,8 +50,8 @@ deck's own Wi-Fi and work without it.
 
 **One purpose per screen.** SENTINEL opens on a page of eight tiles. Each
 tile is a button that also shows its area's headline, so the page is the
-menu and the overview at once. (Under the headline each tile carries a line
-from a film, for fun, and its icon again, large and faint, behind it.) Under the tiles are 25 screens that each
+menu and the overview at once. (Each tile has its icon, large and faint,
+behind its text, and a line from a film at its foot, for fun.) Under the tiles are 25 screens that each
 answer one question:
 
 | Area | Screens |
@@ -67,15 +67,19 @@ answer one question:
 
 Every screen has the same four things, top to bottom: where you are and why
 (`SENTINEL > WI-FI > NETWORKS` and a sentence), the one thing the screen is
-for, a bar of buttons, and the alert line along the bottom edge. A button shows its key and
+for, a bar of buttons, and the alert line along the bottom edge, drawn like
+the info bar on the home screen. A button shows its key and
 what it does (`S  START A SURVEY`); pressing the key and tapping the button
 are the same. Only buttons, tiles and list rows look like something to
 press. Nothing is smaller than 20 px, and explanations are behind HELP.
-BACK (Esc, Del, or the button with the arrow head) goes up one level.
+BACK (Esc, Del, or the button with the arrow head) goes up one level. The
+HOME button in the top left of the status bar always goes to the DECK//OS
+home screen, in SENTINEL and in every other app.
 
 **Warnings land wherever you are.** The alert line is on every SENTINEL
-screen. Quiet, it says ALL CLEAR. Otherwise it shows the latest warning and
-its age, and `L` or a tap opens the LOG. There are three levels, each with a
+screen. Quiet, its tag says SENTINEL and the line says ALL CLEAR. Otherwise
+the tag says WARNING or ALERT and the line shows the latest one and its age,
+and `L` or a tap opens the LOG. There are three levels, each with a
 mark as well as a colour:
 
 - a note is written to the log and nothing else (a tracker first heard, a
@@ -362,7 +366,7 @@ See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
 | Arrows, `Enter`, or `1..6` | Pick a tile on the home screen or in APPS |
 | `Tab`, arrows | Move focus inside a module |
 
-Everything is also reachable by touch: tiles, panel sections, the `< DECK` back button and on-screen controls.
+Everything is also reachable by touch: tiles, panel sections, the HOME button in the top left (it always goes to the home screen) and on-screen controls.
 
 ## Install from the browser
 

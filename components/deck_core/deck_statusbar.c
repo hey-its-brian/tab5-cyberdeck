@@ -40,10 +40,13 @@ static lv_obj_t *s_flag;  /* an app's standing flag, e.g. RED TEAM */
 static lv_obj_t *s_alert; /* unseen warnings */
 static lv_timer_t *s_timer;
 
-static void back_clicked(lv_event_t *e)
+/* The button in the top left is HOME, wherever you are: it never means
+ * "back one level", so nobody has to guess where it goes. Going back a level
+ * is Esc, Del, or a module's own BACK. */
+static void home_clicked(lv_event_t *e)
 {
     (void)e;
-    deck_shell_back();
+    deck_shell_home();
 }
 
 static void music_clicked(lv_event_t *e)
@@ -87,21 +90,19 @@ static void build_left(deck_group_t *group, deck_app_t *app)
     lv_obj_remove_flag(s_clock, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(s_date, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(s_ver, LV_OBJ_FLAG_HIDDEN);
-    /* Inside a group the button goes back to the group screen; the path
-     * beside it already names the group, so keep the button short. */
-    lv_obj_t *back = deck_button(s_left, app && group ? "BACK" : "DECK", g_font.disp_s);
-    /* Prepend a chevron icon to the button's label. */
+    lv_obj_t *back = deck_button(s_left, "HOME", g_font.disp_s);
+    /* Prepend a house icon to the button's label. */
     lv_obj_set_flex_flow(back, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(back, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(back, 4, 0);
     lv_obj_t *chev = lv_label_create(back);
     lv_obj_set_style_text_font(chev, g_font.icon_s, 0);
-    lv_label_set_text(chev, ICON_CHEVRON_LEFT);
+    lv_label_set_text(chev, ICON_HOME);
     lv_obj_move_to_index(chev, 0);
     lv_obj_set_style_min_height(back, 44, 0);
     lv_obj_set_style_pad_ver(back, 6, 0);
-    lv_obj_add_event_cb(back, back_clicked, LV_EVENT_CLICKED, NULL);
-    /* Keyboard users have Esc; keep the back button out of Tab order. */
+    lv_obj_add_event_cb(back, home_clicked, LV_EVENT_CLICKED, NULL);
+    /* Keyboard users have Alt+Esc; keep the button out of Tab order. */
     lv_group_remove_obj(back);
 
     /* Path: "01 // TOOLS" on a group screen or a home tile's app,

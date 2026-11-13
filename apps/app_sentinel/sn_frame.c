@@ -27,7 +27,7 @@
 #define TILE_MAX  8
 #define TICK_MS   500
 #define BAR_H     64
-#define STRIP_H   44
+#define STRIP_H   52 /* the height of the info bar on the DECK//OS home screen */
 #define ROW_H     50
 #define WARN_HOLD_MS  120000u /* how long a warning stays on the alert line */
 #define ALERT_HOLD_MS 300000u
@@ -49,7 +49,7 @@ static struct {
     sn_mode_t          mode;
     const sn_screen_t *pending; /* the OFFENSIVE menu, while its question is up */
     const sn_screen_t *log;     /* what the alert line opens */
-    lv_obj_t          *crumb, *purpose, *chip, *strip, *strip_text, *strip_cap, *body, *bar;
+    lv_obj_t          *crumb, *purpose, *chip, *strip, *strip_tag, *strip_tag_text, *strip_text, *strip_cap, *body, *bar;
     lv_obj_t          *tile[TILE_MAX], *tile_line[TILE_MAX], *tile_mark[TILE_MAX], *tile_quote[TILE_MAX];
     action_t           act[ACT_MAX];
     int                nact;
@@ -683,12 +683,14 @@ static void menu_build(const sn_screen_t *m)
         char num[4];
         snprintf(num, sizeof(num), "%d", i + 1);
         keycap(head, num, c);
-        if (k->icon) label(head, g_font.icon_s, c, k->icon);
         lv_obj_t *name = label(head, g_font.disp_m, lv_color_white(), k->name);
         lv_obj_set_flex_grow(name, 1);
         s_fr.tile_mark[i] = label(head, g_font.disp_m, g_pal.warn, "");
         s_fr.tile_line[i]  = wrapped(t, g_font.mono_m, lv_color_white());
-        s_fr.tile_quote[i] = wrapped(t, g_font.mono_m, g_pal.text); /* mixed case sets it apart from the status above it */
+        /* The film line is set apart twice: it sits at the foot of the tile, and it is in the tile's own colour. */
+        lv_obj_t *gap = plain(t);
+        lv_obj_set_flex_grow(gap, 1);
+        s_fr.tile_quote[i] = wrapped(t, g_font.mono_m, lv_color_mix(c, lv_color_white(), 150));
         if (k->quote) lv_label_set_text(s_fr.tile_quote[i], k->quote);
         else lv_obj_add_flag(s_fr.tile_quote[i], LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_event_cb(t, tile_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)i);
@@ -740,18 +742,18 @@ static void strip_clicked(lv_event_t *e)
     strip_open();
 }
 
+/* The bar along the bottom, built like the info bar on the DECK//OS home
+ * screen: a chamfered panel with a filled tag at its left end. The tag says
+ * what kind of line it is, so the level is a word as well as a colour. */
 static void strip_set(sn_level_t level, bool active, const char *text)
 {
-    lv_color_t c = sn_level_color(level);
+    lv_color_t c = active ? sn_level_color(level) : level == SN_NOTE ? g_pal.accent : g_pal.warn;
     s_fr.strip_active = active && s_fr.log && top() != s_fr.log;
-    if (active) {
-        control_style(s_fr.strip, c, 8);
-        lv_obj_set_style_bg_color(s_fr.strip, lv_color_mix(c, g_pal.bg, level == SN_ALERT ? 110 : 60), 0);
-        lv_obj_set_style_bg_color(s_fr.strip_cap, c, 0);
-    } else {
-        lv_obj_set_style_bg_opa(s_fr.strip, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(s_fr.strip, 0, 0);
-    }
+    deck_panel_set_outline(s_fr.strip, active ? c : g_pal.line);
+    deck_panel_set_fill(s_fr.strip_tag, c);
+    deck_panel_set_outline(s_fr.strip_tag, c);
+    sn_set(s_fr.strip_tag_text, g_pal.bg, "%s", !active ? "SENTINEL>" : level == SN_ALERT ? "ALERT>" : "WARNING>");
+    lv_obj_set_style_bg_color(s_fr.strip_cap, c, 0);
     if (s_fr.strip_active) {
         lv_obj_add_flag(s_fr.strip, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_remove_flag(s_fr.strip_cap, LV_OBJ_FLAG_HIDDEN);
@@ -759,7 +761,7 @@ static void strip_set(sn_level_t level, bool active, const char *text)
         lv_obj_remove_flag(s_fr.strip, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_flag(s_fr.strip_cap, LV_OBJ_FLAG_HIDDEN);
     }
-    sn_set(s_fr.strip_text, active ? lv_color_white() : level == SN_NOTE ? g_pal.label : c, "%s", text);
+    sn_set(s_fr.strip_text, active ? lv_color_white() : level == SN_NOTE ? g_pal.text : c, "%s", text);
 }
 
 static void strip_update(void)
@@ -790,14 +792,14 @@ static void strip_update(void)
     }
     /* A band that is up now is an alert for as long as it lasts, whatever the events' ages. */
     if (bl < SN_ALERT && st->nrf_band == SENTINEL_BAND_UP) {
-        snprintf(text, sizeof(text), "!!  2.4 GHZ BAND SATURATED: %u CHANNELS SOLID, NOW", (unsigned)st->nrf_band_ch);
+        snprintf(text, sizeof(text), "2.4 GHZ BAND SATURATED: %u CHANNELS SOLID, NOW", (unsigned)st->nrf_band_ch);
         strip_set(SN_ALERT, true, text);
     } else if (bl < SN_ALERT && st->sub_band == SENTINEL_BAND_UP) {
-        snprintf(text, sizeof(text), "!!  433 MHZ BAND UP %d DB ACROSS %u CHANNELS, NOW", (int)st->sub_band_db, (unsigned)st->sub_band_ch);
+        snprintf(text, sizeof(text), "433 MHZ BAND UP %d DB ACROSS %u CHANNELS, NOW", (int)st->sub_band_db, (unsigned)st->sub_band_ch);
         strip_set(SN_ALERT, true, text);
     } else if (best) {
         sn_fmt_span(span, sizeof(span), now - best->ms);
-        snprintf(text, sizeof(text), "%s  %s   (%s AGO)", sn_level_mark(bl), best->text, span);
+        snprintf(text, sizeof(text), "%s   (%s AGO)", best->text, span);
         strip_set(bl, true, text);
     } else if (last) {
         sn_fmt_span(span, sizeof(span), now - last->ms);
@@ -812,7 +814,7 @@ static void strip_update(void)
 
 static void forget_widgets(void)
 {
-    s_fr.crumb = s_fr.purpose = s_fr.chip = s_fr.strip = s_fr.strip_text = s_fr.strip_cap = s_fr.body = s_fr.bar = NULL;
+    s_fr.crumb = s_fr.purpose = s_fr.chip = s_fr.strip = s_fr.strip_tag = s_fr.strip_tag_text = s_fr.strip_text = s_fr.strip_cap = s_fr.body = s_fr.bar = NULL;
     memset(s_fr.tile, 0, sizeof(s_fr.tile));
     memset(s_fr.tile_line, 0, sizeof(s_fr.tile_line));
     memset(s_fr.tile_mark, 0, sizeof(s_fr.tile_mark));
@@ -895,16 +897,19 @@ static void show(void)
     lv_obj_set_style_pad_column(s_fr.bar, 10, 0);
     sn_action(0, "ESC", s_fr.depth > 1 ? "BACK" : "LEAVE SENTINEL", sn_back);
 
-    /* 4. The alert line, along the bottom edge: where the info line is on the DECK//OS home screen. */
-    s_fr.strip = lv_obj_create(root);
-    lv_obj_remove_style_all(s_fr.strip);
-    lv_obj_remove_flag(s_fr.strip, LV_OBJ_FLAG_SCROLLABLE);
+    /* 4. The alert line, along the bottom edge: the same bar the DECK//OS home screen has there. */
+    s_fr.strip = deck_panel(root, DECK_CUT_TL | DECK_CUT_BR, 12);
     lv_obj_set_size(s_fr.strip, LV_PCT(100), STRIP_H);
-    lv_obj_set_style_pad_hor(s_fr.strip, 12, 0);
-    lv_obj_set_style_pad_column(s_fr.strip, 12, 0);
+    lv_obj_set_style_pad_hor(s_fr.strip, 14, 0);
+    lv_obj_set_style_pad_column(s_fr.strip, 14, 0);
     lv_obj_set_flex_flow(s_fr.strip, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(s_fr.strip, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    s_fr.strip_text = label(s_fr.strip, g_font.mono_b, g_pal.label, "");
+    s_fr.strip_tag = deck_panel(s_fr.strip, DECK_CUT_BR, 8);
+    lv_obj_set_size(s_fr.strip_tag, LV_SIZE_CONTENT, 30);
+    lv_obj_set_style_pad_hor(s_fr.strip_tag, 10, 0);
+    s_fr.strip_tag_text = label(s_fr.strip_tag, g_font.disp_s, g_pal.bg, "SENTINEL>");
+    lv_obj_center(s_fr.strip_tag_text);
+    s_fr.strip_text = label(s_fr.strip, g_font.mono_b, g_pal.text, "");
     lv_obj_set_flex_grow(s_fr.strip_text, 1);
     lv_label_set_long_mode(s_fr.strip_text, LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_height(s_fr.strip_text, lv_font_get_line_height(g_font.mono_b));

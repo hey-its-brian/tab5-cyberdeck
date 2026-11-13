@@ -198,3 +198,19 @@ quiet" as NOTEs.
   the faint icons and 250 to 360 ms with them, so they cost 30 to 45 ms a
   page. Their glyph cache settles at about 500 K of PSRAM and does not
   grow on a second pass. Free internal memory is unchanged.
+
+## A second round of changes (2026-11-13)
+
+- The film line sits at the foot of its tile, in a light tint of the
+  tile's own colour, so it cannot be taken for the status above it.
+- The small icon beside each tile's name is gone: the large faint one
+  behind the text does that job.
+- The alert line is built like the info bar on the DECK//OS home screen: a
+  chamfered panel with a filled tag at its left end. The tag says SENTINEL
+  when quiet and WARNING or ALERT otherwise, so the level is a word as well
+  as a colour, and the marks in front of the text went.
+- The status bar's top-left button says HOME and always goes to the home
+  screen, in every app (`deck_statusbar.c`). It used to say DECK or BACK and
+  go back one level. Going back a level is Esc, Del, or a module's own BACK.
+  Leaving WARDRIVE by HOME ends a running drive without asking, as an Alt
+  shortcut to another app always did; only BACK asks.
