@@ -191,7 +191,7 @@ static void status(const sentinel_state_t *st, char *line, size_t n, sn_level_t 
 
 const sn_screen_t sn_log_screen = {
     .name    = "LOG",
-    .purpose = "What SENTINEL has warned about today.",
+    .purpose = "What SENTINEL has warned about today.", .quote = "To make a long story short...\nToo late!", /* Clue */
     .icon    = ICON_HISTORY,
     .build   = build,
     .destroy = destroy,

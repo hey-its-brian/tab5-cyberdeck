@@ -305,15 +305,15 @@ static void trackers_status(const sentinel_state_t *st, char *line, size_t n, sn
     snprintf(line, n, "%u IN EARSHOT NOW", st->ble_trackers);
 }
 
-static const sn_screen_t s_devices  = {.name = "DEVICES", .purpose = "Every Bluetooth device in earshot. Open one to see what it is.", .icon = ICON_WIRELESS, .flags = SN_BOARD, .build = devices_build, .destroy = destroy, .key = key, .back = back};
-static const sn_screen_t s_trackers = {.name = "TRACKERS", .purpose = "Trackers and surveillance devices near you.", .icon = ICON_PIN, .flags = SN_BOARD, .build = trackers_build, .destroy = destroy, .key = key, .back = back, .status = trackers_status};
+static const sn_screen_t s_devices  = {.name = "DEVICES", .purpose = "Every Bluetooth device in earshot. Open one to see what it is.", .quote = "Station!", /* Bill & Ted's Bogus Journey */ .icon = ICON_WIRELESS, .flags = SN_BOARD, .build = devices_build, .destroy = destroy, .key = key, .back = back};
+static const sn_screen_t s_trackers = {.name = "TRACKERS", .purpose = "Trackers and surveillance devices near you.", .quote = "Clever girl.", /* Jurassic Park */ .icon = ICON_PIN, .flags = SN_BOARD, .build = trackers_build, .destroy = destroy, .key = key, .back = back, .status = trackers_status};
 
 extern const sn_screen_t sn_ble_capture_screen;
 static const sn_screen_t *const s_kids[] = {&s_devices, &s_trackers, &sn_ble_capture_screen};
 
 const sn_screen_t sn_ble_menu = {
     .name    = "BLUETOOTH",
-    .purpose = "The Bluetooth devices around you, and whether one is following you.",
+    .purpose = "The Bluetooth devices around you, and whether one is following you.", .quote = "Objects in mirror are closer than they appear.", /* Jurassic Park */
     .icon    = ICON_WIRELESS,
     .kids    = s_kids,
     .nkids   = 3,

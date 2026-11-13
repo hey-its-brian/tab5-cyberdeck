@@ -1,6 +1,6 @@
 /*
  * SENTINEL's frame: the four things round every screen (where you are and
- * why, the alert line, the body, the action bar), the stack of screens, the
+ * why, the body, the action bar, the alert line), the stack of screens, the
  * menu pages and the few widgets screens share.
  *
  * Two looks, and only two. Something that can be tapped (a button, a tile,
@@ -50,7 +50,7 @@ static struct {
     const sn_screen_t *pending; /* the OFFENSIVE menu, while its question is up */
     const sn_screen_t *log;     /* what the alert line opens */
     lv_obj_t          *crumb, *purpose, *chip, *strip, *strip_text, *strip_cap, *body, *bar;
-    lv_obj_t          *tile[TILE_MAX], *tile_line[TILE_MAX], *tile_mark[TILE_MAX];
+    lv_obj_t          *tile[TILE_MAX], *tile_line[TILE_MAX], *tile_mark[TILE_MAX], *tile_quote[TILE_MAX];
     action_t           act[ACT_MAX];
     int                nact;
     const char        *help;
@@ -272,6 +272,71 @@ lv_obj_t *sn_button(lv_obj_t *parent, const char *key, const char *text, sn_fn_t
     return b;
 }
 
+/* BACK points the way it goes: its left end is an arrow head, not a corner. */
+static void back_draw(lv_event_t *e)
+{
+    lv_obj_t   *obj   = lv_event_get_target_obj(e);
+    lv_layer_t *layer = lv_event_get_layer(e);
+    lv_area_t   a;
+    lv_obj_get_coords(obj, &a);
+    lv_color_t c = g_pal.accent, bg = lv_color_mix(c, g_pal.bg, lv_obj_has_state(obj, LV_STATE_PRESSED) ? 150 : 52);
+    int32_t    d = lv_area_get_height(&a) / 2, ym = (a.y1 + a.y2) / 2;
+    int32_t    x0 = a.x1 + 2, x1 = a.x1 + d, x2 = a.x2 - 1, y1 = a.y1 + 1, y2 = a.y2 - 1;
+
+    lv_draw_triangle_dsc_t t;
+    lv_draw_triangle_dsc_init(&t);
+    t.color = bg;
+    t.opa   = LV_OPA_COVER;
+    t.p[0]  = (lv_point_precise_t){x0, ym};
+    t.p[1]  = (lv_point_precise_t){x1, y1};
+    t.p[2]  = (lv_point_precise_t){x1, y2};
+    lv_draw_triangle(layer, &t);
+    lv_draw_rect_dsc_t r;
+    lv_draw_rect_dsc_init(&r);
+    r.bg_color   = bg;
+    r.bg_opa     = LV_OPA_COVER;
+    lv_area_t body = {x1, y1, x2, y2};
+    lv_draw_rect(layer, &r, &body);
+
+    const lv_point_precise_t pt[6] = {{x0, ym}, {x1, y1}, {x2, y1}, {x2, y2}, {x1, y2}, {x0, ym}};
+    for (int i = 0; i < 5; i++) {
+        lv_draw_line_dsc_t l;
+        lv_draw_line_dsc_init(&l);
+        l.color       = c;
+        l.width       = 2;
+        l.round_start = l.round_end = 1;
+        l.p1 = pt[i], l.p2 = pt[i + 1];
+        lv_draw_line(layer, &l);
+    }
+}
+
+static void redraw(lv_event_t *e) { lv_obj_invalidate(lv_event_get_target_obj(e)); }
+
+static lv_obj_t *back_button(lv_obj_t *parent, const char *text, sn_fn_t fn)
+{
+    lv_obj_t *b = lv_obj_create(parent);
+    lv_obj_remove_style_all(b);
+    lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_size(b, LV_SIZE_CONTENT, BAR_H);
+    lv_obj_set_style_pad_left(b, BAR_H / 2 + 8, 0); /* the text starts clear of the arrow head */
+    lv_obj_set_style_pad_right(b, 18, 0);
+    lv_obj_set_style_pad_column(b, 12, 0);
+    lv_obj_set_style_text_color(b, lv_color_white(), 0);
+    lv_obj_set_flex_flow(b, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(b, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    keycap(b, "ESC", g_pal.accent);
+    lv_obj_t *l = lv_label_create(b);
+    lv_obj_set_style_text_font(l, g_font.mono_b, 0);
+    lv_label_set_text(l, text);
+    lv_obj_add_event_cb(b, back_draw, LV_EVENT_DRAW_MAIN, NULL);
+    lv_obj_add_event_cb(b, redraw, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(b, redraw, LV_EVENT_RELEASED, NULL);
+    lv_obj_add_event_cb(b, redraw, LV_EVENT_PRESS_LOST, NULL);
+    lv_obj_add_event_cb(b, fn_clicked, LV_EVENT_CLICKED, (void *)fn);
+    return b;
+}
+
 /* ---- Actions --------------------------------------------------------------- */
 
 static action_t *action_of(sn_fn_t fn)
@@ -289,7 +354,7 @@ void sn_action(uint8_t hid, const char *key, const char *text, sn_fn_t fn)
     a->fn       = fn;
     a->enabled  = true;
     a->danger   = false;
-    a->btn      = sn_button(s_fr.bar, key, text, fn);
+    a->btn      = fn == sn_back ? back_button(s_fr.bar, text, fn) : sn_button(s_fr.bar, key, text, fn);
     a->label    = lv_obj_get_child(a->btn, key && key[0] ? 1 : 0);
 }
 
@@ -545,6 +610,16 @@ static void tile_open(int i)
 
 static void tile_clicked(lv_event_t *e) { tile_open((int)(intptr_t)lv_event_get_user_data(e)); }
 
+/* Under a tile's name: what its area is doing now, if it has something to
+ * say, then its line from a film. A tile with neither says what it is for. */
+static void tile_status(int i, lv_color_t color, const char *text)
+{
+    lv_obj_t *l = s_fr.tile_line[i];
+    if (text[0]) lv_obj_remove_flag(l, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(l, LV_OBJ_FLAG_HIDDEN);
+    sn_set(l, color, "%s", text);
+}
+
 static void tiles_update(void)
 {
     const sn_screen_t *m = top();
@@ -552,17 +627,16 @@ static void tiles_update(void)
     const char *problem = sn_board_problem(&s_fr.st);
     for (int i = 0; i < m->nkids && i < TILE_MAX; i++) {
         const sn_screen_t *k = m->kids[i];
-        char               line[96];
+        char               line[96] = "";
         sn_level_t         lvl = SN_NOTE;
-        snprintf(line, sizeof(line), "%s", k->purpose ? k->purpose : "");
         if (problem && (k->flags & SN_BOARD)) {
-            snprintf(line, sizeof(line), "%s", problem);
-            sn_set(s_fr.tile_line[i], g_pal.warn, "%s", line);
+            tile_status(i, g_pal.warn, problem);
             lv_label_set_text(s_fr.tile_mark[i], "");
             continue;
         }
         if (k->status) k->status(&s_fr.st, line, sizeof(line), &lvl);
-        sn_set(s_fr.tile_line[i], lvl == SN_NOTE ? g_pal.text : sn_level_color(lvl), "%s", line);
+        else if (!k->quote) snprintf(line, sizeof(line), "%s", k->purpose ? k->purpose : "");
+        tile_status(i, lvl == SN_NOTE ? lv_color_white() : sn_level_color(lvl), line);
         sn_set(s_fr.tile_mark[i], sn_level_color(lvl), "%s", sn_level_mark(lvl));
     }
 }
@@ -588,6 +662,22 @@ static void menu_build(const sn_screen_t *m)
         lv_obj_set_style_pad_all(t, 16, 0);
         lv_obj_set_style_pad_row(t, 10, 0);
         lv_obj_set_flex_flow(t, LV_FLEX_FLOW_COLUMN);
+        /* The same rise of colour from the top edge that the DECK//OS home tiles have. */
+        lv_obj_set_style_bg_color(t, lv_color_mix(c, g_pal.bg, 118), 0);
+        lv_obj_set_style_bg_grad_color(t, lv_color_mix(c, g_pal.bg, 20), 0);
+        lv_obj_set_style_bg_grad_dir(t, LV_GRAD_DIR_VER, 0);
+        lv_obj_set_style_bg_grad_stop(t, 175, 0);
+        lv_obj_set_style_bg_color(t, lv_color_mix(c, g_pal.bg, 190), LV_STATE_CHECKED);
+        lv_obj_set_style_bg_grad_color(t, lv_color_mix(c, g_pal.bg, 70), LV_STATE_CHECKED);
+        lv_obj_set_style_bg_color(t, lv_color_mix(c, g_pal.bg, 220), LV_STATE_PRESSED);
+        lv_obj_set_style_clip_corner(t, true, 0);
+        /* Its icon again, huge and faint, behind everything else on the tile. */
+        if (k->icon) {
+            lv_obj_t *ghost = label(t, g_font.icon_xl, c, k->icon);
+            lv_obj_add_flag(ghost, LV_OBJ_FLAG_IGNORE_LAYOUT);
+            lv_obj_set_style_text_opa(ghost, 34, 0);
+            lv_obj_align(ghost, LV_ALIGN_RIGHT_MID, 24, 12);
+        }
         lv_obj_t *head = sn_row_box(t);
         lv_obj_set_style_pad_column(head, 12, 0);
         char num[4];
@@ -597,7 +687,10 @@ static void menu_build(const sn_screen_t *m)
         lv_obj_t *name = label(head, g_font.disp_m, lv_color_white(), k->name);
         lv_obj_set_flex_grow(name, 1);
         s_fr.tile_mark[i] = label(head, g_font.disp_m, g_pal.warn, "");
-        s_fr.tile_line[i] = wrapped(t, g_font.mono_m, g_pal.text);
+        s_fr.tile_line[i]  = wrapped(t, g_font.mono_m, lv_color_white());
+        s_fr.tile_quote[i] = wrapped(t, g_font.mono_m, g_pal.text); /* mixed case sets it apart from the status above it */
+        if (k->quote) lv_label_set_text(s_fr.tile_quote[i], k->quote);
+        else lv_obj_add_flag(s_fr.tile_quote[i], LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_event_cb(t, tile_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         s_fr.tile[i] = t;
     }
@@ -723,6 +816,7 @@ static void forget_widgets(void)
     memset(s_fr.tile, 0, sizeof(s_fr.tile));
     memset(s_fr.tile_line, 0, sizeof(s_fr.tile_line));
     memset(s_fr.tile_mark, 0, sizeof(s_fr.tile_mark));
+    memset(s_fr.tile_quote, 0, sizeof(s_fr.tile_quote));
     memset(s_fr.act, 0, sizeof(s_fr.act));
     s_fr.nact = 0;
     s_fr.help = NULL;
@@ -786,7 +880,22 @@ static void show(void)
     bool off     = s_fr.mode == SN_OFFENSIVE;
     s_fr.chip    = label(head, g_font.mono_b, off ? g_pal.danger : g_pal.ok, off ? "MODE: OFFENSIVE" : "MODE: DEFENSIVE");
 
-    /* 2. The alert line. */
+    /* 2. The body. */
+    s_fr.body = plain(root);
+    lv_obj_set_width(s_fr.body, LV_PCT(100));
+    lv_obj_set_flex_grow(s_fr.body, 1);
+    lv_obj_set_flex_flow(s_fr.body, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(s_fr.body, 8, 0);
+
+    /* 3. The action bar. BACK is always its first button. */
+    s_fr.bar = plain(root);
+    lv_obj_set_size(s_fr.bar, LV_PCT(100), BAR_H);
+    lv_obj_set_flex_flow(s_fr.bar, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(s_fr.bar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(s_fr.bar, 10, 0);
+    sn_action(0, "ESC", s_fr.depth > 1 ? "BACK" : "LEAVE SENTINEL", sn_back);
+
+    /* 4. The alert line, along the bottom edge: where the info line is on the DECK//OS home screen. */
     s_fr.strip = lv_obj_create(root);
     lv_obj_remove_style_all(s_fr.strip);
     lv_obj_remove_flag(s_fr.strip, LV_OBJ_FLAG_SCROLLABLE);
@@ -802,20 +911,6 @@ static void show(void)
     s_fr.strip_cap = keycap(s_fr.strip, "L  OPEN LOG", g_pal.warn);
     lv_obj_add_event_cb(s_fr.strip, strip_clicked, LV_EVENT_CLICKED, NULL);
 
-    /* 3. The body. */
-    s_fr.body = plain(root);
-    lv_obj_set_width(s_fr.body, LV_PCT(100));
-    lv_obj_set_flex_grow(s_fr.body, 1);
-    lv_obj_set_flex_flow(s_fr.body, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(s_fr.body, 8, 0);
-
-    /* 4. The action bar. BACK is always its first button. */
-    s_fr.bar = plain(root);
-    lv_obj_set_size(s_fr.bar, LV_PCT(100), BAR_H);
-    lv_obj_set_flex_flow(s_fr.bar, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(s_fr.bar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(s_fr.bar, 10, 0);
-    sn_action(0, "ESC", s_fr.depth > 1 ? "BACK" : "LEAVE SENTINEL", sn_back);
 
     sentinel_snapshot(&s_fr.st);
     const char *problem = (sc->flags & SN_BOARD) ? sn_board_problem(&s_fr.st) : NULL;

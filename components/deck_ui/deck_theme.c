@@ -98,6 +98,13 @@ void deck_theme_init(void)
     g_font.icon_s  = load_font(DECK_ASSET_FONT_ICONS, 24);
     g_font.icon_m  = load_font(DECK_ASSET_FONT_ICONS, 40);
     g_font.icon_l  = load_font(DECK_ASSET_FONT_ICONS, 96);
+    {
+        /* Each glyph at this size is tens of kilobytes, so its cache is kept small. */
+        size_t         size = 0;
+        const uint8_t *data = deck_asset(DECK_ASSET_FONT_ICONS, &size);
+        lv_font_t     *f    = data ? lv_tiny_ttf_create_data_ex(data, size, 200, LV_FONT_KERNING_NONE, 24) : NULL;
+        g_font.icon_xl      = f ? f : g_font.icon_l;
+    }
 
     /* Orbitron lacks some symbols (arrows, box drawing); let any missing
      * glyph fall back to the mono face. */

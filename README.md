@@ -50,7 +50,8 @@ deck's own Wi-Fi and work without it.
 
 **One purpose per screen.** SENTINEL opens on a page of eight tiles. Each
 tile is a button that also shows its area's headline, so the page is the
-menu and the overview at once. Under the tiles are 25 screens that each
+menu and the overview at once. (Under the headline each tile carries a line
+from a film, for fun, and its icon again, large and faint, behind it.) Under the tiles are 25 screens that each
 answer one question:
 
 | Area | Screens |
@@ -65,12 +66,12 @@ answer one question:
 | OFFENSIVE | HONEYPOT |
 
 Every screen has the same four things, top to bottom: where you are and why
-(`SENTINEL > WI-FI > NETWORKS` and a sentence), the alert line, the one
-thing the screen is for, and a bar of buttons. A button shows its key and
+(`SENTINEL > WI-FI > NETWORKS` and a sentence), the one thing the screen is
+for, a bar of buttons, and the alert line along the bottom edge. A button shows its key and
 what it does (`S  START A SURVEY`); pressing the key and tapping the button
 are the same. Only buttons, tiles and list rows look like something to
 press. Nothing is smaller than 20 px, and explanations are behind HELP.
-BACK (Esc, Del, or the button) goes up one level.
+BACK (Esc, Del, or the button with the arrow head) goes up one level.
 
 **Warnings land wherever you are.** The alert line is on every SENTINEL
 screen. Quiet, it says ALL CLEAR. Otherwise it shows the latest warning and

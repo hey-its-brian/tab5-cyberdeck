@@ -45,6 +45,7 @@ typedef struct sn_screen sn_screen_t;
 struct sn_screen {
     const char *name;    /* "NETWORKS" */
     const char *purpose; /* one sentence: why anyone is on this screen */
+    const char *quote;   /* what its tile says under the name: a line from a film, for fun (no quotation marks: a mark can wrap onto a line of its own) */
     const char *icon;    /* for its tile */
     uint8_t     flags;
     /* A menu has children and nothing else. */

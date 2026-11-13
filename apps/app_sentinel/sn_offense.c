@@ -159,7 +159,7 @@ static void menu_status(const sentinel_state_t *st, char *line, size_t n, sn_lev
 
 static const sn_screen_t s_honeypot = {
     .name    = "HONEYPOT",
-    .purpose = "Which devices would join a network with this name?",
+    .purpose = "Which devices would join a network with this name?", .quote = "It's a trap!", /* Return of the Jedi */
     .icon    = ICON_WIFI,
     .flags   = SN_BOARD,
     .build   = build,
@@ -170,7 +170,7 @@ static const sn_screen_t *const s_kids[] = {&s_honeypot};
 
 const sn_screen_t sn_offense_menu = {
     .name    = "OFFENSIVE",
-    .purpose = "Tools that transmit. Only on equipment that is yours to test.",
+    .purpose = "Tools that transmit. Only on equipment that is yours to test.", .quote = "Shiny. Let's be bad guys.", /* Serenity */
     .icon    = ICON_BOLT,
     .flags   = SN_OFFENSE,
     .kids    = s_kids,

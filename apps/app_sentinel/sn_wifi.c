@@ -634,19 +634,19 @@ static void menu_status(const sentinel_state_t *st, char *line, size_t n, sn_lev
     else snprintf(line, n, "%u NETWORKS HEARD", (unsigned)st->wifi_total);
 }
 
-static const sn_screen_t s_net   = {.name = "NETWORKS", .purpose = "The networks in range. Open one to see if it can be trusted.", .icon = ICON_WIFI, .build = net_build, .destroy = end, .key = net_key, .back = net_back};
-static const sn_screen_t s_chan  = {.name = "CHANNELS", .purpose = "How busy each Wi-Fi channel is, now and lately.", .icon = ICON_GAUGE, .flags = SN_BOARD, .build = chan_build, .destroy = end};
-static const sn_screen_t s_best  = {.name = "BEST CHANNEL", .purpose = "Which of channels 1, 6 and 11 your own network should use.", .icon = ICON_TOOLS, .flags = SN_BOARD, .build = best_build, .destroy = end};
-static const sn_screen_t s_drone = {.name = "DRONES", .purpose = "Aircraft announcing themselves nearby (Remote ID).", .icon = ICON_RADAR, .flags = SN_BOARD, .build = drone_build, .destroy = end};
-static const sn_screen_t s_cap   = {.name = "CAPTURE", .purpose = "Record the Wi-Fi frames in the air to a file.", .icon = ICON_SD, .flags = SN_BOARD, .build = cap_wifi_build, .destroy = end};
+static const sn_screen_t s_net   = {.name = "NETWORKS", .purpose = "The networks in range. Open one to see if it can be trusted.", .quote = "Speak, friend, and enter.", /* The Fellowship of the Ring */ .icon = ICON_WIFI, .build = net_build, .destroy = end, .key = net_key, .back = net_back};
+static const sn_screen_t s_chan  = {.name = "CHANNELS", .purpose = "How busy each Wi-Fi channel is, now and lately.", .quote = "Over the line!", /* The Big Lebowski */ .icon = ICON_GAUGE, .flags = SN_BOARD, .build = chan_build, .destroy = end};
+static const sn_screen_t s_best  = {.name = "BEST CHANNEL", .purpose = "Which of channels 1, 6 and 11 your own network should use.", .quote = "Be excellent to each other.", /* Bill & Ted's Excellent Adventure */ .icon = ICON_TOOLS, .flags = SN_BOARD, .build = best_build, .destroy = end};
+static const sn_screen_t s_drone = {.name = "DRONES", .purpose = "Aircraft announcing themselves nearby (Remote ID).", .quote = "Negative, Ghost Rider, the pattern is full.", /* Top Gun */ .icon = ICON_RADAR, .flags = SN_BOARD, .build = drone_build, .destroy = end};
+static const sn_screen_t s_cap   = {.name = "CAPTURE", .purpose = "Record the Wi-Fi frames in the air to a file.", .quote = "Never rat on your friends and always keep your mouth shut.", /* Goodfellas */ .icon = ICON_SD, .flags = SN_BOARD, .build = cap_wifi_build, .destroy = end};
 
-const sn_screen_t sn_ble_capture_screen = {.name = "CAPTURE", .purpose = "Record Bluetooth advertising to a file.", .icon = ICON_SD, .flags = SN_BOARD, .build = cap_ble_build, .destroy = end};
+const sn_screen_t sn_ble_capture_screen = {.name = "CAPTURE", .purpose = "Record Bluetooth advertising to a file.", .quote = "Mark it zero!", /* The Big Lebowski */ .icon = ICON_SD, .flags = SN_BOARD, .build = cap_ble_build, .destroy = end};
 
 static const sn_screen_t *const s_kids[] = {&s_net, &s_chan, &s_best, &s_drone, &s_cap};
 
 const sn_screen_t sn_wifi_menu = {
     .name    = "WI-FI",
-    .purpose = "The Wi-Fi around you: networks, channels, drones.",
+    .purpose = "The Wi-Fi around you: networks, channels, drones.", .quote = "I am a leaf on the wind. Watch how I soar.", /* Serenity */
     .icon    = ICON_WIFI,
     .kids    = s_kids,
     .nkids   = 5,

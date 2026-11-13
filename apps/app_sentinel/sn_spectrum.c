@@ -627,17 +627,17 @@ static void sv_status(const sentinel_state_t *st, char *line, size_t n, sn_level
     else snprintf(line, n, "%s", s_sv.file[0] ? "LAST ONE SAVED" : "Measure this place for a minute and keep it as a file.");
 }
 
-static const sn_screen_t s_sub = {.name = "433 MHZ", .purpose = "The 433 MHz band now and over the last minute.", .icon = ICON_ANTENNA, .flags = SN_BOARD, .build = sub_build, .destroy = end};
-static const sn_screen_t s_tx  = {.name = "TRANSMITTERS", .purpose = "What transmits on one 433 MHz frequency, and how often.", .icon = ICON_REFRESH, .flags = SN_BOARD, .build = tx_build, .destroy = tx_destroy};
-static const sn_screen_t s_nrf = {.name = "2.4 GHZ", .purpose = "The 2.4 GHz band now and over the last five minutes.", .icon = ICON_GAUGE, .flags = SN_BOARD, .build = nrf_build, .destroy = end};
-static const sn_screen_t s_site = {.name = "SITE SURVEY", .purpose = "Measure this place for a minute and keep it as a file.", .icon = ICON_PIN, .flags = SN_BOARD, .build = sv_build, .destroy = end, .status = sv_status};
-static const sn_screen_t s_jam = {.name = "JAM WATCH", .purpose = "Is someone jamming, and what is the evidence?", .icon = ICON_ALERT, .flags = SN_BOARD, .build = jam_build, .destroy = end, .status = jam_status};
+static const sn_screen_t s_sub = {.name = "433 MHZ", .purpose = "The 433 MHz band now and over the last minute.", .quote = "Amaze! Amaze! Amaze!", /* Project Hail Mary */ .icon = ICON_ANTENNA, .flags = SN_BOARD, .build = sub_build, .destroy = end};
+static const sn_screen_t s_tx  = {.name = "TRANSMITTERS", .purpose = "What transmits on one 433 MHz frequency, and how often.", .quote = "Party on, dudes!", /* Bill & Ted's Excellent Adventure */ .icon = ICON_REFRESH, .flags = SN_BOARD, .build = tx_build, .destroy = tx_destroy};
+static const sn_screen_t s_nrf = {.name = "2.4 GHZ", .purpose = "The 2.4 GHz band now and over the last five minutes.", .quote = "We got both kinds. We got country and western.", /* The Blues Brothers */ .icon = ICON_GAUGE, .flags = SN_BOARD, .build = nrf_build, .destroy = end};
+static const sn_screen_t s_site = {.name = "SITE SURVEY", .purpose = "Measure this place for a minute and keep it as a file.", .quote = "That rug really tied the room together.", /* The Big Lebowski */ .icon = ICON_PIN, .flags = SN_BOARD, .build = sv_build, .destroy = end, .status = sv_status};
+static const sn_screen_t s_jam = {.name = "JAM WATCH", .purpose = "Is someone jamming, and what is the evidence?", .quote = "Strange things are afoot at the Circle K.", /* Bill & Ted's Excellent Adventure */ .icon = ICON_ALERT, .flags = SN_BOARD, .build = jam_build, .destroy = end, .status = jam_status};
 
 static const sn_screen_t *const s_kids[] = {&s_sub, &s_tx, &s_nrf, &s_site, &s_jam};
 
 const sn_screen_t sn_spectrum_menu = {
     .name    = "SPECTRUM",
-    .purpose = "The radio bands themselves: 433 MHz and 2.4 GHz.",
+    .purpose = "The radio bands themselves: 433 MHz and 2.4 GHz.", .quote = "I'm going to have to science the shit out of this.", /* The Martian */
     .icon    = ICON_GAUGE,
     .kids    = s_kids,
     .nkids   = 5,

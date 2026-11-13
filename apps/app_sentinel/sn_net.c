@@ -544,18 +544,18 @@ static void menu_status(const sentinel_state_t *st, char *line, size_t n, sn_lev
     else snprintf(line, n, "NOT JOINED TO A NETWORK");
 }
 
-static const sn_screen_t s_ping  = {.name = "PING", .purpose = "Does a host answer, and how fast?", .icon = ICON_REFRESH, .build = ping_build, .destroy = host_destroy};
-static const sn_screen_t s_dns   = {.name = "DNS", .purpose = "What address does a name have?", .icon = ICON_SERVER, .build = dns_build, .destroy = host_destroy};
-static const sn_screen_t s_trace = {.name = "TRACEROUTE", .purpose = "The path packets take to a host.", .icon = ICON_LAN, .build = trace_build, .destroy = host_destroy};
-static const sn_screen_t s_port  = {.name = "PORT CHECK", .purpose = "Is a port open on a host?", .icon = ICON_PLUG, .build = port_build, .destroy = host_destroy};
-static const sn_screen_t s_lan   = {.name = "LAN DEVICES", .purpose = "Who else is on the network you joined.", .icon = ICON_LAN, .build = lan_build, .destroy = lan_destroy, .key = lan_key, .back = lan_back};
-static const sn_screen_t s_speed = {.name = "SPEED TEST", .purpose = "How fast your connection is.", .icon = ICON_GAUGE, .build = speed_build, .destroy = speed_destroy};
+static const sn_screen_t s_ping  = {.name = "PING", .purpose = "Does a host answer, and how fast?", .quote = "Hello? Hello? Anybody home?", /* Back to the Future */ .icon = ICON_REFRESH, .build = ping_build, .destroy = host_destroy};
+static const sn_screen_t s_dns   = {.name = "DNS", .purpose = "What address does a name have?", .quote = "Hello. My name is Inigo Montoya.", /* The Princess Bride */ .icon = ICON_SERVER, .build = dns_build, .destroy = host_destroy};
+static const sn_screen_t s_trace = {.name = "TRACEROUTE", .purpose = "The path packets take to a host.", .quote = "One does not simply walk into Mordor.", /* The Fellowship of the Ring */ .icon = ICON_LAN, .build = trace_build, .destroy = host_destroy};
+static const sn_screen_t s_port  = {.name = "PORT CHECK", .purpose = "Is a port open on a host?", .quote = "None shall pass.", /* Monty Python and the Holy Grail */ .icon = ICON_PLUG, .build = port_build, .destroy = host_destroy};
+static const sn_screen_t s_lan   = {.name = "LAN DEVICES", .purpose = "Who else is on the network you joined.", .quote = "They're here.", /* Poltergeist */ .icon = ICON_LAN, .build = lan_build, .destroy = lan_destroy, .key = lan_key, .back = lan_back};
+static const sn_screen_t s_speed = {.name = "SPEED TEST", .purpose = "How fast your connection is.", .quote = "Hold on to your butts.", /* Jurassic Park */ .icon = ICON_GAUGE, .build = speed_build, .destroy = speed_destroy};
 
 static const sn_screen_t *const s_kids[] = {&s_ping, &s_dns, &s_trace, &s_port, &s_lan, &s_speed};
 
 const sn_screen_t sn_net_menu = {
     .name    = "NETWORK",
-    .purpose = "Test the network the deck has joined: hosts, devices, speed.",
+    .purpose = "Test the network the deck has joined: hosts, devices, speed.", .quote = "This is not 'Nam. This is bowling. There are rules.", /* The Big Lebowski */
     .icon    = ICON_LAN,
     .kids    = s_kids,
     .nkids   = 6,

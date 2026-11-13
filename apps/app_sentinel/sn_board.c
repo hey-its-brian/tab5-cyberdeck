@@ -227,15 +227,15 @@ static void gps_status(const sentinel_state_t *st, char *line, size_t n, sn_leve
     else snprintf(line, n, "NO FIX YET, %d IN VIEW", st->sats_view);
 }
 
-static const sn_screen_t s_board = {.name = "RADIO BOARD", .purpose = "Is the radio board on, linked and whole? Switch it on or off.", .icon = ICON_CHIP, .build = board_build, .destroy = end};
-static const sn_screen_t s_gps   = {.name = "GPS", .purpose = "Do you have a position fix, and where are you?", .icon = ICON_PIN, .flags = SN_BOARD, .build = gps_build, .destroy = end, .status = gps_status};
-static const sn_screen_t s_diag  = {.name = "DIAGNOSTICS", .purpose = "The link's counters and test commands, for when it misbehaves.", .icon = ICON_TOOLS, .flags = SN_BOARD, .build = diag_build, .destroy = end};
+static const sn_screen_t s_board = {.name = "RADIO BOARD", .purpose = "Is the radio board on, linked and whole? Switch it on or off.", .quote = "1.21 gigawatts!", /* Back to the Future */ .icon = ICON_CHIP, .build = board_build, .destroy = end};
+static const sn_screen_t s_gps   = {.name = "GPS", .purpose = "Do you have a position fix, and where are you?", .quote = "Roads? Where we're going, we don't need roads.", /* Back to the Future */ .icon = ICON_PIN, .flags = SN_BOARD, .build = gps_build, .destroy = end, .status = gps_status};
+static const sn_screen_t s_diag  = {.name = "DIAGNOSTICS", .purpose = "The link's counters and test commands, for when it misbehaves.", .quote = "I'm sorry, Dave. I'm afraid I can't do that.", /* 2001: A Space Odyssey */ .icon = ICON_TOOLS, .flags = SN_BOARD, .build = diag_build, .destroy = end};
 
 static const sn_screen_t *const s_kids[] = {&s_board, &s_gps, &s_diag};
 
 const sn_screen_t sn_board_menu = {
     .name    = "BOARD",
-    .purpose = "The radio board that does the listening, and its GPS.",
+    .purpose = "The radio board that does the listening, and its GPS.", .quote = "Fist my bump.", /* Project Hail Mary */
     .icon    = ICON_CHIP,
     .kids    = s_kids,
     .nkids   = 3,

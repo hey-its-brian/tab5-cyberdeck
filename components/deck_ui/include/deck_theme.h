@@ -44,6 +44,7 @@ typedef struct {
     const lv_font_t *icon_s;    /* MDI 24: status bar */
     const lv_font_t *icon_m;    /* MDI 40 */
     const lv_font_t *icon_l;    /* MDI 96: launcher tiles */
+    const lv_font_t *icon_xl;   /* MDI 200: the faint icon behind a SENTINEL tile */
 } deck_fonts_t;
 
 extern deck_fonts_t g_font;

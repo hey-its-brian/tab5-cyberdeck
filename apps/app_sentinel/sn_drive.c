@@ -209,7 +209,7 @@ static void status(const sentinel_state_t *st, char *line, size_t n, sn_level_t 
 
 const sn_screen_t sn_drive_screen = {
     .name    = "WARDRIVE",
-    .purpose = "Record what is heard, with its position, as you move.",
+    .purpose = "Record what is heard, with its position, as you move.", .quote = "We're on a mission from God.", /* The Blues Brothers */
     .icon    = ICON_PIN,
     .flags   = SN_BOARD,
     .build   = build,

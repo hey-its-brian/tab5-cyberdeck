@@ -177,3 +177,24 @@ quiet" as NOTEs.
   longer soak is worth doing.
 - Not checked on hardware yet: touch (the bench presses keys), the
   OFFENSIVE area, a drive, and how the type reads on the real panel.
+
+## Changes after Brian tried it (2026-11-13)
+
+- BACK's left end is an arrow head pointing the way it goes, not a corner.
+- Tiles have the rise of colour from their top edge that the DECK//OS home
+  tiles have, and their icon again at 200 px and about 13 % opacity behind
+  everything else on the tile (`g_font.icon_xl`, with a small glyph cache
+  because each glyph at that size is tens of kilobytes).
+- Under its name a tile shows what its area is doing now, when it has
+  something to say, and then a line from a film that fits it (`quote` in
+  `sn_screen_t`; the film is in a comment beside each). The sentence saying
+  what a screen is for is still the first thing on the screen itself. The
+  lines are written without quotation marks, because LVGL may wrap after a
+  full stop and leave a closing mark on a line of its own.
+- The alert line moved from under the title to the bottom edge of every
+  SENTINEL screen, below the buttons: where the info line is on the DECK//OS
+  home screen. The order is now title, body, buttons, alert line.
+- Measured on the Tab5: a tile page takes 250 to 325 ms to draw without
+  the faint icons and 250 to 360 ms with them, so they cost 30 to 45 ms a
+  page. Their glyph cache settles at about 500 K of PSRAM and does not
+  grow on a second pass. Free internal memory is unchanged.
