@@ -230,7 +230,8 @@ static void client_render(void)
 {
     const sentinel_state_t *st = &s_dt.st;
     int n = st->sta_n;
-    sn_list_set(&s_dt.list, n, s_dt.list.sel, "NOTHING HEARD ON THIS NETWORK YET");
+    sn_list_set(&s_dt.list, n, s_dt.list.sel,
+                st->tst_ok ? "NOTHING HEARD ON THIS NETWORK YET" : "THE BOARD CANNOT LIST CLIENTS");
     for (int r = 0; r < SN_LIST_ROWS; r++) {
         int k = sn_list_item(&s_dt.list, r);
         if (k < 0) continue;
@@ -241,7 +242,10 @@ static void client_render(void)
         sn_set(sn_list_text(&s_dt.list, r), c->age_ms > 5000 ? g_pal.label : g_pal.text, "%4d dBm   %s   %u FRAMES   %s AGO",
                c->rssi, mac, (unsigned)c->frames, ago);
     }
-    if (n) sn_set(s_dt.summary, g_pal.label, "%d HEARD ON \"%s\", CHANNEL %u. CHOOSE ONE.", n, s_dt.ssid, s_dt.ch);
+    if (!st->tst_ok)
+        sn_set(s_dt.summary, g_pal.warn, "THIS BOARD'S FIRMWARE CANNOT LIST CLIENTS: IT NEEDS 0.8.0.");
+    else if (n)
+        sn_set(s_dt.summary, g_pal.label, "%d HEARD ON \"%s\", CHANNEL %u. CHOOSE ONE.", n, s_dt.ssid, s_dt.ch);
     else
         sn_set(s_dt.summary, g_pal.label, "LISTENING ON \"%s\", CHANNEL %u. A CLIENT THAT SAYS NOTHING IS NOT HEARD.",
                s_dt.ssid, s_dt.ch);
@@ -260,7 +264,11 @@ static void step_client(void)
     s_dt.step      = PICK_CLIENT;
     s_dt.state     = NULL;
     memset(&s_dt.list, 0, sizeof(s_dt.list));
-    sentinel_stations(s_dt.bssid, s_dt.ch); /* park there and listen */
+    /* A board too old to park and listen is left hopping instead, rather
+     * than wherever it happened to be: asking for a mode it does not have
+     * would stop the deck correcting its radio at all. */
+    if (s_dt.st.tst_ok) sentinel_stations(s_dt.bssid, s_dt.ch);
+    else sentinel_tool("wifi");
     s_dt.summary = sn_note(body);
     sn_list_build(&s_dt.list, body, client_chosen);
     sn_help("The board is parked on this network's channel, listening for frames between it and its clients. Every "
