@@ -86,7 +86,7 @@ bool deck_app_enabled(const deck_app_t *app);
  * stick. */
 bool deck_app_set_enabled(deck_app_t *app, bool on);
 /* Once at boot, after every app is registered: on_enable for each enabled
- * optional app. */
+ * app that has one (core apps are always enabled). */
 void deck_app_boot(void);
 
 #ifdef __cplusplus

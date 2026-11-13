@@ -17,8 +17,7 @@
 #include "app_player.h"
 #include "deck_audio.h"
 #include "app_files.h"
-#include "app_net.h"
-#include "app_rf.h"
+#include "app_sentinel.h"
 #include "app_sys.h"
 #include "app_term.h"
 #include "app_weather.h"
@@ -55,20 +54,20 @@ void app_main(void)
     deck_app_register(app_weather());
     deck_app_register(app_player());
     deck_app_register(app_files());
-    deck_app_register(app_net());
-    deck_app_register(app_rf());
+    deck_app_register(app_sentinel());
     deck_app_register(app_sys());
     deck_app_boot(); /* background work of enabled optional apps (PLAYER's task) */
     deck_sync_set_backend(&g_sync_livesync); /* vault sync for NOTES */
 
     /* Home tiles 01..06 (Alt+1..6), always these six. APPS holds every
-     * optional app, switched on or off in SETTINGS > APPLICATIONS. */
+     * optional app (CALC among them), switched on or off in SETTINGS >
+     * APPLICATIONS. */
     deck_home_add_app(app_term());
     deck_home_add_app(app_notes());
     deck_home_add_app(app_sys());
-    deck_home_add_app(app_calc());
-    deck_home_add_app(app_files());
     deck_home_add_apps("APPS", ICON_APPS);
+    deck_home_add_app(app_files());
+    deck_home_add_app(app_sentinel());
     deck_shell_set_manage(app_sys_open_applications);
 
     deck_shell_start(hal_cfg_get_i32("boot", 1) != 0);

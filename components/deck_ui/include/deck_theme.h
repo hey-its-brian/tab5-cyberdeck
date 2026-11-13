@@ -21,6 +21,7 @@ typedef struct {
     lv_color_t line;      /* idle panel outline */
     lv_color_t text;      /* primary text */
     lv_color_t dim;       /* secondary text */
+    lv_color_t label;     /* secondary text that must be read: captions, units, hints (6.6:1 on the panel) */
     lv_color_t accent;    /* primary neon (user selectable) */
     lv_color_t accent2;   /* secondary neon that pairs with the accent */
     lv_color_t warn;      /* acid yellow */
@@ -33,6 +34,7 @@ extern deck_palette_t g_pal;
 typedef struct {
     const lv_font_t *mono_s;    /* Share Tech Mono 16: HUD details */
     const lv_font_t *mono_m;    /* Share Tech Mono 20: body text */
+    const lv_font_t *mono_b;    /* Share Tech Mono 24: values a user reads to decide something */
     const lv_font_t *mono_l;    /* Share Tech Mono 28 */
     const lv_font_t *disp_s;    /* Orbitron 18: labels, chips */
     const lv_font_t *disp_m;    /* Orbitron 24: titles */

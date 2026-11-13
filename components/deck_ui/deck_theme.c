@@ -54,6 +54,7 @@ void deck_theme_set_accent(int index)
     g_pal.line     = lv_color_hex(0x2A3050);
     g_pal.text     = lv_color_hex(0xD8E1F0);
     g_pal.dim      = lv_color_hex(0x5F6884);
+    g_pal.label    = lv_color_hex(0x8E98B5);
     g_pal.accent   = lv_color_hex(s_accents[index].accent);
     g_pal.accent2  = lv_color_hex(s_accents[index].accent2);
     g_pal.warn     = lv_color_hex(0xF3E600);
@@ -87,6 +88,7 @@ void deck_theme_init(void)
 
     g_font.mono_s  = load_font(DECK_ASSET_FONT_MONO, 16);
     g_font.mono_m  = load_font(DECK_ASSET_FONT_MONO, 20);
+    g_font.mono_b  = load_font(DECK_ASSET_FONT_MONO, 24);
     g_font.mono_l  = load_font(DECK_ASSET_FONT_MONO, 28);
     g_font.disp_s  = load_font(DECK_ASSET_FONT_DISPLAY, 18);
     g_font.disp_m  = load_font(DECK_ASSET_FONT_DISPLAY, 24);

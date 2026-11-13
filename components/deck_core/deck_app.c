@@ -98,6 +98,6 @@ void deck_app_boot(void)
 {
     for (size_t i = 0; i < s_count; i++) {
         deck_app_t *a = s_apps[i];
-        if (a->optional && a->on_enable && deck_app_enabled(a)) a->on_enable(a);
+        if (a->on_enable && deck_app_enabled(a)) a->on_enable(a); /* a core app is always enabled */
     }
 }
