@@ -123,8 +123,11 @@ quiet" as NOTEs.
   SENTINEL returns to DEFENSIVE, and says so when the user comes back.
 - "Learn this as normal" asks first, says what is lost, and warns again if
   a jam state is active.
-- Ending a wardrive asks first. Leaving the WARDRIVE screen does not end
-  the drive; the status bar shows it is running.
+- Ending a wardrive asks first. (As built: leaving the WARDRIVE screen
+  still ends the drive, because every other screen asks the board's radio
+  for something else, but BACK asks first and says so. A drive that carries
+  on under other screens needs the driver to refuse those requests, and is
+  left for later.)
 - A site survey keeps running if the screen is left and its result is
   waiting on return.
 
@@ -143,3 +146,34 @@ quiet" as NOTEs.
    wardrive, log, board.
 3. Levels, the alert line and the guards.
 4. Simulator screenshots of every screen for Brian, then the boards.
+
+## As built (2026-11-13)
+
+- `apps/app_sentinel/` replaces `apps/app_rf/` and `apps/app_net/`:
+  `sn_frame.c` (the frame, the stack of screens, menus, lists, levels, the
+  mode), `app_sentinel.c` (the module, the board's power setting, notices in
+  the background, the line on the DECK//OS home panel) and one file per
+  area. `sn_ui.h` is what a screen is and what it may use.
+- `g_pal.label` (#8E98B5) and `g_font.mono_b` (24 px) are new in the theme.
+  The other apps do not use them yet.
+- `deck_app_boot()` now calls `on_enable` for core apps too, which is how
+  SENTINEL brings the board up at boot.
+- The alert line shows the newest warning for two minutes and the newest
+  alert for five, and a band that is up for as long as it lasts. It opens
+  the LOG (`L` or a tap). It does not need acknowledging.
+- Lists show seven rows of 50 px. Charts take a tap or a drag to move the
+  cursor.
+- Checked in the simulator: every screen; a jam scene (the home page shows
+  the alert and marks SPECTRUM, JAM WATCH names the evidence, RELEARN warns
+  that a band is abnormal); the screen sleeping with the honeypot on air
+  (back on the home page in DEFENSIVE, flag gone, with a line saying why);
+  Alt+X, Enter and digits typed fast (never reaches OFFENSIVE).
+- Checked on the Tab5 with the board linked: a bench opened every screen
+  outside OFFENSIVE twice (48 in all, about three seconds each). No crash.
+  Free internal memory stayed at 310 to 312 K (lowest ever 217 K, set
+  before SENTINEL opened). Free PSRAM was 4 to 15 K lower on the second
+  round than on the first for the same screen, out of 26.8 MB: most likely
+  glyph caches for the new 24 px face still filling, but not proven, so a
+  longer soak is worth doing.
+- Not checked on hardware yet: touch (the bench presses keys), the
+  OFFENSIVE area, a drive, and how the type reads on the real panel.

@@ -197,14 +197,14 @@ Home screen first, then the two modules, one at a time.
 - Alerts in the status bar when a storm or a strong flare is in progress
 - Checkpoint: numbers match the SWPC dashboard; an alert shows during an active storm
 
-## Next: RF WATCH phases 2 to 6
+## Next: SENTINEL (was RF WATCH), phases 2 to 6
 
-RF WATCH is a safeguarding suite: it watches, detects and logs, and it will
+SENTINEL is a safeguarding suite: it watches, detects and logs, and it will
 carry tests that transmit, for equipment you own or have the owner's full
 permission and knowledge to test. Jamming is never built. Anything that
-transmits is aimed at one chosen target, only in a RED TEAM session with
-the arm lease held. The full list is in the rf-sentinel ROADMAP; each phase
-adds a tool behind one of the placeholder tiles.
+transmits is aimed at one chosen target, only in OFFENSIVE mode (called RED
+TEAM in the entries below, which are left as they were written) with the arm
+lease held. The full list is in the rf-sentinel ROADMAP.
 
 - [x] Phase 2, BLUETOOTH (with rf-sentinel 0.4.0): a passive scan on the C5, every advertiser listed with what it is, trackers and surveillance devices labelled, a warning when a tracker stays with the deck (ten minutes and 300 m, or thirty minutes without a fix), mark-as-mine, capture to pcap; detection runs in the background
 - [x] Checkpoint on hardware (2026-11-11): 62 real devices listed with names and vendors, Find My devices told apart by whether their owner is near, about 30 advertisements a second while sharing the radio with Wi-Fi and about 190 with the tool open, 2,057 frames captured to SD in 12 s with none lost, the radio handed back on leaving. The following rule is covered by tests only: it cannot be walked on a bench
@@ -222,7 +222,10 @@ adds a tool behind one of the placeholder tiles.
 - [ ] Still to check for phase 5: BURSTS against a transmitter that is known to be there (a 433.92 MHz remote or weather sensor next to the deck: its length and period are the test), and the jam watch against anything real, which this project will never produce: it rests on its tests and on staying silent
 - [ ] Switching the CC1101 front end off and on from the Tab5 moved nothing measurable, so the 26 warnings seen on 2026-11-11 at a deck restart were not from that; the cause was not found, and the restart now makes the node learn again, which hides it
 - [ ] TPMS decode at 433.92 MHz against a known sensor (US sensors are 315 MHz, out of this module's range), and Zigbee or Thread through the C5's 802.15.4 radio
-- [ ] Phase 6: targeted deauth test (one network, one client, a permission warning on every run, a counted burst) and a self test per radio
+- [x] Restructure before phase 6 (2026-11-13), after an independent usability review (`docs/reviews/2026-11-12-rf-watch-usability-review.md`): RF WATCH and NET TOOLS became one home tile, SENTINEL, with one purpose per screen (25 screens under eight tiles), a shared frame (where you are and why, an alert line, the body, a bar of buttons that show their keys), three levels with marks as well as colours, no text under 20 px, and DEFENSIVE and OFFENSIVE instead of a mode gate. CALC moved under APPS. Guards on relearning the bands and on ending a drive; a site survey outlives its screen. Spec: `docs/superpowers/specs/2026-11-13-sentinel-restructure-design.md`
+- [x] Checkpoint on hardware for the restructure (2026-11-13): a bench opened every screen outside OFFENSIVE twice on the Tab5 with the board linked (48 screens in all): no crash, internal memory steady at 310 to 312 K free, PSRAM 4 to 15 K lower on the second round (figures in the spec). Also fixed that day: the charge bolt showed on battery and not on USB (the battery monitor's current sign was the wrong way round)
+- [ ] Still to do from that review: sound, a backlight flash or waking the screen for an alert (the notice service is silent by design); the same type sizes and button look in the other apps; a day picker in LOG; touch selection inside the charts beyond moving the cursor
+- [ ] Phase 6: targeted deauth test (one network, one client, a permission warning on every run, a counted burst) and a self test per radio, in the OFFENSIVE area
 - [ ] A learned baseline on the deck, tagged with the GPS position it was learned at, so alerts are about change at this spot
 - [ ] Thresholds and the banner's behaviour in SETTINGS; quiet mode for the board when the screen sleeps
 - [ ] RFID/NFC reader on the expansion port

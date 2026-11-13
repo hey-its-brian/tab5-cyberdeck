@@ -604,7 +604,11 @@ static void jam_build(lv_obj_t *body)
 static void menu_status(const sentinel_state_t *st, char *line, size_t n, sn_level_t *level)
 {
     bool s_up = st->sub_band == SENTINEL_BAND_UP, n_up = st->nrf_band == SENTINEL_BAND_UP;
-    snprintf(line, n, "433 MHZ %s\n2.4 GHZ %s", s_up ? "BAND UP" : "NORMAL", n_up ? "SATURATED" : "NORMAL");
+    /* When something is wrong the tile says only that, so the red is about one thing. */
+    if (s_up && n_up) snprintf(line, n, "433 MHZ BAND UP\n2.4 GHZ SATURATED");
+    else if (s_up) snprintf(line, n, "433 MHZ: THE WHOLE BAND IS UP");
+    else if (n_up) snprintf(line, n, "2.4 GHZ IS SATURATED");
+    else snprintf(line, n, "433 MHZ NORMAL\n2.4 GHZ NORMAL");
     *level = s_up || n_up ? SN_ALERT : SN_NOTE;
 }
 

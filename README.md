@@ -18,10 +18,10 @@ Seven modules: TERMINAL (SSH and Ollama chat), NOTES (markdown), CALC, WEATHER, 
 Wi-Fi with signed builds and tells you when a new one is out.
 
 **Next (v1.5): app toggles and a cleaner home.** The home screen is a live
-panel plus six fixed tiles: TERMINAL, NOTES, SETTINGS, CALC, FILES and APPS.
+panel plus six fixed tiles: TERMINAL, NOTES, SETTINGS, APPS, FILES and SENTINEL.
 Tiles carry only an icon, a name and their `Alt+letter`. The panel shows live
 sections from apps that have one (WEATHER today; tap a section to open the
-app). APPS holds the optional apps (WEATHER, PLAYER, NET TOOLS, RF WATCH),
+app). APPS holds the optional apps (CALC, WEATHER, PLAYER),
 each in a fixed slot. SETTINGS (formerly SYSTEM) has an **APPLICATIONS** tab
 with a switch per optional app: a switched-off app is greyed in APPS, does no
 background work and ignores its shortcut; tapping its tile opens the switch.
@@ -36,142 +36,135 @@ NEON (each home tile in its own color).
 |---|---|---|
 | ![Home](docs/screenshots/home.png) | ![Apps](docs/screenshots/apps.png) | ![Applications](docs/screenshots/applications.png) |
 
-**v1.5: RF WATCH**, a safeguarding suite on the RF Sentinel carrier board
-on the rear M5-Bus (a Stamp C5 with a CC1101, an nRF24L01+ and a GPS;
-`hardware/tab5-board` in the rf-sentinel repo). It watches, detects and
-logs; it never jams; and tests that transmit, when they arrive, are aimed
-at one chosen target on equipment you own or have the owner's full
-permission and knowledge to test.
+**v1.5: SENTINEL**, what is on the air and the network around you, as one
+module on the home screen. It took over from two earlier apps (RF WATCH,
+the tools of the RF Sentinel carrier board, and NET TOOLS, the deck's own
+Wi-Fi as a toolkit) and makes no distinction between them: screens are
+grouped by what they are for, not by which radio answers.
 
-Opening RF WATCH asks one question first: **SAFE** or **RED TEAM**. SAFE
-cannot transmit. RED TEAM also holds the node's arm lease, which the node
-checks before any transmit test, and shows RED TEAM in the status bar. The
-choice holds until you leave the app; to change it, leave and reopen.
-Leaving by any route, switching the app off, the screen sleeping or the
-deck restarting all disarm the node: the lease is a dead man's switch that
-the deck must keep renewing.
+The carrier board sits on the rear M5-Bus: a Stamp C5 with a 433 MHz radio
+(CC1101), a 2.4 GHz radio (nRF24L01+) and a GPS receiver. It does all the
+listening. Switch it on in SENTINEL > BOARD > RADIO BOARD; while it is on
+it watches all the time, whatever is on screen. The NETWORK screens use the
+deck's own Wi-Fi and work without it.
 
-Behind the gate is a chooser of tools. **OVERVIEW** shows the link and board
-health, the session, GNSS (fix, satellites, position, C/N0), the networks
-the C5 hears, the 433 MHz sweep (21 channels with peak hold), 2.4 GHz
-occupancy (126 channels of nRF24 carrier detect) and the newest events;
-`H` asks the C5 for HELLO, `P` pings it, `T` knocks on the transmit gate.
-**WI-FI** makes the C5 hop all 38 channels (2.4 GHz 1 to 13, 5 GHz 36 to
-165) and has four views. MONITOR draws the latest sweep as bars and forty
-sweeps of history as a waterfall, red where deauthentication frames were
-heard. NETWORKS lists every access point with its channel, security and
-whether its management frames are protected, marks an open copy of a
-protected name, and says which of channels 1, 6 and 11 has the fewest
-neighbours. DRONES lists aircraft broadcasting Remote ID, with the ID and
-position they claim. HONEYPOT, in a RED TEAM session only, puts an open
-access point with a name you choose on the air, with nothing behind it,
-and counts who joins: it is the one thing in RF WATCH that transmits so
-far. `C` captures management frames to a pcap file.
+**One purpose per screen.** SENTINEL opens on a page of eight tiles. Each
+tile is a button that also shows its area's headline, so the page is the
+menu and the overview at once. Under the tiles are 25 screens that each
+answer one question:
 
-**BLUETOOTH** lists every BLE advertiser in earshot, strongest first, and
-labels what it recognises: trackers away from their owner (AirTag and other
-Find My tags, SmartTag, Tile, Chipolo, Google trackers) in yellow,
-surveillance devices (Flock by name, Axon by address prefix) in red. `F`
-filters, `M` marks a device as yours so it never alerts, `C` records every
-advertisement to a pcap file on the SD card. The scan is passive: the C5
-sends nothing. **LOG** shows today's events from storage, newest first, with
-where the deck was. TESTS is a placeholder for the last phase in the
-rf-sentinel ROADMAP.
-
-**SUB-GHZ** and **2.4 GHZ** are spectrum analyzers for the two bands the
-board has radios of its own for. SUB-GHZ > SPECTRUM draws the CC1101's sweep
-of 433.0 to 435.0 MHz with peak hold and the last minute or so as a
-waterfall, and gives the selected channel's floor, mean, peak and how often
-it was busy. SUB-GHZ > BURSTS parks the CC1101 on one frequency (433.92 MHz
-unless you tune it) and times every transmission there: how long, how
-strong, how long since the last. Bursts of the same shape are grouped into
-emitters, and one that keeps a rhythm gets its period ("every 43 s"): that
-is how a weather station, a remote or a tyre sensor shows up. It reads
-shapes, not contents; nothing is decoded. 2.4 GHZ draws the nRF24's view of
-2400 to 2525 MHz with its last sixty reports (about five minutes), marks where Wi-Fi channels 1,
-6 and 11 and the Bluetooth advertising channels sit, and says which of the
-three Wi-Fi channels carries the least energy. In both, `S` runs a site
-survey: it asks what the place is called (Enter alone for no name), then
-measures a minute of both bands and writes `sentinel/site-<time>.csv`, or
-`site-<time>-kitchen.csv` with a name, with every channel's floor, mean,
-peak and busy share. The name is also in the file's first row as you typed
-it, so a survey still says where it was taken when you read it later and `B` tells the board that
-what it hears now is normal here.
-
-The **jam watch** runs in the background in any app. The board warns once
-when half the 433 MHz band rises together, or when 40 or more of the 126
-2.4 GHz channels are solid (busy Wi-Fi does not come near that: the most
-measured in a flat full of it was 4). The deck then adds what else it
-knows: saturation with Bluetooth fallen to a quarter of its usual rate, or
-either alarm with the GPS losing satellites or signal, is reported as
-likely jamming and names both. RF WATCH detects jamming; it never does it.
-
-**WARDRIVE** writes down what the deck hears and where. `Enter` starts a
-drive and `Enter` again, or leaving the screen, ends it. The C5 hops every
-Wi-Fi channel with its Bluetooth scan beside it, listening only (no probe
-requests, so it works in a SAFE session), and the deck writes two files to
-the SD card: `sentinel/wigle-<time>.csv`, access points and Bluetooth
-devices with the GPS position in WiGLE's own format (WigleWifi-1.6, ready
-to upload to wigle.net), and `sentinel/survey-<time>.csv`, the 433 MHz and
-2.4 GHz bands along the same route every five seconds. A row needs a
-position and a time and both come from the GPS, so nothing is written
-before a fix and the deck's own clock does not matter. A device is written
-once per place and again after the deck has moved 25 m. Two things are
-never written: networks that opt out of mapping (a name ending `_nomap` or
-containing `_optout`) and Bluetooth addresses that rotate (phones, watches,
-earbuds). The screen shows each count, and the drive keeps running while
-the screen sleeps.
-
-Back from a tool (`Esc`, `Del` or the BACK button in the status bar) returns
-to the tools page; back from there leaves RF WATCH and ends the session.
-
-The C5 also watches Wi-Fi all the time, in any app, and warns about four
-things: a deauth flood (ten deauthentication frames for one network within
-two seconds), an evil twin (a name heard open from one access point and
-protected from another; a mesh repeating its name is not one), a beacon
-flood (thirty never-heard access points within ten seconds) and karma (one
-access point answering for five different names). A drone broadcasting
-Remote ID is a warning too. In the background the C5 only passes each
-channel briefly every fifteen seconds, so a sustained attack is caught and
-a single burst may be missed; with the WI-FI tile open coverage is full.
-
-Tracker and surveillance detection run in the background too, in any app.
-A tracker heard for the first time is a line in the log. A tracker that
-stays with you is a warning: heard for ten minutes while the deck moved
-300 m, or for thirty minutes when there is no GPS fix to tell moving from
-sitting still. A label is a match against a published format, not proof,
-and a tracker that changes its address starts over as a new device.
-
-While RF WATCH is switched on in SETTINGS > APPLICATIONS the board is
-powered (EXT5V on the bus, CC1101 front end in receive: RX_EN on G16 high,
-TX_EN on G17 low) and read on UART1 (G7 in, G6 out), whatever is on screen.
-The link starts at 115200 and moves to 921600 once the node is known to
-speak protocol 2. Every event goes to `sentinel/events-YYYYMMDD.csv` on the
-SD card (or internal storage), captured frames to pcap files beside it, and
-a wardrive to its two CSV files there.
-A warning from the board reaches you in any app: a count in the status bar
-until you open RF WATCH, and a banner for a few seconds. Nothing takes the
-keyboard and nothing makes a sound. Switching the app off cuts EXT5V.
-
-| Mode gate | Tools (RED TEAM) |
+| Area | Screens |
 |---|---|
-| ![RF WATCH mode gate](docs/screenshots/rf_gate.png) | ![RF WATCH tools](docs/screenshots/rf_tools.png) |
+| WI-FI | NETWORKS (open one for its details), CHANNELS, BEST CHANNEL, DRONES, CAPTURE |
+| BLUETOOTH | DEVICES (open one), TRACKERS, CAPTURE |
+| SPECTRUM | 433 MHZ, TRANSMITTERS, 2.4 GHZ, SITE SURVEY, JAM WATCH |
+| NETWORK | PING, DNS, TRACEROUTE, PORT CHECK, LAN DEVICES (open one), SPEED TEST |
+| WARDRIVE | one screen |
+| LOG | one screen |
+| BOARD | RADIO BOARD, GPS, DIAGNOSTICS |
+| OFFENSIVE | HONEYPOT |
 
-| OVERVIEW | A warning while in TERMINAL |
+Every screen has the same four things, top to bottom: where you are and why
+(`SENTINEL > WI-FI > NETWORKS` and a sentence), the alert line, the one
+thing the screen is for, and a bar of buttons. A button shows its key and
+what it does (`S  START A SURVEY`); pressing the key and tapping the button
+are the same. Only buttons, tiles and list rows look like something to
+press. Nothing is smaller than 20 px, and explanations are behind HELP.
+BACK (Esc, Del, or the button) goes up one level.
+
+**Warnings land wherever you are.** The alert line is on every SENTINEL
+screen. Quiet, it says ALL CLEAR. Otherwise it shows the latest warning and
+its age, and `L` or a tap opens the LOG. There are three levels, each with a
+mark as well as a colour:
+
+- a note is written to the log and nothing else (a tracker first heard, a
+  433 MHz channel coming up, a GPS fix);
+- `!` a warning is something to look at (a tracker that has stayed with you
+  while you moved, an open copy of a protected network name, a drone, a
+  surveillance device);
+- `!!` an alert is something happening now (likely jamming, a
+  deauthentication flood, a saturated band). It is red and stays on the
+  line while it lasts.
+
+In any other app, warnings and alerts add to a count in the status bar and
+drop a banner for a few seconds; tapping either opens SENTINEL at the LOG,
+and reading the LOG is what clears the count. Nothing makes a sound.
+
+**DEFENSIVE and OFFENSIVE.** SENTINEL always opens in DEFENSIVE: it
+listens, and nothing in it can transmit. OFFENSIVE is an area, not a
+setting: entering it asks first (CANCEL has the focus, and Enter is ignored
+for the first second), takes the board's arm lease, and puts a red
+OFFENSIVE flag in the status bar. Leaving the area, leaving SENTINEL, the
+screen sleeping or the board being switched off ends it, and the screen
+says so when you come back. The board checks the lease itself before it
+transmits anything. Today the area holds the HONEYPOT: an open access point
+with a name you choose and nothing behind it, to see which of your devices
+would follow an impostor. Use it only on names and in places that are yours
+to test. SENTINEL detects jamming; it never does it.
+
+What the screens do:
+
+- **WI-FI.** With the board on, these listen with it: it hops all 38
+  channels on 2.4 and 5 GHz and sends nothing. NETWORKS lists every access
+  point; `!` marks weak security and `!!` a protected name that is also
+  open nearby (a possible impostor). CHANNELS is a chart of every channel
+  now and lately, red where deauthentication frames were heard. BEST
+  CHANNEL answers which of 1, 6 and 11 a network of your own should use,
+  from the networks on each and the energy the 2.4 GHz radio measures.
+  DRONES lists aircraft broadcasting Remote ID. CAPTURE records frames to a
+  pcap file. Without the board, NETWORKS falls back to the deck's own
+  Wi-Fi scan.
+- **BLUETOOTH.** Every Bluetooth LE device in earshot, with trackers
+  (AirTag, Tile, SmartTag and the like) and surveillance devices labelled.
+  Devices to look at come first and the order settles every five seconds,
+  so rows do not jump under your thumb. Opening a device says how long it
+  has been with you and how far you moved in that time, and lets you mark
+  one as yours.
+- **SPECTRUM.** 433 MHZ and 2.4 GHZ draw each band now and over the last
+  minutes, with a cursor you move by key or by touch. TRANSMITTERS parks
+  the 433 MHz radio on one frequency and times what transmits there,
+  grouping repeats into transmitters with a period ("every 43 s"): shapes,
+  not contents. SITE SURVEY measures both bands for a minute and writes
+  `sentinel/site-<time>-<name>.csv`; it asks what to call the place, and
+  finishes by itself if you leave the screen. JAM WATCH says whether a
+  whole band has changed together and whether Bluetooth or the GPS went
+  down with it, and is where the board is told to learn the place again
+  (it asks first, and warns if a band is abnormal at that moment).
+- **NETWORK.** PING, DNS, TRACEROUTE and PORT CHECK each take a host and
+  give the answer in a few big words with the detail under it. LAN DEVICES
+  sweeps the network you joined and listens for names. SPEED TEST measures
+  download, upload and the delay to connect.
+- **WARDRIVE.** Records the access points and Bluetooth devices heard,
+  each with the GPS position, in the format wigle.net reads, plus a second
+  file of both radio bands along the way. Listening only. One row per
+  device per place, and another after 25 m; networks that opt out of
+  mapping and Bluetooth addresses that rotate are never written. Ending a
+  drive, or leaving the screen while one runs, asks first.
+- **LOG.** Today's warnings, newest first, read back from the daily CSV in
+  `sentinel/` on storage; SHOW EVERYTHING adds the notes.
+- **BOARD.** Whether the board is on, linked and whole, with its power
+  switch; the GPS fix and position; and the link's counters for when it
+  misbehaves.
+
+| SENTINEL | An alert in progress |
 |---|---|
-| ![RF WATCH overview](docs/screenshots/rf_overview.png) | ![Notice banner](docs/screenshots/rf_banner.png) |
+| ![SENTINEL home](docs/screenshots/sentinel_home.png) | ![An alert on the home page](docs/screenshots/sentinel_alert.png) |
 
-| WI-FI monitor | WI-FI networks |
-|---|---|
-| ![RF WATCH Wi-Fi monitor](docs/screenshots/rf_wifi.png) | ![RF WATCH networks](docs/screenshots/rf_networks.png) |
-
-| BLUETOOTH | WARDRIVE |
-|---|---|
-| ![RF WATCH Bluetooth](docs/screenshots/rf_bluetooth.png) | ![RF WATCH wardrive](docs/screenshots/rf_wardrive.png) |
-
-| SUB-GHZ spectrum | SUB-GHZ bursts | 2.4 GHZ |
+| A menu | A list | One row opened |
 |---|---|---|
-| ![RF WATCH sub-GHz](docs/screenshots/rf_subghz.png) | ![RF WATCH bursts](docs/screenshots/rf_bursts.png) | ![RF WATCH 2.4 GHz](docs/screenshots/rf_2g4.png) |
+| ![WI-FI menu](docs/screenshots/sentinel_menu.png) | ![Networks](docs/screenshots/sentinel_networks.png) | ![One network](docs/screenshots/sentinel_network.png) |
+
+| CHANNELS | DEVICES | 433 MHZ |
+|---|---|---|
+| ![Wi-Fi channels](docs/screenshots/sentinel_channels.png) | ![Bluetooth devices](docs/screenshots/sentinel_devices.png) | ![433 MHz](docs/screenshots/sentinel_433.png) |
+
+| SITE SURVEY | JAM WATCH | WARDRIVE |
+|---|---|---|
+| ![Site survey](docs/screenshots/sentinel_survey.png) | ![Jam watch](docs/screenshots/sentinel_jam.png) | ![Wardrive](docs/screenshots/sentinel_wardrive.png) |
+
+| LOG | PING | Entering OFFENSIVE | HONEYPOT |
+|---|---|---|---|
+| ![Log](docs/screenshots/sentinel_log.png) | ![Ping](docs/screenshots/sentinel_ping.png) | ![The question before OFFENSIVE](docs/screenshots/sentinel_ask.png) | ![Honeypot on air](docs/screenshots/sentinel_honeypot.png) |
 
 The protocol, the state record, the link state machine and the log formats
 are `sentinel_core`, a portable library in the rf-sentinel repo that the C5
@@ -180,21 +173,13 @@ firmware and the other hosts build too. It comes in as a git submodule at
 `components/deck_sentinel` is only the Tab5's side: power, pins, the UART
 and the SD files. The simulator has a pretend board (`sim/sentinel_sim.c`)
 and the core's tests run with `tools/check.sh`.
-
-**v1.4: NET TOOLS**, the Tab5's own radio as a toolkit (in APPS), next to
-RF WATCH. NET TOOLS has four tabs: **SCAN**
-(every access point in earshot, one row per BSSID with channel, security and
-signal, and a chart of the strongest signal on each 2.4 GHz channel), **PING**
-(ping, DNS, traceroute and a TCP port check for a host you type), **LAN** (a
-ping sweep of your subnet plus an mDNS browse, with vendors from the MAC
-prefix) and **SPEED** (download, upload and connect latency against
-speed.cloudflare.com). ICMP runs on a raw socket on the deck and an
-unprivileged ICMP socket in the simulator, so the sim exercises the same code.
+ICMP for PING and TRACEROUTE runs on a raw socket on the deck and an unprivileged
+ICMP socket in the simulator, so the simulator exercises the same code.
 
 **v1.3:** the home screen is five tiles instead of one per module.
 TOOLS (TERMINAL, CALC, SYSTEM) and FILES & MEDIA (FILES, PLAYER) are groups:
-the tile lists what is inside and opens a screen of the same tiles. NET TOOLS
-arrives in v1.4 (below). NOTES stays a tile of its own, and WEATHER is a
+the tile lists what is inside and opens a screen of the same tiles. The network
+tools arrived in v1.4 (now part of SENTINEL, above). NOTES stays a tile of its own, and WEATHER is a
 widget: current temperature, conditions, location and today's range right on
 the home screen, tap for the full forecast. (v1.5 replaces the groups with
 the fixed home and APPS above.)
@@ -365,8 +350,8 @@ See [ROADMAP.md](ROADMAP.md) for v0.2 onward.
 |---|---|
 | `Alt+1..6` | Open home tile 01..06 |
 | `Alt+A` | Open APPS |
-| `Alt+T` `N` `S` `C` `F` | Jump to TERMINAL, NOTES, SETTINGS, CALC or FILES from anywhere |
-| `Alt+W` `M` `R` `X` | Jump to WEATHER, PLAYER (music), NET TOOLS or RF WATCH, while switched on |
+| `Alt+T` `N` `S` `F` `X` | Jump to TERMINAL, NOTES, SETTINGS, FILES or SENTINEL from anywhere |
+| `Alt+C` `W` `M` | Jump to CALC, WEATHER or PLAYER (music), while switched on |
 | `Alt+Esc` | Return to the deck from anywhere (reserved for when SSH owns `Esc`) |
 | `Alt+0`, tap the clock, or SETTINGS > SAVER > SLEEP | Sleep the screen (backlight and keyboard light off); any key or touch wakes it |
 | (idle) | After SETTINGS > SAVER minutes (default 5) a drifting clock takes over, dimmed; 10 minutes later the screen sleeps. Any key or touch wakes it |
