@@ -62,8 +62,8 @@ answer one question:
 | NETWORK | PING, DNS, TRACEROUTE, PORT CHECK, LAN DEVICES (open one), SPEED TEST |
 | WARDRIVE | one screen |
 | LOG | one screen |
-| BOARD | RADIO BOARD, GPS, DIAGNOSTICS |
-| OFFENSIVE | HONEYPOT |
+| BOARD | RADIO BOARD, GPS, DIAGNOSTICS, SELF TEST |
+| OFFENSIVE | HONEYPOT, DEAUTH TEST |
 
 Every screen has the same four things, top to bottom: where you are and why
 (`SENTINEL > WI-FI > NETWORKS` and a sentence), the one thing the screen is
@@ -102,10 +102,17 @@ for the first second), takes the board's arm lease, and puts a red
 OFFENSIVE flag in the status bar. Leaving the area, leaving SENTINEL, the
 screen sleeping or the board being switched off ends it, and the screen
 says so when you come back. The board checks the lease itself before it
-transmits anything. Today the area holds the HONEYPOT: an open access point
-with a name you choose and nothing behind it, to see which of your devices
-would follow an impostor. Use it only on names and in places that are yours
-to test. SENTINEL detects jamming; it never does it.
+transmits anything. Two things live in that area, and both are aimed at
+one thing you choose: the HONEYPOT, an open access point with a name you
+give it and nothing behind it, to see which of your devices would follow an
+impostor; and the DEAUTH TEST, a short counted burst at one client of one
+network, to see your own detector fire on something real.
+
+Use them only on names, networks and in places that are yours to test, or
+whose owner knows and has agreed. No proof of that is asked for, because a
+tester with permission rarely has the key; instead the test states what it
+is about to do, to whom, and asks you to confirm it, every single run.
+SENTINEL detects jamming; it never does it.
 
 What the screens do:
 
@@ -148,8 +155,21 @@ What the screens do:
 - **LOG.** Today's warnings, newest first, read back from the daily CSV in
   `sentinel/` on storage; SHOW EVERYTHING adds the notes.
 - **BOARD.** Whether the board is on, linked and whole, with its power
-  switch; the GPS fix and position; and the link's counters for when it
-  misbehaves.
+  switch; the GPS fix and position; the link's counters for when it
+  misbehaves; and a SELF TEST that asks each radio to read its own
+  registers back and checks that its receiver hears something. The self
+  test transmits nothing, which is why it is here and not in OFFENSIVE.
+- **OFFENSIVE.** The HONEYPOT, and the DEAUTH TEST: three pages, one
+  choice each. Pick the network, then pick one of its clients (the board
+  parks on its channel and lists the addresses it hears; a client that
+  says nothing is not heard), then read what is about to happen and
+  confirm it. The run is eight frames over about a sixth of a second,
+  addressed from the access point to that one client and to nothing else,
+  and it is written to the log with its target. There is no continuous
+  mode and no broadcast: the rules refuse the broadcast address, any group
+  address and the access point itself, on the deck and again on the board.
+  It is built to be seen rather than to disconnect, so only the half of
+  the usual pair that a detector reads is sent.
 
 | SENTINEL | An alert in progress |
 |---|---|

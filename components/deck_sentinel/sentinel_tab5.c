@@ -538,6 +538,40 @@ void sentinel_band_copy(sentinel_bandhost_t *out)
     xSemaphoreGive(s_lock);
 }
 
+void sentinel_selftest(void)
+{
+    if (!s_lock) return;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    memset(&s_state.tst, 0, sizeof(s_state.tst));
+    s_state.tst_n = s_state.tst_passed = s_state.tst_failed = 0;
+    s_state.tst_done = false;
+    sentinel_host_selftest(&s_host);
+    xSemaphoreGive(s_lock);
+}
+
+void sentinel_stations(const uint8_t bssid[6], uint8_t channel)
+{
+    if (!s_lock) return;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_state.sta_n = 0; /* a different access point is a different list */
+    sentinel_host_stations(&s_host, bssid, channel);
+    xSemaphoreGive(s_lock);
+}
+
+bool sentinel_deauth(const sentinel_deauth_t *t, const char **why)
+{
+    if (!s_lock) {
+        if (why) *why = "the radio board is not running";
+        return false;
+    }
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_state.txd_sent = s_state.txd_asked = 0;
+    s_state.txd_ms   = 0;
+    bool ok = sentinel_host_deauth(&s_host, t, why);
+    xSemaphoreGive(s_lock);
+    return ok;
+}
+
 void sentinel_band_learn(void)
 {
     if (!s_lock) return;

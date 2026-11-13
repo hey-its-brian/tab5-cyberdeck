@@ -27,6 +27,7 @@
  */
 #pragma once
 
+#include "sentinel_test.h"
 #include "sentinel_bandhost.h"
 #include "sentinel_blehost.h"
 #include "sentinel_core.h"
@@ -131,6 +132,27 @@ void sentinel_band_listen(uint32_t khz);
  * is. Write blocks for a few hundred milliseconds. */
 void sentinel_site_begin(void);
 bool sentinel_site_write(const char *tag, char *name, size_t n);
+
+
+/* ---- Active tests (phase 6) ---------------------------------------------- */
+
+/* Ask every radio whether it still works: register readback and what the
+ * receivers hear. Nothing transmits. The answers arrive as the state's
+ * tst rows; tst_done says the last one is in. */
+void sentinel_selftest(void);
+
+/* List the clients of one access point: the board parks on its channel and
+ * reports what it hears talking to it, into the state's sta rows. NULL
+ * stops and gives the radio back. Listening only. */
+void sentinel_stations(const uint8_t bssid[6], uint8_t channel);
+
+/* The one thing here that transmits: ONE counted burst of deauthentication
+ * frames at ONE client of one access point, so a deauth detector can be
+ * seen to fire. sentinel_test.h holds the rules; false means they refused
+ * this target and nothing was sent, with `why` saying which rule. True
+ * means it was asked for, not that it happened: the board checks the arm
+ * lease and the rules again, and answers into txd_sent / txd_ms. */
+bool sentinel_deauth(const sentinel_deauth_t *t, const char **why);
 
 /* ---- Wardriving ---------------------------------------------------------- */
 

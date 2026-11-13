@@ -61,7 +61,11 @@ static sentinel_nrfwatch_t s_node_nrf;
 static uint32_t s_node_dwell_khz;       /* where the node's CC1101 is parked, 0 while it sweeps */
 static int      s_dwell_tick, s_dwell_bursts;
 static uint32_t s_dwell_last_ms;
-static enum { NODE_WATCH, NODE_BLE, NODE_WIFI, NODE_HPOT, NODE_DRIVE } s_node_tool;
+static enum { NODE_WATCH, NODE_BLE, NODE_WIFI, NODE_HPOT, NODE_DRIVE, NODE_STA } s_node_tool;
+/* Phase 6: the access point whose clients the pretend node is listing. */
+static uint8_t s_sta_bssid[6];
+static uint8_t s_sta_ch;
+static int     s_sta_tick;
 static double  s_street_m;              /* how far up the street a wardrive has carried the deck */
 static uint32_t s_drive_lost_base;
 static int     s_hop;                   /* the slot the pretend radio is on */
@@ -332,6 +336,25 @@ static void wifi_tick(void)
     } else if (s_node_tool == NODE_WATCH && s_tick % 60 == 8) {
         /* the presence scan passes every channel once: the detectors get a slow sweep */
         for (int i = 0; i < SENTINEL_WIFI_CHANNELS; i++) wifi_dwell(sentinel_wifi_channel[i]);
+    } else if (s_node_tool == NODE_STA) {
+        /* Clients of the chosen access point, appearing one at a time the
+         * way they do in life: a client that says nothing is not heard. */
+        static const char *const who[] = {"5A:11:0C:33:9E:01", "B8:27:EB:4A:11:C2", "F0:18:98:22:7D:63",
+                                          "3C:22:FB:90:1E:04"};
+        s_sta_tick++;
+        int seen = s_sta_tick / 12;
+        if (seen > 4) seen = 4;
+        if (s_sta_tick % 4 == 1) {
+            if (seen == 0) {
+                emit("STA,none,0,0,0");
+            } else {
+                for (int i = 0; i < seen; i++) {
+                    snprintf(line, sizeof(line), "STA,%s,%d,%d,%d", who[i], -42 - i * 11, 3 + s_sta_tick / 2 - i * 4,
+                             (i == 3 ? 9000 : (int)rnd(1200)));
+                    emit(line);
+                }
+            }
+        }
     } else if (s_node_tool == NODE_HPOT) {
         s_hp_tick++;
         if (s_hp_tick % 3 == 0) s_hp_probes += 1 + (int)rnd(3);
@@ -485,7 +508,7 @@ static void tick(lv_timer_t *t)
     if (up < 2) return; /* the C5 is booting: commands sent now are lost */
     for (int i = 0; i < out.n_send; i++) sentinel_send(out.send[i]);
     node_arm_tick();
-    if (s_tick == 0) emit("HELLO,0.7.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1,drv=1,sub=1");
+    if (s_tick == 0) emit("HELLO,0.8.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1,drv=1,sub=1,tst=1");
     if (s_node_tool != NODE_WIFI && s_node_tool != NODE_HPOT) ble_tick(); /* those two take the whole radio */
     wifi_tick();
     if (s_node_dwell_khz) dwell_tick(); /* the CC1101 listens to one frequency: no sweep */
@@ -584,6 +607,27 @@ void sentinel_stats(sentinel_store_stats_t *out) { sentinel_store_stats(out); }
 /* The two swept bands, as on the device. */
 void sentinel_band_copy(sentinel_bandhost_t *out) { memcpy(out, &s_band, sizeof(*out)); }
 void sentinel_band_learn(void) { sentinel_host_learn(&s_host); }
+
+void sentinel_selftest(void)
+{
+    memset(&s_state.tst, 0, sizeof(s_state.tst));
+    s_state.tst_n = s_state.tst_passed = s_state.tst_failed = 0;
+    s_state.tst_done = false;
+    sentinel_host_selftest(&s_host);
+}
+
+void sentinel_stations(const uint8_t bssid[6], uint8_t channel)
+{
+    s_state.sta_n = 0;
+    sentinel_host_stations(&s_host, bssid, channel);
+}
+
+bool sentinel_deauth(const sentinel_deauth_t *t, const char **why)
+{
+    s_state.txd_sent = s_state.txd_asked = 0;
+    s_state.txd_ms   = 0;
+    return sentinel_host_deauth(&s_host, t, why);
+}
 void sentinel_band_listen(uint32_t khz)
 {
     uint32_t was = s_host.want_dwell_khz;
@@ -687,10 +731,49 @@ bool sentinel_send(const char *payload)
     uint32_t       now = sentinel_now_ms();
     char           buf[64];
     switch (c.id) {
-        case SENTINEL_CMD_HELLO: emit("HELLO,0.7.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1,drv=1,sub=1"); break;
+        case SENTINEL_CMD_HELLO: emit("HELLO,0.8.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1,drv=1,sub=1,tst=1"); break;
         case SENTINEL_CMD_PING: emit("PONG,1234"); break;
         case SENTINEL_CMD_QUIET: s_quiet = true; break;
         case SENTINEL_CMD_STREAM: s_quiet = false; break;
+        case SENTINEL_CMD_TX: {
+            char        name[16];
+            const char *rest = strchr(c.arg, ',');
+            size_t      len  = rest ? (size_t)(rest - c.arg) : strlen(c.arg);
+            if (len >= sizeof name) len = sizeof name - 1;
+            memcpy(name, c.arg, len);
+            name[len] = 0;
+            if (!strcmp(name, "selftest")) {
+                /* A board where everything answers, except that the bench
+                 * has no sky, so the GPS is the one that fails. */
+                emit("TST,433,pass,part 0x00 version 0x14 state 0x0D -104 dBm");
+                emit("TST,nrf,pass,config 0x0F channel wrote back yes carrier 0");
+                emit("TST,gps,fail,no sentences since the node started");
+                emit("TST,wifi,pass,driver up; monitor listening");
+                emit("TST,ble,pass,13 devices in earshot; 31 adverts a second");
+                emit("TST,done,4,1");
+            } else if (!sentinel_arm_active(&s_node_arm, now)) {
+                emit("ERR,not armed");
+            } else if (strcmp(name, "deauth") != 0) {
+                emit("ERR,no such test");
+            } else {
+                sentinel_deauth_t t;
+                const char       *why = sentinel_deauth_parse(rest ? rest + 1 : "", &t);
+                if (why) {
+                    snprintf(buf, sizeof(buf), "ERR,%s", why);
+                    emit(buf);
+                } else {
+                    char sta[18];
+                    sentinel_mac_text(sta, t.station);
+                    snprintf(buf, sizeof(buf), "TXD,%d,%d", SENTINEL_DEAUTH_BURST, SENTINEL_DEAUTH_BURST);
+                    emit(buf);
+                    snprintf(buf, sizeof(buf), "EVT,warn,test,deauth test: %d frames at %s", SENTINEL_DEAUTH_BURST, sta);
+                    emit(buf);
+                    /* and the deck's own detector sees it, which is the point */
+                    emit("EVT,warn,wifi,deauth flood: 8 frames in 1 s");
+                }
+            }
+            break;
+        }
         case SENTINEL_CMD_BAUD:
             if (!c.valid) {
                 emit("ERR,bad baud");
@@ -702,7 +785,7 @@ bool sentinel_send(const char *payload)
         case SENTINEL_CMD_MODE: {
             int tool = !c.valid ? -1 : !strcmp(c.arg, "watch") ? NODE_WATCH : !strcmp(c.arg, "ble") ? NODE_BLE
                        : !strcmp(c.arg, "wifi") ? NODE_WIFI : !strcmp(c.arg, "hpot") ? NODE_HPOT
-                       : !strcmp(c.arg, "drive") ? NODE_DRIVE : -1;
+                       : !strcmp(c.arg, "drive") ? NODE_DRIVE : !strcmp(c.arg, "sta") ? NODE_STA : -1;
             if (tool < 0) {
                 emit("ERR,unknown mode");
             } else if (tool == NODE_HPOT && !sentinel_arm_active(&s_node_arm, now)) {
@@ -715,6 +798,7 @@ bool sentinel_send(const char *payload)
                     printf("[sim] sentinel mode %s\n", c.arg);
                     if (tool == NODE_WIFI || tool == NODE_DRIVE) sentinel_wifimon_dwell(&s_node_wifi, sentinel_wifi_channel[s_hop = 0], 0, NULL);
                     if (tool == NODE_HPOT) s_hp_tick = s_hp_joins = s_hp_probes = 0;
+                    if (tool == NODE_STA) s_sta_tick = 0;
                 }
                 s_node_tool     = tool;
                 s_node_ble_mode = tool == NODE_BLE;
@@ -723,6 +807,20 @@ bool sentinel_send(const char *payload)
             }
             break;
         }
+        case SENTINEL_CMD_STA:
+            if (!c.valid) {
+                emit("ERR,bad station request");
+            } else if (!strcmp(c.arg, "off")) {
+                s_node_tool = NODE_WATCH;
+                emit("MODE,watch");
+            } else {
+                sentinel_mac_parse(c.arg, s_sta_bssid);
+                s_sta_ch   = (uint8_t)c.value2;
+                s_sta_tick = 0;
+                snprintf(buf, sizeof(buf), "STA,set,%s,%u", c.arg, (unsigned)c.value2);
+                emit(buf);
+            }
+            break;
         case SENTINEL_CMD_LEARN:
             sentinel_subwatch_init(&s_node_sub);
             sentinel_nrfwatch_init(&s_node_nrf);
@@ -778,7 +876,6 @@ bool sentinel_send(const char *payload)
             node_arm_tick();
             break;
         }
-        case SENTINEL_CMD_TX: emit(sentinel_arm_active(&s_node_arm, now) ? "ERR,no such test" : "ERR,not armed"); break;
         default: emit("ERR,unknown command"); break;
     }
     return true;

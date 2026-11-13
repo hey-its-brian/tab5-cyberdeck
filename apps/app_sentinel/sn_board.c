@@ -6,6 +6,9 @@
  *   GPS          is there a position fix, and where
  *   DIAGNOSTICS  the link's counters and two test commands, for when it
  *                misbehaves
+ *   SELF TEST    whether each radio still works: registers read back and
+ *                receivers checked. It is here rather than under OFFENSIVE
+ *                because nothing about it transmits
  */
 #include "sn_ui.h"
 
@@ -20,6 +23,7 @@
 
 static struct {
     lv_obj_t   *state, *v[8];
+    uint32_t    asked_ms; /* when the self test was asked for, 0 = not yet */
     lv_timer_t *timer;
     void (*render)(void);
     sentinel_state_t st;
@@ -205,6 +209,98 @@ static void diag_build(lv_obj_t *body)
     diag_render();
 }
 
+/* ---- SELF TEST ---------------------------------------------------------- */
+
+/* What the node calls each radio, and what a person calls it. */
+static const char *radio_name(const char *key)
+{
+    if (!strcmp(key, "433")) return "433 MHZ RADIO";
+    if (!strcmp(key, "nrf")) return "2.4 GHZ RADIO";
+    if (!strcmp(key, "gps")) return "GPS RECEIVER";
+    if (!strcmp(key, "wifi")) return "WI-FI";
+    if (!strcmp(key, "ble")) return "BLUETOOTH";
+    return key;
+}
+
+static void selftest_run(void);
+
+static void selftest_render(void)
+{
+    const sentinel_state_t *st = &s_bd.st;
+    bool waiting = s_bd.asked_ms && !st->tst_done;
+    if (!st->tst_ok) {
+        sn_set(s_bd.state, g_pal.warn, "NOT ON THIS BOARD'S FIRMWARE");
+        sn_set(s_bd.v[0], g_pal.text, "The self test needs board firmware 0.8.0.");
+    } else if (!s_bd.asked_ms) {
+        sn_set(s_bd.state, g_pal.text, "NOT RUN YET");
+        sn_set(s_bd.v[0], g_pal.text, "Each radio is asked to read its own registers back. Nothing is transmitted.");
+    } else if (waiting) {
+        sn_set(s_bd.state, g_pal.accent, "ASKING EACH RADIO...");
+        sn_set(s_bd.v[0], g_pal.label, "A moment.");
+    } else if (st->tst_failed) {
+        sn_set(s_bd.state, g_pal.danger, "!! %u OF %u DID NOT ANSWER", st->tst_failed, st->tst_failed + st->tst_passed);
+        sn_set(s_bd.v[0], g_pal.text, "A radio that fails here is a radio the rest of SENTINEL cannot use.");
+    } else {
+        sn_set(s_bd.state, g_pal.ok, "ALL %u ANSWERED", st->tst_passed);
+        sn_set(s_bd.v[0], g_pal.label, "Every radio on the board read its own registers back as itself.");
+    }
+    for (int i = 0; i < 5; i++) {
+        if (i >= st->tst_n) {
+            sn_set(s_bd.v[1 + i], g_pal.label, " ");
+            continue;
+        }
+        const sentinel_tstrow_t *r = &st->tst[i];
+        const char *word = r->result == SENTINEL_TST_PASS ? "PASS" : r->result == SENTINEL_TST_FAIL ? "FAIL" : "NOT FITTED";
+        lv_color_t  c    = r->result == SENTINEL_TST_PASS ? g_pal.ok : r->result == SENTINEL_TST_FAIL ? g_pal.danger : g_pal.label;
+        sn_set(s_bd.v[1 + i], c, "%-16s %-11s %s", radio_name(r->radio), word, r->detail);
+    }
+    sn_action_enable(selftest_run, st->tst_ok && !waiting);
+    sn_action_label(selftest_run, s_bd.asked_ms && !waiting ? "RUN IT AGAIN" : "RUN THE SELF TEST");
+}
+
+static void selftest_run(void)
+{
+    sentinel_selftest();
+    s_bd.asked_ms = sentinel_now_ms();
+    if (!s_bd.asked_ms) s_bd.asked_ms = 1;
+    selftest_render();
+}
+
+static void selftest_build(lv_obj_t *body)
+{
+    begin(selftest_render);
+    s_bd.state = sn_state(body);
+    s_bd.v[0]  = sn_note(body);
+    sn_heading(body, "EACH RADIO ON THE BOARD");
+    for (int i = 1; i < 6; i++) {
+        s_bd.v[i] = sn_value(body);
+        lv_obj_set_style_text_font(s_bd.v[i], g_font.mono_m, 0); /* a row is a table line, not a sentence */
+    }
+    sn_action(HID_ENTER, "ENTER", "RUN THE SELF TEST", selftest_run);
+    sn_help("Each radio is asked to read its own registers back, and its receiver is checked for a reading that makes "
+            "sense. The 433 MHz chip is asked which part and version it is; the 2.4 GHz chip is given a channel and asked "
+            "what channel it is on; the GPS is asked how many sentences it has sent.\n\n"
+            "Nothing is transmitted. The 2.4 GHz radio is never asked to send a carrier, because a carrier on a band is a "
+            "jammer on it.\n\n"
+            "NOT FITTED means that part was not found when the board started, so it was not asked.");
+    selftest_render();
+}
+
+static void selftest_status(const sentinel_state_t *st, char *line, size_t n, sn_level_t *level)
+{
+    if (!st->tst_ok) {
+        snprintf(line, n, "NEEDS BOARD FIRMWARE 0.8.0");
+        return;
+    }
+    if (!st->tst_done) return;
+    if (st->tst_failed) {
+        snprintf(line, n, "%u OF %u DID NOT ANSWER", st->tst_failed, st->tst_failed + st->tst_passed);
+        *level = SN_WARNING;
+    } else {
+        snprintf(line, n, "ALL %u ANSWERED", st->tst_passed);
+    }
+}
+
 /* ---- The menu ---------------------------------------------------------------------- */
 
 static void menu_status(const sentinel_state_t *st, char *line, size_t n, sn_level_t *level)
@@ -231,13 +327,22 @@ static const sn_screen_t s_board = {.name = "RADIO BOARD", .purpose = "Is the ra
 static const sn_screen_t s_gps   = {.name = "GPS", .purpose = "Do you have a position fix, and where are you?", .quote = "Roads? Where we're going, we don't need roads.", /* Back to the Future */ .icon = ICON_PIN, .flags = SN_BOARD, .build = gps_build, .destroy = end, .status = gps_status};
 static const sn_screen_t s_diag  = {.name = "DIAGNOSTICS", .purpose = "The link's counters and test commands, for when it misbehaves.", .quote = "I'm sorry, Dave. I'm afraid I can't do that.", /* 2001: A Space Odyssey */ .icon = ICON_TOOLS, .flags = SN_BOARD, .build = diag_build, .destroy = end};
 
-static const sn_screen_t *const s_kids[] = {&s_board, &s_gps, &s_diag};
+static const sn_screen_t s_self = {.name    = "SELF TEST",
+                                   .purpose = "Does each radio on the board still work?",
+                                   .quote   = "Fist my bump.", /* Project Hail Mary */
+                                   .icon    = ICON_REFRESH,
+                                   .flags   = SN_BOARD,
+                                   .build   = selftest_build,
+                                   .destroy = end,
+                                   .status  = selftest_status};
+
+static const sn_screen_t *const s_kids[] = {&s_board, &s_gps, &s_diag, &s_self};
 
 const sn_screen_t sn_board_menu = {
     .name    = "BOARD",
-    .purpose = "The radio board that does the listening, and its GPS.", .quote = "Fist my bump.", /* Project Hail Mary */
+    .purpose = "The radio board that does the listening, and its GPS.", .quote = "I have a bad feeling about this.", /* Star Wars */
     .icon    = ICON_CHIP,
     .kids    = s_kids,
-    .nkids   = 3,
+    .nkids   = 4,
     .status  = menu_status,
 };
