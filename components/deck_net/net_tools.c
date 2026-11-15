@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -222,6 +223,143 @@ bool net_port_open(const char *host, int port, int timeout_ms, float *ms)
     if (ms) *ms = (float)(now_ms() - t0);
     close(sock);
     return ok;
+}
+
+/* ---- WHOIS --------------------------------------------------------------- */
+
+/* One WHOIS exchange (RFC 3912): send "query\r\n", read until the server
+ * closes. Appends to out (always NUL terminated); returns bytes read or -1. */
+static int whois_ask(const char *server, const char *query, int timeout_ms, char *out, size_t n)
+{
+    struct sockaddr_in to;
+    if (!target(server, &to)) return -1;
+    to.sin_port = htons(43);
+    int sock    = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) return -1;
+    int fl = fcntl(sock, F_GETFL, 0);
+    fcntl(sock, F_SETFL, fl | O_NONBLOCK);
+    int rc = connect(sock, (struct sockaddr *)&to, sizeof(to));
+    if (rc != 0 && errno != EINPROGRESS) goto fail;
+    fd_set wf;
+    FD_ZERO(&wf);
+    FD_SET(sock, &wf);
+    struct timeval tv = {.tv_sec = timeout_ms / 1000, .tv_usec = (timeout_ms % 1000) * 1000};
+    if (select(sock + 1, NULL, &wf, NULL, &tv) <= 0) goto fail;
+    int err      = 0;
+    socklen_t el = sizeof(err);
+    getsockopt(sock, SOL_SOCKET, SO_ERROR, &err, &el);
+    if (err) goto fail;
+    fcntl(sock, F_SETFL, fl);
+
+    char line[160];
+    int ln = snprintf(line, sizeof(line), "%s\r\n", query);
+    if (send(sock, line, (size_t)ln, 0) != ln) goto fail;
+
+    size_t got = 0;
+    for (;;) {
+        fd_set rf;
+        FD_ZERO(&rf);
+        FD_SET(sock, &rf);
+        tv.tv_sec  = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
+        if (select(sock + 1, &rf, NULL, NULL, &tv) <= 0) break;
+        ssize_t r = recv(sock, out + got, n - 1 - got, 0);
+        if (r <= 0) break;
+        got += (size_t)r;
+        if (got >= n - 1) break;
+    }
+    out[got] = '\0';
+    close(sock);
+    return got > 0 ? (int)got : -1;
+fail:
+    close(sock);
+    return -1;
+}
+
+/* Keep the useful lines: drop comments (% # >>>), blank lines, and the
+ * boilerplate after a "URL of the ICANN" / ">>>" trailer; fold CRLF. */
+static void whois_tidy(char *buf)
+{
+    char *w = buf;
+    for (char *l = buf; *l;) {
+        char *e = strpbrk(l, "\r\n");
+        size_t len = e ? (size_t)(e - l) : strlen(l);
+        bool keep = len > 0 && l[0] != '%' && l[0] != '#';
+        if (len >= 3 && strncmp(l, ">>>", 3) == 0) break;
+        if (keep) {
+            memmove(w, l, len);
+            w += len;
+            *w++ = '\n';
+        }
+        l += len;
+        while (*l == '\r' || *l == '\n') l++;
+    }
+    *w = '\0';
+}
+
+/* Value of a "key:" line (case-insensitive), copied into val. */
+static bool whois_field(const char *buf, const char *key, char *val, size_t n)
+{
+    size_t kl = strlen(key);
+    for (const char *l = buf; *l;) {
+        if (strncasecmp(l, key, kl) == 0 && l[kl] == ':') {
+            const char *v = l + kl + 1;
+            while (*v == ' ' || *v == '\t') v++;
+            size_t i = 0;
+            while (v[i] && v[i] != '\n' && v[i] != '\r' && i < n - 1) {
+                val[i] = v[i];
+                i++;
+            }
+            val[i] = '\0';
+            return i > 0;
+        }
+        const char *nl = strchr(l, '\n');
+        if (!nl) break;
+        l = nl + 1;
+    }
+    return false;
+}
+
+/* "15169", "as15169" and "AS 15169" all mean the AS number: send "AS15169". */
+static void whois_normalise(const char *in, char *q, size_t n)
+{
+    while (*in == ' ') in++;
+    const char *d = in;
+    if ((d[0] == 'A' || d[0] == 'a') && (d[1] == 'S' || d[1] == 's')) {
+        d += 2;
+        while (*d == ' ') d++;
+    } else if (d[0] < '0' || d[0] > '9' || strchr(in, '.') || strchr(in, ':')) {
+        d = NULL; /* a name or an address, not an AS number */
+    }
+    if (d && *d) {
+        const char *e = d;
+        while (*e >= '0' && *e <= '9') e++;
+        if (*e == '\0' && e > d) {
+            snprintf(q, n, "AS%s", d);
+            return;
+        }
+    }
+    snprintf(q, n, "%s", in);
+}
+
+int net_whois(const char *input, char *out, size_t n, char *server, size_t server_n)
+{
+    if (n < 64) return -1;
+    char query[96];
+    whois_normalise(input, query, sizeof(query));
+    char refer[64] = "whois.iana.org";
+    char *iana     = out;
+    if (whois_ask("whois.iana.org", query, 6000, iana, n) < 0) return -1;
+    /* IANA names the registry that owns the TLD or address block. */
+    if (whois_field(iana, "refer", refer, sizeof(refer)) || whois_field(iana, "whois", refer, sizeof(refer))) {
+        static char s_second[4096];
+        if (whois_ask(refer, query, 8000, s_second, sizeof(s_second)) > 0) {
+            snprintf(out, n, "%s", s_second);
+        }
+    }
+    whois_tidy(out);
+    if (server) snprintf(server, server_n, "%s", refer);
+    return (int)strlen(out);
 }
 
 /* ---- LAN discovery ------------------------------------------------------- */

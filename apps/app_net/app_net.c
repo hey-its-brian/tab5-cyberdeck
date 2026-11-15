@@ -20,11 +20,12 @@
 #include "deck_theme.h"
 #include "deck_widgets.h"
 
-#define TABS 4
+#define TABS 5
 #define TAB_SCAN 0
 #define TAB_PING 1
 #define TAB_LAN 2
 #define TAB_SPEED 3
+#define TAB_WHOIS 4
 
 #define BSS_MAX 48
 #define CHANNELS 13
@@ -32,7 +33,7 @@
 
 #define HID_R 0x15
 
-static const char *const s_tab_names[TABS] = {"SCAN", "PING", "LAN", "SPEED"};
+static const char *const s_tab_names[TABS] = {"SCAN", "PING", "LAN", "SPEED", "WHOIS"};
 
 static struct {
     int tab;
@@ -58,10 +59,15 @@ static struct {
     lv_obj_t *out;       /* the results label */
     lv_obj_t *out_box;
     lv_obj_t *ping_btn[4];
+    lv_obj_t *who_ta, *who_btn, *who_out, *who_box;
+    lv_obj_t *act_ta;  /* host field of the tool that is running */
+    lv_obj_t *act_out; /* its result label */
     char host[96];
     int job;             /* which tool is running, -1 none */
     int port;
     char result[2048];
+    char whois[6144];
+    char whois_server[64];
     net_ping_reply_t pings[5];
     int ping_got;
     net_hop_t hops[20];
@@ -98,7 +104,7 @@ static struct {
 #define SPEED_DOWN_BYTES (8u * 1000u * 1000u)
 #define SPEED_UP_BYTES (2u * 1000u * 1000u)
 
-enum { JOB_PING, JOB_DNS, JOB_TRACE, JOB_PORT };
+enum { JOB_PING, JOB_DNS, JOB_TRACE, JOB_PORT, JOB_WHOIS };
 
 /* ---- Helpers ------------------------------------------------------------- */
 
@@ -345,10 +351,15 @@ static void build_scan(lv_obj_t *page)
     lv_obj_set_style_text_line_space(s_ui.detail, 6, 0);
 }
 
-/* ---- PING / DNS / TRACE / PORT ------------------------------------------- */
+/* ---- PING / DNS / TRACE / PORT / WHOIS ------------------------------------------- */
 
 static void ping_set_busy(bool busy)
 {
+    if (busy) {
+        lv_obj_add_state(s_ui.who_btn, LV_STATE_DISABLED);
+    } else {
+        lv_obj_remove_state(s_ui.who_btn, LV_STATE_DISABLED);
+    }
     for (int i = 0; i < 4; i++) {
         if (busy) {
             lv_obj_add_state(s_ui.ping_btn[i], LV_STATE_DISABLED);
@@ -373,6 +384,9 @@ static void ping_job(void *u)
             s_ui.ok    = s_ui.hop_n >= 0;
             break;
         case JOB_PORT: s_ui.ok = net_port_open(s_ui.host, s_ui.port, 2500, &s_ui.port_ms); break;
+        case JOB_WHOIS:
+            s_ui.ok = net_whois(s_ui.host, s_ui.whois, sizeof(s_ui.whois), s_ui.whois_server, sizeof(s_ui.whois_server)) > 0;
+            break;
         default: break;
     }
 }
@@ -437,19 +451,33 @@ static void ping_done(void *u)
             o += (size_t)snprintf(r + o, n - o, "PORT %s:%d\n%s (%.0f ms)", s_ui.host, s_ui.port,
                                   s_ui.ok ? "OPEN: something is listening" : "CLOSED or filtered", (double)s_ui.port_ms);
             break;
+        case JOB_WHOIS:
+            if (!s_ui.ok) {
+                o += (size_t)snprintf(r + o, n - o, "WHOIS %s\nno answer (check the name, or the registry is unreachable)", s_ui.host);
+            } else {
+                o += (size_t)snprintf(r + o, n - o, "WHOIS %s  (via %s)\n\n", s_ui.host, s_ui.whois_server);
+            }
+            break;
         default: break;
     }
-    lv_label_set_text(s_ui.out, s_ui.result);
+    if (s_ui.job == JOB_WHOIS && s_ui.ok) {
+        lv_label_set_text_fmt(s_ui.act_out, "%s%s", s_ui.result, s_ui.whois);
+        s_ui.job = -1;
+        ping_set_busy(false);
+        return;
+    }
+    lv_label_set_text(s_ui.act_out, s_ui.result);
     s_ui.job = -1;
     ping_set_busy(false);
 }
 
 static bool take_host(void)
 {
-    const char *t = lv_textarea_get_text(s_ui.host_ta);
+    if (s_ui.act_ta == NULL) return false;
+    const char *t = lv_textarea_get_text(s_ui.act_ta);
     while (*t == ' ') t++;
     if (*t == '\0') {
-        lv_label_set_text(s_ui.out, "Type a host name or address first.");
+        lv_label_set_text(s_ui.act_out, "Type a host name or address first.");
         return false;
     }
     snprintf(s_ui.host, sizeof(s_ui.host), "%s", t);
@@ -464,17 +492,20 @@ static bool take_host(void)
 
 static void run_job(int job)
 {
-    if (net_tools_busy() || !take_host()) return;
+    if (net_tools_busy()) return;
+    s_ui.act_ta  = job == JOB_WHOIS ? s_ui.who_ta : s_ui.host_ta;
+    s_ui.act_out = job == JOB_WHOIS ? s_ui.who_out : s_ui.out;
+    if (!take_host()) return;
     if (net_state() != NET_CONNECTED) {
-        lv_label_set_text(s_ui.out, "No network. Join a Wi-Fi network in SYSTEM first.");
+        lv_label_set_text(s_ui.act_out, "No network. Join a Wi-Fi network in SYSTEM first.");
         return;
     }
     s_ui.job = job;
-    static const char *const names[] = {"PINGING", "RESOLVING", "TRACING", "CHECKING PORT"};
-    lv_label_set_text_fmt(s_ui.out, "%s %s...", names[job], s_ui.host);
+    static const char *const names[] = {"PINGING", "RESOLVING", "TRACING", "CHECKING PORT", "ASKING WHOIS ABOUT"};
+    lv_label_set_text_fmt(s_ui.act_out, "%s %s...", names[job], s_ui.host);
     ping_set_busy(true);
     if (!net_tools_run(ping_job, ping_done, NULL)) {
-        lv_label_set_text(s_ui.out, "Could not start the job.");
+        lv_label_set_text(s_ui.act_out, "Could not start the job.");
         s_ui.job = -1;
         ping_set_busy(false);
     }
@@ -486,7 +517,7 @@ static void port_entered(const char *text, void *u)
     if (text == NULL) return;
     int port = atoi(text);
     if (port < 1 || port > 65535) {
-        lv_label_set_text(s_ui.out, "Port must be 1 to 65535.");
+        lv_label_set_text(s_ui.act_out, "Port must be 1 to 65535.");
         return;
     }
     s_ui.port = port;
@@ -497,6 +528,8 @@ static void ping_btn_clicked(lv_event_t *e)
 {
     int job = (int)(intptr_t)lv_event_get_user_data(e);
     if (job == JOB_PORT) {
+        s_ui.act_ta  = s_ui.host_ta;
+        s_ui.act_out = s_ui.out;
         if (!take_host()) return;
         char cur[8];
         snprintf(cur, sizeof(cur), "%d", s_ui.port ? s_ui.port : 443);
@@ -524,7 +557,7 @@ static void build_ping(lv_obj_t *page)
     lv_obj_set_style_pad_column(row, 10, 0);
     s_ui.host_ta = lv_textarea_create(row);
     lv_textarea_set_one_line(s_ui.host_ta, true);
-    lv_textarea_set_placeholder_text(s_ui.host_ta, "host name or address");
+    lv_textarea_set_placeholder_text(s_ui.host_ta, "host, IP or AS number");
     lv_textarea_set_max_length(s_ui.host_ta, 90);
     lv_obj_set_width(s_ui.host_ta, 520);
     lv_obj_set_style_text_font(s_ui.host_ta, g_font.mono_m, 0);
@@ -541,6 +574,48 @@ static void build_ping(lv_obj_t *page)
     s_ui.out = deck_label(s_ui.out_box, g_font.mono_m, g_pal.text, "Enter a host, then PING (or Enter), DNS, TRACE or PORT.");
     lv_obj_set_width(s_ui.out, LV_PCT(100));
     lv_obj_set_style_text_line_space(s_ui.out, 6, 0);
+}
+
+static void whois_clicked(lv_event_t *e)
+{
+    (void)e;
+    run_job(JOB_WHOIS);
+}
+
+static void whois_enter(lv_event_t *e)
+{
+    (void)e;
+    run_job(JOB_WHOIS);
+}
+
+static void build_whois(lv_obj_t *page)
+{
+    lv_obj_set_flex_flow(page, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(page, 14, 0);
+
+    lv_obj_t *row = deck_box(page);
+    lv_obj_set_width(row, LV_PCT(100));
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row, 10, 0);
+    s_ui.who_ta = lv_textarea_create(row);
+    lv_textarea_set_one_line(s_ui.who_ta, true);
+    lv_textarea_set_placeholder_text(s_ui.who_ta, "domain, IP or AS number");
+    lv_textarea_set_max_length(s_ui.who_ta, 90);
+    lv_obj_set_width(s_ui.who_ta, 520);
+    lv_obj_set_style_text_font(s_ui.who_ta, g_font.mono_m, 0);
+    lv_obj_add_event_cb(s_ui.who_ta, whois_enter, LV_EVENT_READY, NULL);
+    s_ui.who_btn = small_button(row, "WHOIS", whois_clicked, 0);
+
+    s_ui.who_box = deck_panel(page, DECK_CUT_TL | DECK_CUT_BR, 18);
+    lv_obj_set_width(s_ui.who_box, LV_PCT(100));
+    lv_obj_set_flex_grow(s_ui.who_box, 1);
+    lv_obj_set_style_pad_all(s_ui.who_box, 18, 0);
+    lv_obj_add_flag(s_ui.who_box, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(s_ui.who_box, LV_DIR_VER);
+    s_ui.who_out = deck_label(s_ui.who_box, g_font.mono_m, g_pal.text, "Enter a domain, IP address or AS number (AS15169), then WHOIS or Enter.");
+    lv_obj_set_width(s_ui.who_out, LV_PCT(100));
+    lv_obj_set_style_text_line_space(s_ui.who_out, 6, 0);
 }
 
 /* ---- LAN ----------------------------------------------------------------- */
@@ -794,6 +869,11 @@ static void set_tab(int tab)
         for (int i = 0; i < 4; i++) lv_group_add_obj(deck_input_group(), s_ui.ping_btn[i]);
         lv_group_focus_obj(s_ui.host_ta);
         lv_label_set_text(s_ui.status, "");
+    } else if (tab == TAB_WHOIS) {
+        lv_group_add_obj(deck_input_group(), s_ui.who_ta);
+        lv_group_add_obj(deck_input_group(), s_ui.who_btn);
+        lv_group_focus_obj(s_ui.who_ta);
+        lv_label_set_text(s_ui.status, "");
     } else if (tab == TAB_LAN) {
         lv_group_add_obj(deck_input_group(), s_ui.lan_btn);
         lv_label_set_text(s_ui.status, "");
@@ -828,7 +908,7 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
     lv_obj_set_style_pad_column(tabs, 10, 0);
     for (int i = 0; i < TABS; i++) {
         s_ui.tab_btn[i] = small_button(tabs, s_tab_names[i], tab_clicked, i);
-        lv_group_remove_obj(s_ui.tab_btn[i]); /* 1..4 switch tabs */
+        lv_group_remove_obj(s_ui.tab_btn[i]); /* 1..5 switch tabs */
     }
     s_ui.status = deck_label(bar, g_font.mono_s, g_pal.dim, "");
     lv_obj_align(s_ui.status, LV_ALIGN_RIGHT_MID, 0, 0);
@@ -846,8 +926,9 @@ static bool start(deck_app_t *self, lv_obj_t *parent)
     build_ping(s_ui.page[TAB_PING]);
     build_lan(s_ui.page[TAB_LAN]);
     build_speed(s_ui.page[TAB_SPEED]);
+    build_whois(s_ui.page[TAB_WHOIS]);
 
-    deck_label(root, g_font.mono_s, g_pal.dim, "[1..4] TAB    [R] RESCAN    [UP/DOWN] SELECT    [TAB] NEXT FIELD    [ESC] BACK");
+    deck_label(root, g_font.mono_s, g_pal.dim, "[1..5] TAB    [R] RESCAN    [UP/DOWN] SELECT    [TAB] NEXT FIELD    [ESC] BACK");
 
     s_ui.timer = lv_timer_create(scan_tick, 1000, NULL);
     set_tab(TAB_SCAN);
@@ -867,7 +948,8 @@ static bool on_key(deck_app_t *self, const deck_key_t *k)
     (void)self;
     if (k->mods & (DECK_MOD_CTRL | DECK_MOD_ALT)) return false;
     /* On the PING tab the digits and letters belong to the host field. */
-    bool typing = s_ui.tab == TAB_PING && lv_group_get_focused(deck_input_group()) == s_ui.host_ta;
+    lv_obj_t *focus = lv_group_get_focused(deck_input_group());
+    bool typing = (s_ui.tab == TAB_PING && focus == s_ui.host_ta) || (s_ui.tab == TAB_WHOIS && focus == s_ui.who_ta);
     if (!typing && k->code >= HID_1 && k->code < HID_1 + TABS) {
         set_tab(k->code - HID_1);
         return true;
