@@ -45,6 +45,11 @@ int net_trace(const char *host, int max_hops, int timeout_ms, net_hop_t *out);
 /* TCP connect with a timeout; `ms` gets the connect time. */
 bool net_port_open(const char *host, int port, int timeout_ms, float *ms);
 
+/* WHOIS for a domain, an IP address or an AS number ("AS15169" or "15169"): asks whois.iana.org, follows its referral to the
+ * registry, and writes the cleaned-up answer into out. `server` (optional)
+ * gets the registry that answered. Returns the length, or -1 on failure. */
+int net_whois(const char *query, char *out, size_t n, char *server, size_t server_n);
+
 /* ---- LAN discovery ------------------------------------------------------- */
 
 typedef struct {
