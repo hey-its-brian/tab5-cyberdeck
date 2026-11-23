@@ -15,6 +15,10 @@
 # up; without it, signed decks can still be updated over USB, not over the air.
 #   DECK_SIGNING_KEY  default ~/.config/deck-os/ota_signing_key.pem
 #   --prerelease      as the 4th argument publishes a beta (version X.Y.Z-beta.N)
+#   --local           (4th or 5th argument) does everything up to the signed
+#                     images and puts them in dist/: no tag, no push, no
+#                     GitHub release. Run again without it to publish; the
+#                     version commit is reused.
 #
 # Signed-update verification lives in sdkconfig.release, not sdkconfig.defaults
 # (so a fresh clone builds without a key). This script applies it to the local
@@ -27,13 +31,22 @@ notes="${2:?usage: $0 X.Y.Z notes.md}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
-pre="${4:-}"
+pre=""
+local_only=""
+for flag in "${4:-}" "${5:-}"; do
+    case "$flag" in
+        --prerelease) pre="--prerelease" ;;
+        --local) local_only=1 ;;
+        "") ;;
+        *) echo "unknown flag: $flag"; exit 1 ;;
+    esac
+done
 key="${DECK_SIGNING_KEY:-$HOME/.config/deck-os/ota_signing_key.pem}"
 if [[ "$pre" == "--prerelease" ]]; then
     [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z.]+$ ]] || { echo "beta version must be X.Y.Z-tag"; exit 1; }
 else
     [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "version must be X.Y.Z"; exit 1; }
-    [[ "$(git branch --show-current)" == "main" ]] || { echo "release from main"; exit 1; }
+    [[ -n "$local_only" || "$(git branch --show-current)" == "main" ]] || { echo "release from main"; exit 1; }
 fi
 [[ -f "$key" ]] || { echo "no signing key at $key (set DECK_SIGNING_KEY)"; exit 1; }
 [[ -z "$(git status --porcelain)" ]] || { echo "working tree not clean"; exit 1; }
@@ -71,6 +84,14 @@ cp build/tab5_cyberdeck.bin "$out/tab5-cyberdeck-v$ver-ota.bin"
 cp build/tab5_cyberdeck.elf "$out/tab5-cyberdeck-v$ver.elf"
 # (grep without -q: with pipefail, -q exiting early makes the pipeline "fail")
 strings "$out/tab5-cyberdeck-v$ver-ota.bin" | grep -x "$ver" >/dev/null || { echo "image does not carry version $ver"; exit 1; }
+
+if [[ -n "$local_only" ]]; then
+    mkdir -p dist
+    cp "$out"/* dist/
+    echo "built and signed, not published:"
+    ls -1 dist/*"$ver"*
+    exit 0
+fi
 
 git push -q origin "$(git branch --show-current)"
 git tag -a "v$ver" -m "v$ver"
