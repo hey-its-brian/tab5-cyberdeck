@@ -94,7 +94,12 @@ static void sink_event(void *user, const sentinel_event_t *e)
 static void sink_packet(void *user, const sentinel_pkt_t *p)
 {
     (void)user;
+    sentinel_store_stats_t before, after;
+    sentinel_store_stats(&before);
     sentinel_store_packet(p);
+    sentinel_store_stats(&after);
+    for (int i = 0; i < SENTINEL_LINK_N; i++)
+        if (!before.cap_failing[i] && after.cap_failing[i]) sentinel_note(true, "capture: the SD card is not taking frames");
 }
 static const sentinel_sink_t s_sink;
 /* A wardrive's rows go straight to the store too. */

@@ -39,8 +39,9 @@ static void toggle(void);
 /* Why a drive cannot start, or NULL when it can. */
 static const char *blocked(const sentinel_state_t *st)
 {
+    const char *board = sn_board_problem(st); /* off, or not linked: the frame no longer says it for this screen */
+    if (board) return board;
     if (!st->hello) return "The radio board has not introduced itself yet.";
-    if (!sentinel_link(st)) return "No link to the radio board.";
     if (!st->drv_ok) return "The board's firmware has no drive tool (needs 0.6.0).";
     if (!hal_storage_is_sd()) return "A drive needs an SD card.";
     return NULL;

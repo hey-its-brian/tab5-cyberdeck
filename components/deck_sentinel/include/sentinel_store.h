@@ -45,6 +45,7 @@ typedef struct {
     bool     drive_open;                /* a drive's files are open */
     char     drive_file[32];            /* the WiGLE file of the current or the last drive */
     char     cap_file[SENTINEL_LINK_N][48]; /* the current or the last capture file per link, "" before any */
+    bool     cap_failing[SENTINEL_LINK_N];  /* frames are arriving and the card is not taking them */
 } sentinel_store_stats_t;
 
 void sentinel_store_event(const sentinel_event_t *e, uint8_t fix, double lat, double lon);

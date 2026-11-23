@@ -88,7 +88,10 @@ int main(void)
     CHECK(strncmp(tail, "20", 2) == 0); /* starts at a row's timestamp */
     CHECK(sentinel_store_tail(tail, 10) == 0); /* too small for any whole row */
 
-    /* store_capture_is_valid_pcap: 24 byte header, then 16 + n per packet */
+    /* store_capture_is_valid_pcap: 24 byte header, then 16 + n per packet.
+     * (The root-less packet above made the store leave the card alone for a
+     * moment; a close ends that, as the board going off does.) */
+    sentinel_store_close();
     sentinel_store_packet(&p);
     p.us = 2500000, p.len = 200, p.orig_len = 300;
     sentinel_store_packet(&p);
@@ -113,6 +116,25 @@ int main(void)
         CHECK(h[0] == 0xd4 && h[1] == 0xc3 && h[2] == 0xb2 && h[3] == 0xa1 && h[20] == 105);
         CHECK(h[24 + 8] == 4 && h[24 + 12] == 4); /* first record: 4 bytes kept of 4 */
         fclose(f);
+    }
+
+    /* capture_name_only_once_the_file_exists: a folder that refuses the file
+     * leaves no name behind (root ignores permissions, so not under root) */
+    if (geteuid() != 0) {
+        char subroot[200], dir[220];
+        snprintf(subroot, sizeof(subroot), "%s/ro", root);
+        snprintf(dir, sizeof(dir), "%s/sentinel", subroot);
+        mkdir(subroot, 0755);
+        mkdir(dir, 0555);
+        s_root = subroot;
+        sentinel_store_close();
+        sentinel_pkt_t q = {.link = SENTINEL_LINK_BLE, .ch = 37, .rssi = -60, .us = 5000, .orig_len = 4, .len = 4, .data = {1, 2, 3, 4}};
+        sentinel_store_packet(&q);
+        sentinel_store_stats(&st);
+        CHECK(st.cap_file[SENTINEL_LINK_BLE][0] == 0 && st.cap_failing[SENTINEL_LINK_BLE]);
+        chmod(dir, 0755);
+        s_root = root;
+        sentinel_store_close();
     }
 
     /* A reopen never truncates: the same second gives the same name, and the
@@ -162,7 +184,7 @@ int main(void)
     sentinel_store_packet(&p);
     sentinel_store_event(&e, 0, 0, 0);
     sentinel_store_stats(&st);
-    CHECK(st.packets == 4 && st.packets_dropped == 2 && st.events == 3);
+    CHECK(st.packets == 4 && st.packets_dropped == 2u + (geteuid() != 0) && st.events == 3 /* the refused BLE frame above, unless root */);
 
     /* A wardrive: two files, each opened with its header, rows appended as
      * they come, and nothing written once the drive has ended. */

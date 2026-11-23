@@ -26,11 +26,24 @@ static struct {
     time_t synced;
 } s_drive;
 static void drive_sync(void);
+#define CAP_RETRY_S 2 /* after a file refuses to open or take a frame, leave the card alone this long */
 static struct {
     FILE                 *f;
     sentinel_pcap_clock_t clock;
     unsigned              unflushed;
+    time_t                retry_at; /* no attempt on the card before this */
 } s_cap[SENTINEL_LINK_N];
+
+/* A capture file failed (to open, or to take a frame): drop frames without
+ * touching the card for a while, and say so in the stats once. */
+static void capture_failed(sentinel_link_t link)
+{
+    if (s_cap[link].f) fclose(s_cap[link].f);
+    s_cap[link].f        = NULL;
+    s_cap[link].retry_at = time(NULL) + CAP_RETRY_S;
+    s_stats.cap_failing[link] = true;
+    s_stats.packets_dropped++;
+}
 
 /* "<root>/sentinel", created on first use. False when there is no storage. */
 static bool store_dir(char *out, size_t n)
@@ -82,7 +95,6 @@ static FILE *capture_open(sentinel_link_t link)
         !sentinel_log_capture_name(name, sizeof(name), link, &t))
         return NULL;
     snprintf(path, sizeof(path), "%s/%s", dir, name);
-    snprintf(s_stats.cap_file[link], sizeof(s_stats.cap_file[link]), "%s", name);
     /* Append, never truncate: the name only resolves to a second, and a
      * reopen after a failed write (or a quick off and on) can land on a file
      * that already holds packets. Only an empty file gets the header. */
@@ -92,11 +104,14 @@ static FILE *capture_open(sentinel_link_t link)
     if (stat(path, &st) != 0 || st.st_size == 0) {
         uint8_t head[SENTINEL_PCAP_HEADER];
         sentinel_pcap_header(head, sentinel_pcap_linktype(link));
-        if (fwrite(head, 1, sizeof(head), f) != sizeof(head)) {
+        if (fwrite(head, 1, sizeof(head), f) != sizeof(head) || fflush(f) != 0) {
             fclose(f);
             return NULL;
         }
     }
+    /* The name is shown on screen, so it is only a name once the file is there. */
+    snprintf(s_stats.cap_file[link], sizeof(s_stats.cap_file[link]), "%s", name);
+    s_stats.cap_failing[link] = false;
     return f;
 }
 
@@ -107,15 +122,19 @@ void sentinel_store_packet(const sentinel_pkt_t *p)
         return;
     }
     if (!s_cap[p->link].f) {
+        if (s_cap[p->link].retry_at && time(NULL) < s_cap[p->link].retry_at) { /* the card said no a moment ago */
+            s_stats.packets_dropped++;
+            return;
+        }
         s_cap[p->link].f         = capture_open(p->link);
         s_cap[p->link].clock.set = false;
         s_cap[p->link].unflushed = 0;
+        if (!s_cap[p->link].f) {
+            capture_failed(p->link);
+            return;
+        }
     }
     FILE *f = s_cap[p->link].f;
-    if (!f) {
-        s_stats.packets_dropped++;
-        return;
-    }
     uint32_t sec, usec;
     uint8_t  rec[SENTINEL_PCAP_RECORD], radio[SENTINEL_PCAP_BLE_PHDR];
     /* Bluetooth packets go behind a radio header that carries the signal
@@ -124,17 +143,18 @@ void sentinel_store_packet(const sentinel_pkt_t *p)
     if (prefix) sentinel_pcap_ble_phdr(radio, p->rssi);
     sentinel_pcap_time(&s_cap[p->link].clock, (uint32_t)time(NULL), p->us, &sec, &usec);
     sentinel_pcap_record(rec, sec, usec, (uint32_t)(prefix + p->len), (uint32_t)(prefix + p->orig_len));
+    long at = ftell(f); /* where this record starts: a record half written is cut back to here */
     if (fwrite(rec, 1, sizeof(rec), f) != sizeof(rec) || (prefix && fwrite(radio, 1, prefix, f) != prefix) ||
         fwrite(p->data, 1, p->len, f) != p->len) {
-        /* The card filled up or went away: close, and let the next packet try a new file. */
-        fclose(f);
-        s_cap[p->link].f = NULL;
-        s_stats.packets_dropped++;
+        /* The card filled up or went away: no half record left behind, and the next packet tries again later. */
+        if (at >= 0 && fflush(f) == 0) (void)ftruncate(fileno(f), at);
+        capture_failed(p->link);
         return;
     }
     s_stats.packets++;
     if (++s_cap[p->link].unflushed >= FLUSH_EVERY) {
-        fflush(f);
+        /* A buffered write "succeeds" long after a card is gone: the flush is where its absence shows. */
+        if (fflush(f) != 0) capture_failed(p->link);
         s_cap[p->link].unflushed = 0;
     }
 }
@@ -143,7 +163,7 @@ void sentinel_store_flush(void)
 {
     for (int i = 0; i < SENTINEL_LINK_N; i++) {
         if (s_cap[i].f && s_cap[i].unflushed) {
-            fflush(s_cap[i].f);
+            if (fflush(s_cap[i].f) != 0) capture_failed((sentinel_link_t)i);
             s_cap[i].unflushed = 0;
         }
     }
@@ -154,7 +174,8 @@ void sentinel_store_close(void)
 {
     for (int i = 0; i < SENTINEL_LINK_N; i++) {
         if (s_cap[i].f) fclose(s_cap[i].f);
-        s_cap[i].f = NULL;
+        s_cap[i].f        = NULL;
+        s_cap[i].retry_at = 0; /* a new session tries the card afresh */
     }
 }
 
@@ -248,6 +269,7 @@ bool sentinel_store_drive_open(const sentinel_wigle_id_t *id)
     }
     s_drive.unsynced[SENTINEL_DRIVE_WIGLE] = s_drive.unsynced[SENTINEL_DRIVE_SURVEY] = true; /* the headers */
     drive_sync();
+    if (!s_drive.f[SENTINEL_DRIVE_WIGLE] || !s_drive.f[SENTINEL_DRIVE_SURVEY]) return false; /* the headers never reached the card: no drive */
     snprintf(s_stats.drive_file, sizeof(s_stats.drive_file), "%s", wigle);
     s_stats.drive_open = true;
     return true;

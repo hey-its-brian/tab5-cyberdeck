@@ -304,6 +304,9 @@ static void writer(void *arg)
         sentinel_store_stats(&after);
         if (before.drive_open && !after.drive_open && s_drive_wanted)
             sentinel_note(true, "wardrive: the SD card stopped taking rows");
+        /* The same for a capture: the first frame the card refuses is worth a line, the rest are a count. */
+        for (int i = 0; i < SENTINEL_LINK_N; i++)
+            if (!before.cap_failing[i] && after.cap_failing[i]) sentinel_note(true, "capture: the SD card is not taking frames");
     }
 }
 
