@@ -353,5 +353,22 @@ tasks, executed in order on this branch. Host tests went from 21 to 25.
   warnings. The jam scene shows the red ALERT banner over NOTES at 30 s and
   the saver's warning line at 125 s. The drive scene with `SIM_RF_DROP=80`
   keeps the drive through the drop (241 rows at 90 s, 274 at 150 s).
+- **The whole-branch review** (a fresh reviewer, after the twelve tasks)
+  found no critical issue and six important ones, all fixed in the commit
+  "Final review fixes": a warning could replace an alert's banner between
+  10 and 20 s (the banner's show told the rules the banner was gone); an
+  alert over SENTINEL on a dark screen did not wake it; a wake from sleep
+  fell straight back into the saver; RETUNE? or STOP THE SURVEY? left up
+  while the link dropped crashed when answered (a confirm now dies with its
+  screen); `release.sh X notes --local` took the flag as the title and could
+  publish; a reopened capture file could be cut back to byte 0 on a failed
+  first record. Deferred as minor: `cap_failing` not cleared on close; the
+  booted wireless value read on the first SETTINGS visit; `hal_restart()`
+  not stopping the writer first; a vanished row keeping the selection under
+  SHOW: FLAGGED; Alt+H listing both R and X.
 - **Not done here.** The device checklist waits on the published prerelease
-  (the ROADMAP has it). The phase 2 decisions stand unreviewed.
+  (the ROADMAP has it; two more items from the review: an alert while
+  SENTINEL is open and the screen sleeps, and the board unplugged with
+  RETUNE? open). The phase 2 decisions stand unreviewed. The submodule
+  commit (rf-sentinel `feature/sentinel-core` 5b3a188) has to be pushed
+  before this branch, or CI cannot check it out.
