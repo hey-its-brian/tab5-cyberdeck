@@ -22,6 +22,7 @@
 #include "deck_home.h"
 #include "deck_theme.h"
 #include "deck_widgets.h"
+#include "deck_wireless.h"
 
 typedef struct {
     lv_obj_t *bright_val;
@@ -657,8 +658,68 @@ static void app_row(lv_obj_t *list, size_t i, lv_obj_t **focus_sw)
     if (a == s_focus) *focus_sw = sw;
 }
 
-/* Core apps first, then optional apps in grid order. Returns the switch to
- * focus (the one SETTINGS was opened for), or NULL. */
+/* ---- WIRELESS TOOLS: NET TOOLS or SENTINEL, at the next restart ------------ */
+
+static bool      s_wireless_booted, s_wireless_known; /* what this boot chose, read on the first visit */
+static lv_obj_t *s_wireless_btn, *s_restart_btn;
+
+static void wireless_show(void)
+{
+    bool sentinel = deck_wireless_sentinel();
+    lv_label_set_text(lv_obj_get_child_by_type(s_wireless_btn, 0, &lv_label_class), sentinel ? "SENTINEL" : "NET TOOLS");
+    if (sentinel == s_wireless_booted) lv_obj_add_flag(s_restart_btn, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_remove_flag(s_restart_btn, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void wireless_clicked(lv_event_t *e)
+{
+    (void)e;
+    hal_cfg_set_i32("wireless", deck_wireless_sentinel() ? 0 : 1);
+    wireless_show();
+}
+
+static void restart_answer(bool yes, void *user)
+{
+    (void)user;
+    if (yes) hal_restart();
+}
+
+static void restart_clicked(lv_event_t *e)
+{
+    (void)e;
+    deck_modal_confirm_danger("RESTART THE DECK?", "The deck restarts now and comes back with the other wireless tools.", "RESTART",
+                              restart_answer, NULL);
+}
+
+static void wireless_row(lv_obj_t *list)
+{
+    if (!s_wireless_known) {
+        s_wireless_booted = deck_wireless_sentinel();
+        s_wireless_known  = true;
+    }
+    lv_obj_t *row = deck_box(list);
+    lv_obj_set_size(row, LV_PCT(100), 96);
+    lv_obj_t *ic = deck_label(row, g_font.icon_s, g_pal.accent, ICON_WIRELESS);
+    lv_obj_align(ic, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_t *nm = deck_label(row, g_font.disp_s, g_pal.text, "WIRELESS TOOLS");
+    lv_obj_align(nm, LV_ALIGN_TOP_LEFT, 44, 6);
+    lv_obj_t *desc = deck_label(row, g_font.mono_s, g_pal.dim,
+                                "NET TOOLS: Wi-Fi scan, ping, DNS, traceroute, LAN devices and a speed test on the deck's own Wi-Fi. "
+                                "SENTINEL: the radio board suite, with those tools inside it. Takes effect when the deck restarts.");
+    lv_obj_set_width(desc, 700);
+    lv_label_set_long_mode(desc, LV_LABEL_LONG_MODE_WRAP);
+    lv_obj_align(desc, LV_ALIGN_BOTTOM_LEFT, 44, -4);
+    s_wireless_btn = small_button(row, "NET TOOLS", wireless_clicked, NULL);
+    lv_obj_set_width(s_wireless_btn, 160);
+    lv_obj_align(s_wireless_btn, LV_ALIGN_RIGHT_MID, -8, 0);
+    s_restart_btn = small_button(row, "RESTART", restart_clicked, NULL);
+    lv_obj_align(s_restart_btn, LV_ALIGN_RIGHT_MID, -180, 0);
+    wireless_show();
+}
+
+/* Core apps first, then the wireless choice, then optional apps in grid
+ * order. Returns the switch to focus (the one SETTINGS was opened for), or
+ * NULL. */
 static lv_obj_t *build_applications(lv_obj_t *page)
 {
     lv_obj_t *list = column_panel(page, 0);
@@ -670,6 +731,7 @@ static lv_obj_t *build_applications(lv_obj_t *page)
     deck_section(list, "APPLICATIONS");
     lv_obj_t *focus_sw = NULL;
     for (int pass = 0; pass < 2; pass++) {
+        if (pass == 1) wireless_row(list);
         for (size_t i = 0; i < deck_app_count() && i < DECK_APP_MAX; i++) {
             if (deck_app_get(i)->optional == (pass == 1)) app_row(list, i, &focus_sw);
         }
