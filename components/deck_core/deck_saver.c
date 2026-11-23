@@ -14,6 +14,7 @@
 #include "deck_boot.h"
 #include "deck_hal.h"
 #include "deck_icons.h"
+#include "deck_notice.h"
 #include "deck_ota.h"
 #include "deck_portal.h"
 #include "deck_shell.h"
@@ -24,7 +25,7 @@
 #define DRIFT_EVERY_MS (30u * 1000u)
 
 static lv_obj_t *s_root;  /* overlay on the top layer while the saver runs */
-static lv_obj_t *s_box, *s_time, *s_date, *s_track;
+static lv_obj_t *s_box, *s_time, *s_date, *s_track, *s_warn; /* s_warn: the unseen warnings, under the clock */
 static lv_timer_t *s_timer;
 static uint32_t s_started, s_moved;
 
@@ -74,6 +75,19 @@ static void update(lv_timer_t *t)
         lv_obj_remove_flag(s_track, LV_OBJ_FLAG_HIDDEN);
         deck_icon_text_set(s_track, ps == PLAYER_PLAYING ? ICON_MUSIC : ICON_PAUSE, player_title(), g_pal.accent);
     }
+    /* The warnings that came while nobody was looking, so a glance at the clock sees them. */
+    unsigned unseen = deck_notice_unseen();
+    if (!unseen) {
+        lv_obj_add_flag(s_warn, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        char latest[64];
+        snprintf(latest, sizeof(latest), "%s", deck_notice_latest());
+        for (char *p = latest; *p; p++)
+            if (*p >= 'a' && *p <= 'z') *p = (char)(*p - 'a' + 'A');
+        lv_obj_remove_flag(s_warn, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text_fmt(s_warn, "%u WARNING%s.  LATEST: %s", unseen, unseen == 1 ? "" : "S", latest);
+        lv_obj_set_style_text_color(s_warn, deck_notice_unseen_alerts() ? g_pal.danger : g_pal.warn, 0);
+    }
     if (lv_tick_elaps(s_moved) >= DRIFT_EVERY_MS) drift();
 }
 
@@ -121,6 +135,10 @@ static void open_saver(void)
     s_time  = deck_label(s_box, g_font.disp_hero, g_pal.accent, "");
     s_date  = deck_label(s_box, g_font.mono_l, g_pal.dim, "");
     s_track = deck_icon_text(s_box, ICON_MUSIC, "", g_font.mono_m, g_pal.accent);
+    s_warn  = deck_label(s_box, g_font.mono_l, g_pal.warn, "");
+    lv_obj_set_width(s_warn, 1000); /* an event's text can be long: it ends in dots rather than off the screen */
+    lv_label_set_long_mode(s_warn, LV_LABEL_LONG_MODE_DOTS);
+    lv_obj_add_flag(s_warn, LV_OBJ_FLAG_HIDDEN);
 
     uint8_t bright = (uint8_t)hal_cfg_get_i32("bright", 80);
     hal_backlight_set((uint8_t)(bright / 4 < 10 ? 10 : bright / 4));
