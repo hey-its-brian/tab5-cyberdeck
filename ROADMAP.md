@@ -184,7 +184,7 @@ Home screen first, then the two modules, one at a time.
 - [x] Review cleanup: APPS uses 4x3 from seven apps; a refused SETTINGS launch no longer leaves APPLICATIONS for the next Alt+S; the music indicator won't open a switched-off PLAYER; PLAYER start-up checks its lock, buffer and task (and retries on the next switch-on); duplicate app ids are rejected
 - [ ] Checkpoint on hardware: toggle each optional app; WEATHER stops fetching, PLAYER stops the music and its indicator; toggles survive a reboot; an update from v1.4 keeps every app on
 
-## v1.5.0-beta.2: ship (2026-11-23)
+## v1.5.0: ship (2026-11-23)
 
 The SENTINEL branch made deliverable over the air before any more features.
 Spec: `docs/superpowers/specs/2026-11-23-sentinel-ship-phase-design.md`.
@@ -194,7 +194,7 @@ Spec: `docs/superpowers/specs/2026-11-23-sentinel-ship-phase-design.md`.
 - [x] Notices have an ALERT level: a red banner that replaces a warning's, ignores the quiet period, stays 20 s and wakes a dark screen; the status bar count turns red; the screensaver shows the unseen count and the latest warning; the rules are a pure file with a host test
 - [x] The usability review finished inside SENTINEL: BACK names where it goes; a drive outlives a link drop, and BACK and the alert line ask before ending it; one big START / END button; a capture names its file; NETWORKS filters to the flagged and marks yours as mine; retuning or leaving TRANSMITTERS asks before its lists are lost; the survey's stop is named; a deck line never covers a live alert; a blue "live" colour for anything running, so NOMAD and MILITECH accents cannot be taken for warn or ok
 - [x] Your own Bluetooth devices are left out of a wardrive
-- [ ] Checkpoint on the Tab5 after Brian publishes the prerelease: the OTA from v1.5.0-beta.1, NET TOOLS by default with the bus dead, the switch and restart both ways, SENTINEL with the board (HELLO, alert line, a capture's name, a drive through an unplug)
+- [x] Checkpoint on the Tab5 (2026-11-23): v1.5.0-beta.2 installed over the air from v1.5.0-beta.1 and, in Brian's words, looks good. Not confirmed one by one: NET TOOLS with the bus dead, the switch and restart both ways, SENTINEL with the board (HELLO, the alert line, a capture's name, a drive through an unplug, an alert waking the screen with SENTINEL open)
 - Left as it is, on purpose: the slashed zero (Orbitron has no alternate), a day picker in LOG, touch selection inside charts, SCAN's channel chart without the board
 
 ## Next: Startup sound

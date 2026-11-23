@@ -11,13 +11,13 @@ weather, a music player and a file manager with a LAN portal.
 |---|---|---|
 | ![Boot](docs/screenshots/boot.png) | ![Settings](docs/screenshots/system.png) | ![Offline module](docs/screenshots/module_offline.png) |
 
-## Status: v1.3.0
+## Status: v1.5.0
 
 Seven modules: TERMINAL (SSH and Ollama chat), NOTES (markdown), CALC, WEATHER, PLAYER
 (music), FILES (file manager and LAN portal) and SYSTEM. It updates itself over
 Wi-Fi with signed builds and tells you when a new one is out.
 
-**Next (v1.5): app toggles and a cleaner home.** The home screen is a live
+**v1.5: app toggles and a cleaner home.** The home screen is a live
 panel plus six fixed tiles: TERMINAL, NOTES, SETTINGS, CALC, FILES and APPS.
 Tiles carry only an icon, a name and their `Alt+letter`. The panel shows live
 sections from apps that have one (WEATHER today; tap a section to open the
