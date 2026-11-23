@@ -45,6 +45,7 @@ void deck_shell_set_manage(void (*fn)(const deck_app_t *focus));
  * on the status bar clock sleeps. */
 void deck_shell_sleep(void);
 bool deck_shell_sleeping(void);
+void deck_shell_wake(void); /* nothing when not asleep; the press that wakes is not needed */
 
 /* The shortcut list (Alt+H, or the hint on the home screen). */
 void deck_shell_shortcuts(void);

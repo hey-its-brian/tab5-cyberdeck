@@ -100,6 +100,7 @@ add_executable(deck_sim
     ${ROOT}/components/deck_core/deck_modal.c
     ${ROOT}/components/deck_core/deck_notice.c
     ${ROOT}/components/deck_core/deck_wireless.c
+    ${ROOT}/components/deck_core/deck_notice_rules.c
     ${ROOT}/components/deck_md/deck_md.c
     ${ROOT}/components/deck_sync/deck_sync.c
     ${ROOT}/components/deck_sync/ls_sync.c
@@ -191,3 +192,8 @@ set_tests_properties(sim_list_sentinel PROPERTIES PASS_REGULAR_EXPRESSION
 add_test(NAME sim_list_net_off COMMAND deck_sim --headless --no-boot --list --set app_net=0)
 set_tests_properties(sim_list_net_off PROPERTIES PASS_REGULAR_EXPRESSION
     "apps: term notes calc weather player files net sys\nhome: TERMINAL NOTES SETTINGS CALC FILES APPS\ngroup: WEATHER PLAYER \"NET TOOLS\" \\(off\\)\n")
+
+add_executable(notice_test notice_test.c ${ROOT}/components/deck_core/deck_notice_rules.c)
+target_include_directories(notice_test PRIVATE ${ROOT}/components/deck_core/include)
+target_compile_options(notice_test PRIVATE -Wall -Wextra)
+add_test(NAME notice_rules COMMAND notice_test)

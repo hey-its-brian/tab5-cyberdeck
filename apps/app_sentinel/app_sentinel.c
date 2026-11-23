@@ -74,8 +74,7 @@ static void board_apply(bool on)
         sn_frame_exit("offensive mode ended: board switched off");
         if (s_bg.timer) lv_timer_delete(s_bg.timer);
         s_bg.timer = NULL;
-        deck_notice_seen();
-        sentinel_stop();
+        sentinel_stop(); /* the unseen count stays: warnings clear when LOG shows them */
     }
 }
 
@@ -103,7 +102,8 @@ static void bg_tick(lv_timer_t *t)
     if (fresh > st->evt_count) fresh = st->evt_count;
     for (int i = (int)fresh - 1; i >= 0; i--) {
         const sentinel_event_t *e = sentinel_event(st, i);
-        if (e && sn_level_of(e->warn, e->text) != SN_NOTE) deck_notice_post(DECK_NOTICE_WARN, e->src, e->text, &s_app);
+        sn_level_t lvl = e ? sn_level_of(e->warn, e->text) : SN_NOTE;
+        if (lvl != SN_NOTE) deck_notice_post(lvl == SN_ALERT ? DECK_NOTICE_ALERT : DECK_NOTICE_WARN, e->src, e->text, &s_app);
     }
 
     /* A sleeping screen is an unattended deck: OFFENSIVE does not survive it. */

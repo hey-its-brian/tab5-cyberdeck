@@ -176,6 +176,11 @@ void deck_shell_sleep(void)
 
 bool deck_shell_sleeping(void) { return s_sleep != NULL; }
 
+void deck_shell_wake(void)
+{
+    if (s_sleep) lv_async_call(wake_async, NULL);
+}
+
 static const uint8_t s_kbd_levels[3] = {0, 3, 20}; /* OFF, LOW, HIGH (20 = keyboard default) */
 
 void deck_shell_apply_kbd_light(void)

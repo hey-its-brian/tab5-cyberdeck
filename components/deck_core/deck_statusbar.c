@@ -191,7 +191,7 @@ static void refresh(lv_timer_t *t)
         char count[12];
         snprintf(count, sizeof(count), "%u", unseen > 99 ? 99 : unseen);
         lv_obj_remove_flag(s_alert, LV_OBJ_FLAG_HIDDEN);
-        set_indicator(s_alert, ICON_ALERT, count, g_pal.warn);
+        set_indicator(s_alert, ICON_ALERT, count, deck_notice_unseen_alerts() ? g_pal.danger : g_pal.warn);
     } else {
         lv_obj_add_flag(s_alert, LV_OBJ_FLAG_HIDDEN);
     }
