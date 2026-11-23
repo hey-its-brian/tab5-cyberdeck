@@ -95,6 +95,10 @@ int main(void)
     sentinel_store_close();
     sentinel_store_stats(&st);
     CHECK(st.packets == 2 && st.packets_dropped == 1);
+    /* capture_names_its_file: the screen shows where the frames went */
+    CHECK(strncmp(st.cap_file[SENTINEL_LINK_WIFI], "cap-wifi-", 9) == 0 && strlen(st.cap_file[SENTINEL_LINK_WIFI]) == 29 &&
+          strcmp(st.cap_file[SENTINEL_LINK_WIFI] + 24, ".pcap") == 0);
+    CHECK(st.cap_file[SENTINEL_LINK_BLE][0] == 0);
     char cmd[256], cap[200] = {0};
     snprintf(cmd, sizeof(cmd), "ls %s/sentinel/cap-wifi-*.pcap", root);
     FILE *ls = popen(cmd, "r");

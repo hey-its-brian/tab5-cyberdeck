@@ -23,6 +23,7 @@
 #include <string.h>
 
 #include "deck_attr.h"
+#include "deck_hal.h"
 #include "deck_icons.h"
 #include "deck_net.h"
 #include "deck_theme.h"
@@ -42,6 +43,7 @@ typedef struct {
     uint8_t  ch;
     int8_t   rssi;
     bool     open, weak, pmf, twin; /* twin: the same name exists with the opposite kind of security */
+    bool     mine;                  /* marked as the user's own: never flagged */
     uint32_t beacons, first_ms;
 } ap_t;
 
@@ -54,6 +56,8 @@ static struct {
     lv_obj_t *summary;
     ap_t      ap[ROWS_MAX];
     int       n;
+    int       shown[ROWS_MAX], shown_n; /* the rows listed: all, or only the flagged */
+    bool      flagged_only;
     char      sel_mac[18];
     bool      detail, scanning;
     uint32_t  scanned_at;
@@ -70,6 +74,58 @@ static struct {
 } s_wf DECK_PSRAM_BSS;
 
 static sentinel_bandhost_t s_band DECK_PSRAM_BSS; /* BEST CHANNEL's measured energy */
+
+/* The networks marked as the user's own: up to eight addresses, oldest
+ * first, kept in settings as "wifi_mine". Loaded when NETWORKS opens. */
+#define MINE_MAX 8
+static struct {
+    uint8_t addr[MINE_MAX][6];
+    int     n;
+    bool    loaded;
+} s_mine;
+
+static bool mac_parse(const char *text, uint8_t out[6])
+{
+    unsigned b[6];
+    if (sscanf(text, "%2x:%2x:%2x:%2x:%2x:%2x", &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) != 6) return false;
+    for (int i = 0; i < 6; i++) out[i] = (uint8_t)b[i];
+    return true;
+}
+
+static void mine_load(void)
+{
+    if (s_mine.loaded) return;
+    size_t len = sizeof(s_mine.addr);
+    s_mine.n   = hal_cfg_get_blob("wifi_mine", s_mine.addr, &len) && len % 6 == 0 && len <= sizeof(s_mine.addr) ? (int)(len / 6) : 0;
+    s_mine.loaded = true;
+}
+
+static int mine_find(const char *mac)
+{
+    uint8_t a[6];
+    if (!mac_parse(mac, a)) return -1;
+    for (int i = 0; i < s_mine.n; i++)
+        if (memcmp(s_mine.addr[i], a, 6) == 0) return i;
+    return -1;
+}
+
+static void mine_set(const char *mac, bool mine)
+{
+    uint8_t a[6];
+    int     i = mine_find(mac);
+    if (!mac_parse(mac, a) || (i >= 0) == mine) return;
+    if (mine) {
+        if (s_mine.n == MINE_MAX) { /* the oldest goes */
+            memmove(s_mine.addr[0], s_mine.addr[1], sizeof(s_mine.addr[0]) * (MINE_MAX - 1));
+            s_mine.n--;
+        }
+        memcpy(s_mine.addr[s_mine.n++], a, 6);
+    } else {
+        memmove(s_mine.addr[i], s_mine.addr[i + 1], sizeof(s_mine.addr[0]) * (size_t)(s_mine.n - 1 - i));
+        s_mine.n--;
+    }
+    hal_cfg_set_blob("wifi_mine", s_mine.n ? s_mine.addr : NULL, (size_t)s_mine.n * 6);
+}
 
 static void tick(lv_timer_t *t)
 {
@@ -95,6 +151,8 @@ static void begin(void (*render)(void), const char *tool)
     s_wf.timer = lv_timer_create(tick, TICK_MS, NULL);
 }
 
+static void cap_say_stopped(void);
+
 static void end(void)
 {
     if (s_wf.timer) lv_timer_delete(s_wf.timer);
@@ -102,6 +160,8 @@ static void end(void)
     s_wf.render = NULL;
     s_wf.chart  = NULL;
     memset(&s_wf.list, 0, sizeof(s_wf.list));
+    if (s_wf.cap_wanted) cap_say_stopped(); /* leaving by any route stops a capture: say so, and where it went */
+    s_wf.cap_wanted = false;
     sentinel_capture(false); /* a capture and the radio belong to the screen that asked */
     sentinel_tool("watch");
 }
@@ -165,6 +225,7 @@ static void aps_pull(void)
     for (int i = 0; i < s_wf.n; i++) {
         ap_t *a = &s_wf.ap[i];
         a->twin = false;
+        a->mine = mine_find(a->mac) >= 0;
         if (!a->ssid[0]) continue;
         for (int k = 0; k < s_wf.n; k++)
             if (k != i && !strcmp(s_wf.ap[k].ssid, a->ssid) && s_wf.ap[k].open != a->open) a->twin = true;
@@ -172,7 +233,19 @@ static void aps_pull(void)
 }
 
 /* An open copy of a protected name is the likely impostor; anything open or old is weak. */
-static sn_level_t ap_level(const ap_t *a) { return a->twin && a->open ? SN_ALERT : (a->twin || a->open || a->weak) ? SN_WARNING : SN_NOTE; }
+static sn_level_t ap_level(const ap_t *a)
+{
+    if (a->mine) return SN_NOTE;
+    return a->twin && a->open ? SN_ALERT : (a->twin || a->open || a->weak) ? SN_WARNING : SN_NOTE;
+}
+
+/* Which rows the list shows, in the order of the table. */
+static void shown_update(void)
+{
+    s_wf.shown_n = 0;
+    for (int i = 0; i < s_wf.n; i++)
+        if (!s_wf.flagged_only || ap_level(&s_wf.ap[i]) != SN_NOTE) s_wf.shown[s_wf.shown_n++] = i;
+}
 
 static int ap_selected(void)
 {
@@ -193,7 +266,8 @@ static void net_detail_render(void)
     }
     const ap_t *a = &s_wf.ap[i];
     sn_set(s_wf.state, lv_color_white(), "%s", a->ssid[0] ? a->ssid : "(HIDDEN NAME)");
-    if (a->twin && a->open) sn_set(s_wf.v[0], g_pal.danger, "!! This name is protected on another access point and open here. This one may be an impostor.");
+    if (a->mine) sn_set(s_wf.v[0], g_pal.ok, "Marked as yours: never flagged.");
+    else if (a->twin && a->open) sn_set(s_wf.v[0], g_pal.danger, "!! This name is protected on another access point and open here. This one may be an impostor.");
     else if (a->twin) sn_set(s_wf.v[0], g_pal.warn, "! An open copy of this name is nearby. Devices may join that one instead.");
     else if (a->open) sn_set(s_wf.v[0], g_pal.warn, "! Open: anyone nearby can read what is not encrypted some other way.");
     else if (a->weak) sn_set(s_wf.v[0], g_pal.warn, "! %s is old and can be broken.", a->sec);
@@ -211,31 +285,43 @@ static void net_detail_render(void)
     }
 }
 
+static void net_mine(void);
+static void net_filter(void);
+
 static void net_list_render(void)
 {
-    int sel = ap_selected();
+    shown_update();
+    int sel = -1, k = ap_selected();
+    for (int i = 0; i < s_wf.shown_n && sel < 0; i++)
+        if (s_wf.shown[i] == k) sel = i;
     if (sel < 0) sel = s_wf.list.sel;
-    sn_list_set(&s_wf.list, s_wf.n, sel, s_wf.board ? "LISTENING..." : s_wf.scanning ? "SCANNING..." : "NO NETWORKS FOUND");
-    if (s_wf.n) snprintf(s_wf.sel_mac, sizeof(s_wf.sel_mac), "%s", s_wf.ap[s_wf.list.sel].mac);
-    int open = 0, weak = 0, twins = 0;
+    sn_list_set(&s_wf.list, s_wf.shown_n, sel, s_wf.flagged_only ? "NOTHING FLAGGED" : s_wf.board ? "LISTENING..." : s_wf.scanning ? "SCANNING..." : "NO NETWORKS FOUND");
+    if (s_wf.shown_n) snprintf(s_wf.sel_mac, sizeof(s_wf.sel_mac), "%s", s_wf.ap[s_wf.shown[s_wf.list.sel]].mac);
+    int open = 0, weak = 0, twins = 0, flagged = 0;
     for (int i = 0; i < s_wf.n; i++) {
         const ap_t *a = &s_wf.ap[i];
         if (a->open) open++;
         if (a->weak) weak++;
         if (a->twin && a->open) twins++;
+        if (ap_level(a) != SN_NOTE) flagged++;
     }
     for (int r = 0; r < SN_LIST_ROWS; r++) {
-        int k = sn_list_item(&s_wf.list, r);
-        if (k < 0) continue;
-        const ap_t *a   = &s_wf.ap[k];
+        int row = sn_list_item(&s_wf.list, r);
+        if (row < 0) continue;
+        const ap_t *a   = &s_wf.ap[s_wf.shown[row]];
         sn_level_t  lvl = ap_level(a);
-        sn_set(sn_list_text(&s_wf.list, r), lvl == SN_NOTE ? g_pal.text : sn_level_color(lvl), "%-2s %4d dBm   CH %-3u  %-6s  %s", sn_level_mark(lvl), a->rssi, a->ch, a->sec,
-               a->ssid[0] ? a->ssid : "(hidden)");
+        sn_set(sn_list_text(&s_wf.list, r), a->mine ? g_pal.ok : lvl == SN_NOTE ? g_pal.text : sn_level_color(lvl), "%-4s %4d dBm   CH %-3u  %-6s  %s",
+               a->mine ? "MINE" : sn_level_mark(lvl), a->rssi, a->ch, a->sec, a->ssid[0] ? a->ssid : "(hidden)");
     }
-    if (twins) sn_set(s_wf.summary, g_pal.danger, "!! %d POSSIBLE IMPOSTOR%s.   %d OPEN, %d WITH OLD SECURITY, OF %d.", twins, twins == 1 ? "" : "S", open, weak, s_wf.n);
+    if (s_wf.flagged_only) sn_set(s_wf.summary, flagged ? g_pal.warn : g_pal.label, "%d FLAGGED OF %d.   %d OPEN, %d WITH OLD SECURITY.", flagged, s_wf.n, open, weak);
+    else if (twins) sn_set(s_wf.summary, g_pal.danger, "!! %d POSSIBLE IMPOSTOR%s.   %d OPEN, %d WITH OLD SECURITY, OF %d.", twins, twins == 1 ? "" : "S", open, weak, s_wf.n);
     else
         sn_set(s_wf.summary, g_pal.label, "%d NETWORKS, STRONGEST FIRST.   %d OPEN, %d WITH OLD SECURITY.   %s", s_wf.n, open, weak,
                s_wf.board ? "HEARD BY THE RADIO BOARD." : "SCANNED BY THE DECK'S OWN WI-FI.");
+    sn_action_label(net_filter, s_wf.flagged_only ? "SHOW: FLAGGED" : "SHOW: ALL");
+    int c = ap_selected();
+    sn_action_label(net_mine, c >= 0 && s_wf.ap[c].mine ? "NOT MINE" : "MINE");
+    sn_action_enable(net_mine, c >= 0);
 }
 
 static void net_render(void)
@@ -247,8 +333,8 @@ static void net_render(void)
 
 static void net_open(int index)
 {
-    if (index < 0 || index >= s_wf.n) return;
-    snprintf(s_wf.sel_mac, sizeof(s_wf.sel_mac), "%s", s_wf.ap[index].mac);
+    if (index < 0 || index >= s_wf.shown_n) return;
+    snprintf(s_wf.sel_mac, sizeof(s_wf.sel_mac), "%s", s_wf.ap[s_wf.shown[index]].mac);
     s_wf.detail    = true;
     lv_obj_t *body = sn_body_reset();
     memset(&s_wf.list, 0, sizeof(s_wf.list));
@@ -265,6 +351,20 @@ static void net_rescan(void)
     if (!s_wf.board) s_wf.scanned_at = 0;
 }
 
+static void net_filter(void)
+{
+    s_wf.flagged_only = !s_wf.flagged_only;
+    net_list_render();
+}
+
+static void net_mine(void)
+{
+    int c = ap_selected();
+    if (c < 0) return;
+    mine_set(s_wf.ap[c].mac, !s_wf.ap[c].mine);
+    net_render();
+}
+
 static void net_list_build(void)
 {
     lv_obj_t *body = sn_body_reset();
@@ -274,11 +374,15 @@ static void net_list_build(void)
     lv_label_set_long_mode(s_wf.summary, LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_height(s_wf.summary, lv_font_get_line_height(g_font.mono_m));
     sn_list_build(&s_wf.list, body, net_open);
+    sn_action(HID_LETTER('F'), "F", "SHOW: ALL", net_filter);
+    sn_action(HID_LETTER('M'), "M", "MINE", net_mine);
     if (!s_wf.board) sn_action(HID_LETTER('R'), "R", "SCAN AGAIN", net_rescan);
     sn_help("Every access point in range, strongest first. Press Enter or tap a row for its details.\n\n"
             "!  means weak: open, or WEP or WPA, which can be broken.\n"
             "!! means the same name is protected on one access point and open on another. The open one may be an impostor "
             "set up to catch devices that remember the name.\n\n"
+            "F shows only the flagged ones. M marks the chosen network as yours, and it is never flagged again (up to eight; "
+            "the deck remembers them).\n\n"
             "With the radio board on, this list is made by listening only. Without it, the deck's own Wi-Fi scans, which "
             "sends probe requests and cannot see as much.");
     net_list_render();
@@ -288,6 +392,7 @@ static void net_build(lv_obj_t *body)
 {
     (void)body;
     begin(net_render, "wifi");
+    mine_load();
     aps_pull();
     net_list_build();
 }
@@ -303,8 +408,8 @@ static bool net_key(const deck_key_t *k)
 {
     if (s_wf.detail) return false;
     if (!sn_list_key(&s_wf.list, k)) return false;
-    if (!s_wf.detail && s_wf.n) {
-        snprintf(s_wf.sel_mac, sizeof(s_wf.sel_mac), "%s", s_wf.ap[s_wf.list.sel].mac);
+    if (!s_wf.detail && s_wf.shown_n) {
+        snprintf(s_wf.sel_mac, sizeof(s_wf.sel_mac), "%s", s_wf.ap[s_wf.shown[s_wf.list.sel]].mac);
         net_list_render();
     }
     return true;
@@ -316,8 +421,8 @@ static lv_color_t heat(uint8_t v)
 {
     if (v == SENTINEL_WATERFALL_ALARM) return g_pal.danger;
     if (v == 0) return g_pal.bg;
-    if (v < 210) return lv_color_mix(g_pal.accent, g_pal.bg, (uint8_t)(12 + v * 243 / 210));
-    return lv_color_mix(lv_color_white(), g_pal.accent, (uint8_t)((v - 210) * 5));
+    if (v < 210) return lv_color_mix(g_pal.live, g_pal.bg, (uint8_t)(12 + v * 243 / 210));
+    return lv_color_mix(lv_color_white(), g_pal.live, (uint8_t)((v - 210) * 5));
 }
 
 static void fill(lv_layer_t *layer, int32_t x1, int32_t y1, int32_t x2, int32_t y2, lv_color_t c)
@@ -563,11 +668,32 @@ static void drone_build(lv_obj_t *body)
 
 /* ---- CAPTURE (Wi-Fi and Bluetooth) ---------------------------------------------- */
 
+static sentinel_link_t cap_link(void) { return s_wf.cap_tool && !strcmp(s_wf.cap_tool, "ble") ? SENTINEL_LINK_BLE : SENTINEL_LINK_WIFI; }
+
+static void cap_say_stopped(void)
+{
+    sentinel_store_stats_t log;
+    sentinel_stats(&log);
+    char text[96];
+    const char *file = log.cap_file[cap_link()];
+    if (file[0]) snprintf(text, sizeof(text), "RECORDING STOPPED: sentinel/%s", file);
+    else snprintf(text, sizeof(text), "RECORDING STOPPED BEFORE ANY FRAME WAS SAVED.");
+    sn_say(SN_NOTE, text, 15000);
+}
+
 static void cap_toggle(void)
 {
     s_wf.cap_wanted = !s_wf.cap_wanted;
     sentinel_capture(s_wf.cap_wanted);
+    if (!s_wf.cap_wanted) cap_say_stopped();
     if (s_wf.render) s_wf.render();
+}
+
+/* The alert line opening LOG: the capture stops and says so; nothing to ask. */
+static bool cap_hold(sn_fn_t go)
+{
+    (void)go;
+    return false;
 }
 
 static void cap_render(void)
@@ -575,12 +701,14 @@ static void cap_render(void)
     const sentinel_state_t *st = &s_wf.st;
     sentinel_store_stats_t  log;
     sentinel_stats(&log);
+    const char *file = log.cap_file[cap_link()];
     if (st->capture) {
         unsigned lost = (unsigned)(log.packets_dropped - s_wf.lost_base);
-        sn_set(s_wf.state, g_pal.accent, "RECORDING");
+        sn_set(s_wf.state, g_pal.live, "RECORDING");
         sn_set(s_wf.v[0], g_pal.text, "%u FRAMES SAVED", (unsigned)(log.packets - s_wf.cap_base));
         if (lost) sn_set(s_wf.v[1], g_pal.warn, "! %u frames did not reach the card.", lost);
-        else sn_set(s_wf.v[1], g_pal.label, "Nothing lost on the way to the card.");
+        else if (file[0]) sn_set(s_wf.v[1], g_pal.text, "FILE: sentinel/%s", file);
+        else sn_set(s_wf.v[1], g_pal.label, "The file opens with the first frame.");
     } else {
         s_wf.cap_base  = log.packets;
         s_wf.lost_base = log.packets_dropped;
@@ -594,7 +722,8 @@ static void cap_render(void)
             sn_set(s_wf.state, g_pal.text, "NOT RECORDING");
             sn_set(s_wf.v[0], g_pal.text, "Recording stops when you leave this screen.");
         }
-        sn_set(s_wf.v[1], g_pal.label, "The file goes in sentinel/ on the SD card as a pcap, which Wireshark opens.");
+        if (file[0]) sn_set(s_wf.v[1], g_pal.text, "LAST FILE: sentinel/%s", file);
+        else sn_set(s_wf.v[1], g_pal.label, "The file goes in sentinel/ on the SD card as a pcap, which Wireshark opens.");
     }
     sn_action_label(cap_toggle, s_wf.cap_wanted ? "STOP RECORDING" : "START RECORDING");
 }
@@ -638,9 +767,9 @@ const sn_screen_t sn_networks_screen = {.name = "NETWORKS", .purpose = "The netw
 static const sn_screen_t s_chan  = {.name = "CHANNELS", .purpose = "How busy each Wi-Fi channel is, now and lately.", .quote = "Over the line!", /* The Big Lebowski */ .icon = ICON_GAUGE, .flags = SN_BOARD, .build = chan_build, .destroy = end};
 static const sn_screen_t s_best  = {.name = "BEST CHANNEL", .purpose = "Which of channels 1, 6 and 11 your own network should use.", .quote = "Be excellent to each other.", /* Bill & Ted's Excellent Adventure */ .icon = ICON_TOOLS, .flags = SN_BOARD, .build = best_build, .destroy = end};
 static const sn_screen_t s_drone = {.name = "DRONES", .purpose = "Aircraft announcing themselves nearby (Remote ID).", .quote = "Negative, Ghost Rider, the pattern is full.", /* Top Gun */ .icon = ICON_RADAR, .flags = SN_BOARD, .build = drone_build, .destroy = end};
-static const sn_screen_t s_cap   = {.name = "CAPTURE", .purpose = "Record the Wi-Fi frames in the air to a file.", .quote = "Never rat on your friends and always keep your mouth shut.", /* Goodfellas */ .icon = ICON_SD, .flags = SN_BOARD, .build = cap_wifi_build, .destroy = end};
+static const sn_screen_t s_cap   = {.name = "CAPTURE", .purpose = "Record the Wi-Fi frames in the air to a file.", .quote = "Never rat on your friends and always keep your mouth shut.", /* Goodfellas */ .icon = ICON_SD, .flags = SN_BOARD, .build = cap_wifi_build, .destroy = end, .hold = cap_hold};
 
-const sn_screen_t sn_ble_capture_screen = {.name = "CAPTURE", .purpose = "Record Bluetooth advertising to a file.", .quote = "Mark it zero!", /* The Big Lebowski */ .icon = ICON_SD, .flags = SN_BOARD, .build = cap_ble_build, .destroy = end};
+const sn_screen_t sn_ble_capture_screen = {.name = "CAPTURE", .purpose = "Record Bluetooth advertising to a file.", .quote = "Mark it zero!", /* The Big Lebowski */ .icon = ICON_SD, .flags = SN_BOARD, .build = cap_ble_build, .destroy = end, .hold = cap_hold};
 
 static const sn_screen_t *const s_kids[] = {&sn_networks_screen, &s_chan, &s_best, &s_drone, &s_cap};
 

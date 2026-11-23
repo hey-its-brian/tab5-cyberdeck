@@ -82,6 +82,7 @@ static FILE *capture_open(sentinel_link_t link)
         !sentinel_log_capture_name(name, sizeof(name), link, &t))
         return NULL;
     snprintf(path, sizeof(path), "%s/%s", dir, name);
+    snprintf(s_stats.cap_file[link], sizeof(s_stats.cap_file[link]), "%s", name);
     /* Append, never truncate: the name only resolves to a second, and a
      * reopen after a failed write (or a quick off and on) can land on a file
      * that already holds packets. Only an empty file gets the header. */
