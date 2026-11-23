@@ -179,7 +179,9 @@ bool deck_shell_sleeping(void) { return s_sleep != NULL; }
 
 void deck_shell_wake(void)
 {
-    if (s_sleep) lv_async_call(wake_async, NULL);
+    if (!s_sleep) return;
+    lv_async_call(wake_async, NULL);
+    deck_saver_poke(); /* a wake is activity: the saver must not take the screen straight back */
 }
 
 static const uint8_t s_kbd_levels[3] = {0, 3, 20}; /* OFF, LOW, HIGH (20 = keyboard default) */

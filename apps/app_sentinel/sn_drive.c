@@ -7,7 +7,8 @@
  * The drive keeps running with the screen asleep, and through the board
  * dropping off the link (the screen stays up and says so). It ends when
  * this screen is left, because every other screen wants the board's radio
- * for something else; leaving while a drive runs asks first, by every route.
+ * for something else: BACK and the alert line ask first; leaving SENTINEL
+ * (an Alt shortcut, HOME) ends it without asking, as it always did.
  */
 #include "sn_ui.h"
 

@@ -17,12 +17,18 @@ static char                s_flag[16], s_latest[64];
 static lv_obj_t           *s_banner;
 static lv_timer_t         *s_hide;
 
-static void banner_close(void)
+/* The widgets only: a new banner replacing an old one is not the banner going. */
+static void banner_widgets_close(void)
 {
     if (s_hide) lv_timer_delete(s_hide);
     s_hide = NULL;
     if (s_banner) lv_obj_delete(s_banner);
     s_banner = NULL;
+}
+
+static void banner_close(void)
+{
+    banner_widgets_close();
     deck_notice_rules_banner_gone(&s_rules);
 }
 
@@ -43,7 +49,7 @@ static void banner_clicked(lv_event_t *e)
 static void banner_show(deck_notice_level_t level, const char *source, const char *text)
 {
     bool alert = level == DECK_NOTICE_ALERT;
-    banner_close();
+    banner_widgets_close();
     /* On the top layer so it rides over whatever app is running; it holds
      * no focus, so typing carries on underneath. */
     s_banner = deck_panel(lv_layer_top(), DECK_CUT_TL | DECK_CUT_BR, 12);

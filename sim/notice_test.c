@@ -94,6 +94,21 @@ static void alert_keeps_banner_over_warn(void)
     expect(deck_notice_rules_post(&r, DECK_NOTICE_WARN, false, false, 30000) == DECK_NOTICE_BANNER, "warn once the alert's banner is gone");
 }
 
+static void alert_keeps_banner_over_warn_after_quiet(void)
+{
+    deck_notice_rules_t r = fresh();
+    deck_notice_rules_post(&r, DECK_NOTICE_ALERT, false, false, 1000);
+    expect(deck_notice_rules_post(&r, DECK_NOTICE_WARN, false, false, 13000) == DECK_NOTICE_NONE, "warn 12 s under an alert banner: none");
+    expect(r.banner_level == DECK_NOTICE_ALERT, "warn 12 s under an alert banner: the alert's banner stays");
+}
+
+static void alert_wakes_dark_even_with_the_app_on_screen(void)
+{
+    deck_notice_rules_t r = fresh();
+    expect(deck_notice_rules_post(&r, DECK_NOTICE_ALERT, true, true, 1000) == DECK_NOTICE_BANNER_WAKE, "alert, app on a dark screen: wake");
+    expect(deck_notice_rules_post(&r, DECK_NOTICE_WARN, true, true, 2000) == DECK_NOTICE_NONE, "warn, app on a dark screen: nothing");
+}
+
 static void banner_ms(void)
 {
     expect(deck_notice_rules_banner_ms(DECK_NOTICE_WARN) == 4000, "a warning's banner stays 4 s");
@@ -121,6 +136,8 @@ int main(void)
     alert_wakes_dark();
     alert_skipped_on_screen();
     alert_keeps_banner_over_warn();
+    alert_keeps_banner_over_warn_after_quiet();
+    alert_wakes_dark_even_with_the_app_on_screen();
     banner_ms();
     seen_clears_both_counts();
     printf("%d checks, %d failed\n", s_count, s_fail);

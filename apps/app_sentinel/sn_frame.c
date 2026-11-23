@@ -74,6 +74,11 @@ sn_mode_t sn_mode(void) { return s_fr.mode; }
 static void leaf_down(void)
 {
     const sn_screen_t *sc = top();
+    /* A question the leaf asked is void with the leaf: its answer would act on widgets that are gone. */
+    if (s_fr.confirm_yes || s_fr.confirm_no) {
+        s_fr.confirm_yes = s_fr.confirm_no = NULL;
+        deck_modal_discard();
+    }
     if (s_fr.built && sc && sc->destroy) sc->destroy();
     s_fr.built = false;
 }

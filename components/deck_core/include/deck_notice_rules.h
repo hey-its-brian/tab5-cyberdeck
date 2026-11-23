@@ -8,9 +8,11 @@
  *   WARN   counts; a banner for a few seconds, unless the app that raised
  *          it is on screen, the screen is dark, another banner went up in
  *          the last few seconds, or an ALERT banner is up.
- *   ALERT  counts (twice: it is also an unseen alert); always a banner,
- *          which replaces whatever is up, ignores the quiet period, stays
- *          longer, and wakes a dark screen.
+ *   ALERT  counts (twice: it is also an unseen alert); a banner unless the
+ *          app that raised it is on a lit screen; it replaces whatever is
+ *          up, ignores the quiet period, stays longer, and wakes a dark
+ *          screen (the app being in front does not stop that: nobody is
+ *          looking at a dark screen).
  */
 #pragma once
 

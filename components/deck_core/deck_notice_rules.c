@@ -8,7 +8,8 @@ deck_notice_act_t deck_notice_rules_post(deck_notice_rules_t *r, deck_notice_lev
     if (level == DECK_NOTICE_INFO) return DECK_NOTICE_NONE;
     r->unseen++;
     if (level == DECK_NOTICE_ALERT) r->unseen_alerts++;
-    if (app_on_screen) return DECK_NOTICE_NONE; /* they are looking at it */
+    /* They are looking at it: nothing, unless the screen is dark, in which case nobody is. */
+    if (app_on_screen && (!screen_dark || level == DECK_NOTICE_WARN)) return DECK_NOTICE_NONE;
     if (level == DECK_NOTICE_WARN) {
         if (screen_dark) return DECK_NOTICE_NONE;
         if (r->banner_up && r->banner_level == DECK_NOTICE_ALERT) return DECK_NOTICE_NONE;

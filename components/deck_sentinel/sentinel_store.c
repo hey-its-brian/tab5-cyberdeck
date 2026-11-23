@@ -109,6 +109,9 @@ static FILE *capture_open(sentinel_link_t link)
             return NULL;
         }
     }
+    /* Appending starts at the end now, not at the first write: a record that fails
+     * is cut back to where it began, never to the start of an older capture. */
+    fseek(f, 0, SEEK_END);
     /* The name is shown on screen, so it is only a name once the file is there. */
     snprintf(s_stats.cap_file[link], sizeof(s_stats.cap_file[link]), "%s", name);
     s_stats.cap_failing[link] = false;
@@ -122,7 +125,8 @@ void sentinel_store_packet(const sentinel_pkt_t *p)
         return;
     }
     if (!s_cap[p->link].f) {
-        if (s_cap[p->link].retry_at && time(NULL) < s_cap[p->link].retry_at) { /* the card said no a moment ago */
+        time_t now = time(NULL); /* (a clock set backwards must not stretch the pause: only a pause still inside its length counts) */
+        if (s_cap[p->link].retry_at && now < s_cap[p->link].retry_at && s_cap[p->link].retry_at - now <= CAP_RETRY_S) {
             s_stats.packets_dropped++;
             return;
         }

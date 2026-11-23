@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Cut a DECK//OS release from main.
 #
-#   tools/release.sh 0.6.0 notes.md ["Release title"]
+#   tools/release.sh 0.6.0 notes.md ["Release title"] [--prerelease] [--local]
 #
 # Sets the version (PROJECT_VER + DECK_VERSION), commits, builds, makes the
 # two images, tags vX.Y.Z and publishes a GitHub release with:
@@ -31,14 +31,18 @@ notes="${2:?usage: $0 X.Y.Z notes.md}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
+# The title and the flags may come in any order after the notes file; a
+# flag never becomes the title, so --local cannot fail open as "the title".
 pre=""
 local_only=""
-for flag in "${4:-}" "${5:-}"; do
-    case "$flag" in
+title=""
+for arg in "${@:3}"; do
+    case "$arg" in
         --prerelease) pre="--prerelease" ;;
         --local) local_only=1 ;;
-        "") ;;
-        *) echo "unknown flag: $flag"; exit 1 ;;
+        --check-args) echo "pre=$pre local=$local_only title=$title"; exit 0 ;;
+        --*) echo "unknown flag: $arg"; exit 1 ;;
+        *) title="$arg" ;;
     esac
 done
 key="${DECK_SIGNING_KEY:-$HOME/.config/deck-os/ota_signing_key.pem}"
@@ -96,5 +100,5 @@ fi
 git push -q origin "$(git branch --show-current)"
 git tag -a "v$ver" -m "v$ver"
 git push -q origin "v$ver"
-gh release create "v$ver" "$out"/*.bin "$out"/*.elf --title "${3:-v$ver}" --notes-file "$notes" ${pre:+--prerelease}
+gh release create "v$ver" "$out"/*.bin "$out"/*.elf --title "${title:-v$ver}" --notes-file "$notes" ${pre:+--prerelease}
 echo "released v$ver"
