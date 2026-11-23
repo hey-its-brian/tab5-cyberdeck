@@ -4,9 +4,10 @@
  * Listening only: nothing is transmitted.
  *
  * One screen, one job: start a drive, see that it is recording, end it.
- * The drive keeps running with the screen asleep. It ends when this screen
- * is left, because every other screen wants the board's radio for something
- * else; leaving while a drive runs asks first.
+ * The drive keeps running with the screen asleep, and through the board
+ * dropping off the link (the screen stays up and says so). It ends when
+ * this screen is left, because every other screen wants the board's radio
+ * for something else; leaving while a drive runs asks first, by every route.
  */
 #include "sn_ui.h"
 
@@ -23,9 +24,10 @@
 #define OPEN_GRACE_MS 2000 /* how long a drive may run with its files not yet open before that is an error */
 
 static struct {
-    lv_obj_t   *state, *why, *wifi, *ble, *v[4];
+    lv_obj_t   *state, *why, *wifi, *ble, *v[4], *big; /* big: the one START / END button */
     lv_timer_t *timer;
     bool        leaving;
+    sn_fn_t     go; /* where leaving goes once the user agrees (NULL: back) */
     sentinel_state_t      st;
     sentinel_drive_info_t info;
 } s_drv DECK_PSRAM_BSS;
@@ -38,6 +40,7 @@ static void toggle(void);
 static const char *blocked(const sentinel_state_t *st)
 {
     if (!st->hello) return "The radio board has not introduced itself yet.";
+    if (!sentinel_link(st)) return "No link to the radio board.";
     if (!st->drv_ok) return "The board's firmware has no drive tool (needs 0.6.0).";
     if (!hal_storage_is_sd()) return "A drive needs an SD card.";
     return NULL;
@@ -102,9 +105,10 @@ static void render(void)
     else if (in->rows) sn_set(s_drv.v[3], g_pal.label, "%u rows written, none lost.", (unsigned)in->rows);
     else sn_set(s_drv.v[3], g_pal.label, " ");
 
-    sn_action_label(toggle, in->on ? "END THE DRIVE" : "START A DRIVE");
-    sn_action_danger(toggle, in->on);
-    sn_action_enable(toggle, in->on || !block);
+    sn_button_label(s_drv.big, in->on ? "END THE DRIVE" : "START A DRIVE");
+    sn_button_danger(s_drv.big, in->on);
+    if (in->on || !block) lv_obj_remove_state(s_drv.big, LV_STATE_DISABLED);
+    else lv_obj_add_state(s_drv.big, LV_STATE_DISABLED);
 }
 
 static void tick(lv_timer_t *t)
@@ -117,8 +121,11 @@ static void end_yes(void)
 {
     sentinel_drive_stop();
     if (s_drv.leaving) {
+        sn_fn_t go    = s_drv.go;
         s_drv.leaving = false;
-        sn_back();
+        s_drv.go      = NULL;
+        if (go) go();
+        else sn_back();
         return;
     }
     render();
@@ -171,9 +178,11 @@ static void build(lv_obj_t *body)
     lv_obj_set_style_margin_top(big, 10, 0);
     s_drv.wifi = count(big, "WI-FI ACCESS POINTS");
     s_drv.ble  = count(big, "BLUETOOTH DEVICES");
+    /* The one control, big enough for a thumb in a moving car. */
+    s_drv.big = sn_button(big, "ENTER", "START A DRIVE", toggle);
+    lv_obj_set_size(s_drv.big, 320, 100);
     for (int i = 0; i < 3; i++) s_drv.v[i] = sn_value(body);
     s_drv.v[3] = sn_note(body);
-    sn_action(HID_ENTER, "ENTER", "START A DRIVE", toggle);
     sn_help("A drive writes one row for each access point and Bluetooth device heard, with where and when, in the format "
             "wigle.net reads. It also keeps a second file of the 433 MHz and 2.4 GHz bands along the way.\n\n"
             "One row per device per place, and another after you have moved 25 m. Never written: networks that opt out of "
@@ -191,11 +200,29 @@ static void destroy(void)
     sentinel_drive_stop(); /* the drive ends with its screen: another screen wants the radio */
 }
 
+static bool key(const deck_key_t *k)
+{
+    if (k->code != HID_ENTER) return false;
+    toggle();
+    return true;
+}
+
 /* BACK while a drive runs: ask before ending it. */
 static bool back(void)
 {
     sentinel_drive_info(&s_drv.info);
     if (!s_drv.info.on) return false;
+    s_drv.go = NULL;
+    ask_end(true);
+    return true;
+}
+
+/* Any other way out (the alert line opening LOG): the same question, then on to where it was going. */
+static bool hold(sn_fn_t go)
+{
+    sentinel_drive_info(&s_drv.info);
+    if (!s_drv.info.on) return false;
+    s_drv.go = go;
     ask_end(true);
     return true;
 }
@@ -211,9 +238,11 @@ const sn_screen_t sn_drive_screen = {
     .name    = "WARDRIVE",
     .purpose = "Record what is heard, with its position, as you move.", .quote = "We're on a mission from God.", /* The Blues Brothers */
     .icon    = ICON_PIN,
-    .flags   = SN_BOARD,
+    .flags   = SN_BOARD | SN_KEEP_TOOL, /* a drive outlives the link: the screen stays and says NO LINK */
     .build   = build,
     .destroy = destroy,
+    .key     = key,
     .back    = back,
+    .hold    = hold,
     .status  = status,
 };

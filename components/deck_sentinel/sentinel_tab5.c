@@ -212,7 +212,8 @@ static void sink_device(void *user, const sentinel_bdv_t *d)
     (void)user;
     uint32_t now = sentinel_now_ms();
     sentinel_blehost_device(&s_ble, &s_state, d, now, &s_sink);
-    sentinel_drivelog_device(&s_state, d, now, drive_row);
+    /* Your own devices are not written to a drive (headphones with a fixed address were on file every 25 m). */
+    if (!sentinel_trackwatch_mine(&s_ble.watch, d->addr)) sentinel_drivelog_device(&s_state, d, now, drive_row);
 }
 
 /* Wi-Fi rows, the same way. */

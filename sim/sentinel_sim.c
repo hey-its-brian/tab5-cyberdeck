@@ -76,6 +76,7 @@ static int     s_hp_tick, s_hp_joins, s_hp_probes;
 uint32_t sentinel_now_ms(void) { return lv_tick_get(); }
 
 static int  s_jam_at = -1; /* the jam scene: see emit_nrf() */
+static int  s_drop_at = -1; /* SIM_RF_DROP=<s>: the node goes silent for a minute from then, as if unplugged */
 static bool jammed(void) { return s_jam_at >= 0 && (int)((lv_tick_get() - s_started) / 1000) >= s_jam_at; }
 
 static uint32_t rnd(uint32_t n)
@@ -106,7 +107,8 @@ static void sink_device(void *user, const sentinel_bdv_t *d)
 {
     (void)user;
     sentinel_blehost_device(&s_ble, &s_state, d, sentinel_now_ms(), &s_sink);
-    sentinel_drivelog_device(&s_state, d, sentinel_now_ms(), drive_row);
+    /* Your own devices are not written to a drive (headphones with a fixed address were on file every 25 m). */
+    if (!sentinel_trackwatch_mine(&s_ble.watch, d->addr)) sentinel_drivelog_device(&s_state, d, sentinel_now_ms(), drive_row);
 }
 static void sink_channel(void *user, const sentinel_wch_t *c)
 {
@@ -506,6 +508,7 @@ static void tick(lv_timer_t *t)
     if (out.note[0]) sentinel_push_event(&s_state, out.note_warn, "deck", out.note, sentinel_now_ms(), &s_sink);
     if (out.set_baud) printf("[sim] sentinel baud %u\n", (unsigned)out.set_baud);
     if (up < 2) return; /* the C5 is booting: commands sent now are lost */
+    if (s_drop_at >= 0 && (int)up >= s_drop_at && (int)up < s_drop_at + 60) return; /* unplugged: nothing in, nothing out */
     for (int i = 0; i < out.n_send; i++) sentinel_send(out.send[i]);
     node_arm_tick();
     if (s_tick == 0) emit("HELLO,0.8.0,2,cc=1,nrf=1,lora=0,gps=1,wifi=1,ble=1,mon=1,drv=1,sub=1,tst=1");
@@ -563,6 +566,7 @@ void sentinel_start(void)
     sentinel_nrfwatch_init(&s_node_nrf);
     s_node_dwell_khz = 0;
     s_jam_at         = getenv("SIM_RF_JAM") ? atoi(getenv("SIM_RF_JAM")) : -1;
+    s_drop_at        = getenv("SIM_RF_DROP") ? atoi(getenv("SIM_RF_DROP")) : -1;
     s_node_tool     = NODE_WATCH;
     s_street_m      = 0;
     s_hop           = 0;
