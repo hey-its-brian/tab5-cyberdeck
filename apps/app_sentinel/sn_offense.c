@@ -319,7 +319,7 @@ static void run_render(void)
         sn_set(s_dt.state, g_pal.ok, "SENT %u OF %u", st->txd_sent, st->txd_asked);
         sn_set(s_dt.v[0], g_pal.text, "Look in the LOG: the deauth detector should have a row of its own from the same moment.");
     } else if (s_dt.asked) {
-        sn_set(s_dt.state, g_pal.accent, "SENDING...");
+        sn_set(s_dt.state, g_pal.live, "SENDING...");
         sn_set(s_dt.v[0], g_pal.label, "About a sixth of a second.");
     } else if (!armed) {
         sn_set(s_dt.state, g_pal.warn, "! THE BOARD IS NOT ARMED YET");

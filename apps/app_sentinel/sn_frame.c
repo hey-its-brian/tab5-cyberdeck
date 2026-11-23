@@ -59,7 +59,7 @@ static struct {
     char               say[96];
     sn_level_t         say_level;
     uint32_t           say_until;
-    sn_fn_t            confirm_yes;
+    sn_fn_t            confirm_yes, confirm_no;
     sentinel_state_t   st;
 } s_fr DECK_PSRAM_BSS;
 
@@ -418,16 +418,19 @@ void sn_help(const char *text)
 static void confirm_answer(bool yes, void *user)
 {
     (void)user;
-    sn_fn_t fn        = s_fr.confirm_yes;
-    s_fr.confirm_yes = NULL;
-    if (yes && fn && s_fr.parent) fn();
+    sn_fn_t fn       = yes ? s_fr.confirm_yes : s_fr.confirm_no;
+    s_fr.confirm_yes = s_fr.confirm_no = NULL;
+    if (fn && s_fr.parent) fn();
 }
 
-void sn_confirm(const char *title, const char *message, const char *yes_label, sn_fn_t yes)
+void sn_confirm_or(const char *title, const char *message, const char *yes_label, sn_fn_t yes, sn_fn_t no)
 {
     s_fr.confirm_yes = yes;
+    s_fr.confirm_no  = no;
     deck_modal_confirm_danger(title, message, yes_label, confirm_answer, NULL);
 }
+
+void sn_confirm(const char *title, const char *message, const char *yes_label, sn_fn_t yes) { sn_confirm_or(title, message, yes_label, yes, NULL); }
 
 /* ---- Lists ----------------------------------------------------------------- */
 

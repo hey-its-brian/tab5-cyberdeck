@@ -235,7 +235,7 @@ static void selftest_render(void)
         sn_set(s_bd.state, g_pal.text, "NOT RUN YET");
         sn_set(s_bd.v[0], g_pal.text, "Each radio is asked to read its own registers back. Nothing is transmitted.");
     } else if (waiting) {
-        sn_set(s_bd.state, g_pal.accent, "ASKING EACH RADIO...");
+        sn_set(s_bd.state, g_pal.live, "ASKING EACH RADIO...");
         sn_set(s_bd.v[0], g_pal.label, "A moment.");
     } else if (st->tst_failed) {
         sn_set(s_bd.state, g_pal.danger, "!! %u OF %u DID NOT ANSWER", st->tst_failed, st->tst_failed + st->tst_passed);

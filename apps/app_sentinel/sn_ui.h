@@ -124,6 +124,8 @@ void sn_fmt_span(char *out, size_t n, uint32_t ms); /* "40 S", "12 MIN", "2 H 5 
 void sn_upper(char *s);
 /* Ask before doing something that loses or ends something. CANCEL has the focus. */
 void sn_confirm(const char *title, const char *message, const char *yes_label, sn_fn_t yes);
+/* The same, with something to do on CANCEL too (going back out of a screen that was opened by mistake). */
+void sn_confirm_or(const char *title, const char *message, const char *yes_label, sn_fn_t yes, sn_fn_t no);
 
 /* ---- The module's side (app_sentinel.c) --------------------------------------- */
 

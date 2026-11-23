@@ -202,7 +202,7 @@ static void host_run(void)
         s_nt.port = port;
     }
     s_nt.job = s_nt.screen_job;
-    sn_set(s_nt.state, g_pal.accent, "%s %s...", s_running[s_nt.job], s_nt.host);
+    sn_set(s_nt.state, g_pal.live, "%s %s...", s_running[s_nt.job], s_nt.host);
     lv_label_set_text(s_nt.out, "");
     sn_action_enable(host_run, false);
     if (!net_tools_run(host_job, host_done, NULL)) {
@@ -312,7 +312,7 @@ static void lan_render(void)
         return;
     }
     const char *off = offline();
-    if (s_nt.lan_running) sn_set(s_nt.state, g_pal.accent, "LOOKING, %d %%", s_nt.lan_done * 100 / (s_nt.lan_total ? s_nt.lan_total : 1));
+    if (s_nt.lan_running) sn_set(s_nt.state, g_pal.live, "LOOKING, %d %%", s_nt.lan_done * 100 / (s_nt.lan_total ? s_nt.lan_total : 1));
     else if (off) sn_set(s_nt.state, g_pal.warn, "! %s. Join one in SETTINGS.", off);
     else if (s_nt.lan_ran) sn_set(s_nt.state, g_pal.label, "%d DEVICE%s ANSWERED ON THIS NETWORK.", s_nt.host_n, s_nt.host_n == 1 ? "" : "S");
     else sn_set(s_nt.state, g_pal.label, "NOT LOOKED YET. IT TAKES ABOUT HALF A MINUTE.");
@@ -448,7 +448,7 @@ static void speed_render(void)
     int         ph  = s_nt.spd_phase;
     const char *off = offline();
     bool        busy = ph >= 1 && ph <= 3;
-    if (busy) sn_set(s_nt.state, g_pal.accent, "%s", names[ph]);
+    if (busy) sn_set(s_nt.state, g_pal.live, "%s", names[ph]);
     else if (off) sn_set(s_nt.state, g_pal.warn, "! %s. Join one in SETTINGS.", off);
     else if (s_nt.spd_ran && !s_nt.spd_down_ok) sn_set(s_nt.state, g_pal.warn, "! THE TEST SERVER DID NOT ANSWER.");
     else if (s_nt.spd_ran) sn_set(s_nt.state, g_pal.label, "DONE. 8 MB DOWN AND 2 MB UP WERE SENT TO MEASURE IT.");

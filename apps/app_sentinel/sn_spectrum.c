@@ -96,8 +96,8 @@ static void end(void)
 static lv_color_t heat(uint8_t v)
 {
     if (v == 0) return g_pal.bg;
-    if (v < 210) return lv_color_mix(g_pal.accent, g_pal.bg, (uint8_t)(12 + v * 243 / 210));
-    return lv_color_mix(lv_color_white(), g_pal.accent, (uint8_t)((v - 210) * 5));
+    if (v < 210) return lv_color_mix(g_pal.live, g_pal.bg, (uint8_t)(12 + v * 243 / 210));
+    return lv_color_mix(lv_color_white(), g_pal.live, (uint8_t)((v - 210) * 5));
 }
 
 static void fill(lv_layer_t *layer, int32_t x1, int32_t y1, int32_t x2, int32_t y2, lv_color_t c)
@@ -384,29 +384,75 @@ static void tx_render(void)
     }
 }
 
-static void tx_tune(int d)
+/* What a retune throws away: the bursts listed and the transmitters worked out from them. */
+static int tx_bursts(void) { return s_sp.b.bursts.n; }
+static int tx_emitters(void)
 {
-    uint32_t khz = s_sp.khz + (uint32_t)(d * KHZ_STEP);
-    if (khz >= SENTINEL_SUB_KHZ_MIN && khz <= SENTINEL_SUB_KHZ_MAX) s_sp.khz = khz;
+    int n = 0;
+    for (int i = 0; i < SENTINEL_EMITTERS_MAX; i++)
+        if (s_sp.b.bursts.em[i].used && s_sp.b.bursts.em[i].count >= 2) n++;
+    return n;
+}
+
+static uint32_t s_tx_want; /* the frequency a retune is waiting to go to */
+
+static void tx_tune_now(void)
+{
+    s_sp.khz = s_tx_want;
     sentinel_band_listen(s_sp.khz);
     tx_render();
 }
-static void tx_down(void) { tx_tune(-1); }
-static void tx_up(void) { tx_tune(1); }
-static void tx_home(void)
+
+/* Retuning starts the lists again, so with something on them it asks first. */
+static void tx_tune_to(uint32_t khz)
 {
-    s_sp.khz = SENTINEL_SUB_KHZ_DEFAULT;
-    tx_tune(0);
+    if (khz < SENTINEL_SUB_KHZ_MIN || khz > SENTINEL_SUB_KHZ_MAX) return;
+    s_tx_want = khz;
+    if (khz == s_sp.khz || (tx_bursts() == 0 && tx_emitters() == 0)) {
+        tx_tune_now();
+        return;
+    }
+    static char msg[120];
+    snprintf(msg, sizeof(msg), "%d bursts and %d transmitters heard at %u.%03u MHz are lost.", tx_bursts(), tx_emitters(), (unsigned)(s_sp.khz / 1000),
+             (unsigned)(s_sp.khz % 1000));
+    sn_confirm("RETUNE?", msg, "RETUNE", tx_tune_now);
+}
+static void tx_down(void) { tx_tune_to(s_sp.khz - KHZ_STEP); }
+static void tx_up(void) { tx_tune_to(s_sp.khz + KHZ_STEP); }
+static void tx_home(void) { tx_tune_to(SENTINEL_SUB_KHZ_DEFAULT); }
+
+/* Opened while a survey runs: parking the radio would end the sweep the survey needs, so ask before parking. */
+static void tx_survey_stop_yes(void)
+{
+    s_sv.on = false;
+    sentinel_band_listen(s_sp.khz);
+    tx_render();
+}
+
+/* Leaving by the alert line with something listed: the same loss, the same question. */
+static sn_fn_t s_tx_go;
+static void    tx_leave_yes(void)
+{
+    if (s_tx_go) s_tx_go();
+}
+static bool tx_hold(sn_fn_t go)
+{
+    if (tx_bursts() == 0 && tx_emitters() == 0) return false;
+    static char msg[120];
+    snprintf(msg, sizeof(msg), "%d bursts and %d transmitters heard here are lost.", tx_bursts(), tx_emitters());
+    s_tx_go = go;
+    sn_confirm("LEAVE TRANSMITTERS?", msg, "LEAVE", tx_leave_yes);
+    return true;
 }
 
 static void tx_build(lv_obj_t *body)
 {
     begin(tx_render);
-    if (s_sv.on) { /* with no sweep there is nothing to survey */
-        s_sv.on = false;
-        sn_say(SN_WARNING, "SITE SURVEY CANCELLED: THE 433 MHZ RADIO IS NOW LISTENING TO ONE FREQUENCY.", 20000);
-    }
-    sentinel_band_listen(s_sp.khz);
+    if (!s_sp.khz) s_sp.khz = SENTINEL_SUB_KHZ_DEFAULT;
+    if (s_sv.on) /* with no sweep there is nothing to survey: the radio stays sweeping until the user says */
+        sn_confirm_or("STOP THE SURVEY?", "Listening to one frequency stops the sweep the survey needs. What it has measured so far is thrown away.",
+                      "STOP SURVEY", tx_survey_stop_yes, sn_back);
+    else sentinel_band_listen(s_sp.khz);
     s_sp.state = sn_state(body);
     s_sp.v[0]  = sn_note(body);
     lv_obj_t *cols = sn_row_box(body);
@@ -423,7 +469,7 @@ static void tx_build(lv_obj_t *body)
     }
     sn_action(HID_LEFT, "<", "10 KHZ DOWN", tx_down);
     sn_action(HID_RIGHT, ">", "10 KHZ UP", tx_up);
-    sn_action(HID_ENTER, "ENTER", "BACK TO 433.92", tx_home);
+    sn_action(HID_ENTER, "ENTER", "RETUNE TO 433.92", tx_home);
     sn_help("The 433 MHz radio stays on one frequency and times every transmission there: how long, how strong, how long "
             "since the last one. Transmissions of the same shape are grouped, and a group that keeps a rhythm gets its "
             "period. That is how a weather station, a remote or a tyre sensor shows up.\n\n"
@@ -489,7 +535,7 @@ static void sv_cancel_yes(void)
 
 static void sv_cancel(void)
 {
-    if (s_sv.on) sn_confirm("CANCEL THE SURVEY?", "What it has measured so far is thrown away.", "CANCEL IT", sv_cancel_yes);
+    if (s_sv.on) sn_confirm("STOP THE SURVEY?", "What it has measured so far is thrown away.", "STOP IT", sv_cancel_yes);
 }
 
 static void sv_render(void)
@@ -498,7 +544,7 @@ static void sv_render(void)
     if (s_sv.on) {
         unsigned left = (unsigned)((s_sv.end_ms - now + 999) / 1000);
         if (left > SURVEY_MS / 1000) left = SURVEY_MS / 1000;
-        sn_set(s_sp.state, g_pal.accent, "MEASURING, %u S LEFT", left);
+        sn_set(s_sp.state, g_pal.live, "MEASURING, %u S LEFT", left);
         sn_set(s_sp.v[0], g_pal.text, "PLACE: %s", s_sv.tag[0] ? s_sv.tag : "(NO NAME)");
         sn_set(s_sp.v[1], g_pal.label, "You can leave this screen. The survey finishes and is saved by itself.");
         lv_bar_set_value(s_sp.bar, (int32_t)(SURVEY_MS / 1000 - left), LV_ANIM_OFF);
@@ -531,13 +577,13 @@ static void sv_build(lv_obj_t *body)
     lv_obj_set_size(s_sp.bar, LV_PCT(100), 22);
     lv_bar_set_range(s_sp.bar, 0, SURVEY_MS / 1000);
     lv_obj_set_style_bg_color(s_sp.bar, g_pal.line, 0);
-    lv_obj_set_style_bg_color(s_sp.bar, g_pal.accent, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(s_sp.bar, g_pal.live, LV_PART_INDICATOR);
     lv_obj_set_style_radius(s_sp.bar, 4, 0);
     lv_obj_set_style_radius(s_sp.bar, 4, LV_PART_INDICATOR);
     s_sp.v[0] = sn_value(body);
     s_sp.v[1] = sn_note(body);
     sn_action(HID_LETTER('S'), "S", "START A SURVEY", sv_start);
-    sn_action(HID_LETTER('C'), "C", "CANCEL IT", sv_cancel);
+    sn_action(HID_LETTER('C'), "C", "STOP SURVEY", sv_cancel);
     sv_render();
 }
 
@@ -628,7 +674,7 @@ static void sv_status(const sentinel_state_t *st, char *line, size_t n, sn_level
 }
 
 static const sn_screen_t s_sub = {.name = "433 MHZ", .purpose = "The 433 MHz band now and over the last minute.", .quote = "Amaze! Amaze! Amaze!", /* Project Hail Mary */ .icon = ICON_ANTENNA, .flags = SN_BOARD, .build = sub_build, .destroy = end};
-static const sn_screen_t s_tx  = {.name = "TRANSMITTERS", .purpose = "What transmits on one 433 MHz frequency, and how often.", .quote = "Party on, dudes!", /* Bill & Ted's Excellent Adventure */ .icon = ICON_REFRESH, .flags = SN_BOARD, .build = tx_build, .destroy = tx_destroy};
+static const sn_screen_t s_tx  = {.name = "TRANSMITTERS", .purpose = "What transmits on one 433 MHz frequency, and how often.", .quote = "Party on, dudes!", /* Bill & Ted's Excellent Adventure */ .icon = ICON_REFRESH, .flags = SN_BOARD, .build = tx_build, .destroy = tx_destroy, .hold = tx_hold};
 static const sn_screen_t s_nrf = {.name = "2.4 GHZ", .purpose = "The 2.4 GHz band now and over the last five minutes.", .quote = "We got both kinds. We got country and western.", /* The Blues Brothers */ .icon = ICON_GAUGE, .flags = SN_BOARD, .build = nrf_build, .destroy = end};
 static const sn_screen_t s_site = {.name = "SITE SURVEY", .purpose = "Measure this place for a minute and keep it as a file.", .quote = "That rug really tied the room together.", /* The Big Lebowski */ .icon = ICON_PIN, .flags = SN_BOARD, .build = sv_build, .destroy = end, .status = sv_status};
 static const sn_screen_t s_jam = {.name = "JAM WATCH", .purpose = "Is someone jamming, and what is the evidence?", .quote = "Strange things are afoot at the Circle K.", /* Bill & Ted's Excellent Adventure */ .icon = ICON_ALERT, .flags = SN_BOARD, .build = jam_build, .destroy = end, .status = jam_status};
