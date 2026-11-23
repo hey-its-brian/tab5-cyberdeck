@@ -10,6 +10,7 @@
 #include "deck_saver.h"
 #include "deck_statusbar.h"
 #include "deck_theme.h"
+#include "deck_wireless.h"
 #include "deck_widgets.h"
 
 #define TRANSITION_MS 260
@@ -196,7 +197,38 @@ void deck_shell_apply_kbd_light(void)
 
 void deck_shell_shortcuts(void)
 {
-    static const char *const cols[] = {
+    /* The second column ends with whichever wireless app this boot has (deck_wireless.h). */
+#define COL2                                                                                                                                 \
+    "NOTES\n"                                                                                                                                \
+    "  ENTER open  BACKSPACE up a folder  S sync (panel)\n"                                                                                  \
+    "  CTRL+S save  CTRL+P preview  CTRL+T split\n"                                                                                          \
+    "  ESC save and close\n"                                                                                                                 \
+    "\n"                                                                                                                                     \
+    "CALC\n"                                                                                                                                 \
+    "  ENTER evaluate  UP/DOWN recall\n"                                                                                                     \
+    "  CTRL+D deg/rad  CTRL+K keypad  CTRL+L clear tape\n"                                                                                   \
+    "\n"                                                                                                                                     \
+    "WEATHER\n"                                                                                                                              \
+    "  R refresh  L location  U units\n"                                                                                                     \
+    "\n"                                                                                                                                     \
+    "PLAYER\n"                                                                                                                               \
+    "  ENTER play  SPACE pause  LEFT/RIGHT seek\n"                                                                                           \
+    "  [ ] prev/next  - = volume  S shuffle  R repeat\n"                                                                                     \
+    "\n"                                                                                                                                     \
+    "FILES\n"                                                                                                                                \
+    "  ENTER open  BACKSPACE up  DEL or D delete\n"                                                                                          \
+    "  P preview / portal  SPACE engage / disengage\n"                                                                                       \
+    "\n"
+    static const char col2_sentinel[] = COL2 "SENTINEL\n"
+                                             "  1..8 open a tile  ARROWS choose  ENTER opens\n"
+                                             "  ESC or DEL back one level  L open the log\n"
+                                             "  every other key is on its button";
+    static const char col2_net[]      = COL2 "NET TOOLS\n"
+                                             "  1..7 open a tile  ARROWS choose  ENTER opens\n"
+                                             "  ESC or DEL back one level\n"
+                                             "  every other key is on its button";
+#undef COL2
+    const char *const cols[] = {
         "ANYWHERE\n"
         "  ALT+1..6    open a home tile   ALT+A  apps\n"
         "  ALT+T N S C F  W M R X   jump to an app\n"
@@ -215,29 +247,7 @@ void deck_shell_shortcuts(void)
         "  SSH: every key goes to the server, ESC too\n"
         "  OLLAMA: CTRL+C stops a reply, /help commands\n"
         "  ALT+ESC leaves  SHIFT+UP/DOWN scrolls back",
-
-        "NOTES\n"
-        "  ENTER open  BACKSPACE up a folder  S sync (panel)\n"
-        "  CTRL+S save  CTRL+P preview  CTRL+T split\n"
-        "  ESC save and close\n"
-        "\n"
-        "CALC\n"
-        "  ENTER evaluate  UP/DOWN recall\n"
-        "  CTRL+D deg/rad  CTRL+K keypad  CTRL+L clear tape\n"
-        "\n"
-        "WEATHER\n"
-        "  R refresh  L location  U units\n"
-        "\n"
-        "PLAYER\n"
-        "  ENTER play  SPACE pause  LEFT/RIGHT seek\n"
-        "  [ ] prev/next  - = volume  S shuffle  R repeat\n"
-        "\n"
-        "FILES\n"
-        "  ENTER open  BACKSPACE up  DEL or D delete\n"
-        "  P preview / portal  SPACE engage / disengage\n"
-        "\n"
-        "NET TOOLS\n"
-        "  1..4 tab  R rescan / sweep / run  ENTER ping the host",
+        deck_wireless_sentinel() ? col2_sentinel : col2_net,
     };
     deck_modal_info("SHORTCUTS", cols, 2);
 }

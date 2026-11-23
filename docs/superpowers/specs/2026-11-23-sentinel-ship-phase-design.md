@@ -296,6 +296,62 @@ board while the screen sleeps.
 6. `check.sh --firmware`, screenshots, ROADMAP and README lines, the
    release notes, `release.sh --local`, the images.
 
-## As built
+## As built (2026-11-23)
 
-(Filled in when the phase lands.)
+Plan: `docs/superpowers/plans/2026-11-23-sentinel-ship-phase.md`, twelve
+tasks, executed in order on this branch. Host tests went from 21 to 25.
+
+- **The choice.** `deck_wireless_sentinel()` in `deck_core` reads `wireless`
+  with `app_rf` as its default. Both mains register one of `app_net()` and
+  `app_sentinel()` and build the matching grid; CALC's `optional` flag is set
+  from the choice before registration. The sim's `--list` prints the three
+  lines and three ctest cases pin both modes and a switched-off NET TOOLS.
+  Not as the spec's table said: the APPS group in SENTINEL mode is CALC,
+  WEATHER, PLAYER (registration order, as built since the restructure), so
+  Brian's tiles do not move.
+- **NET TOOLS** is `apps/app_sentinel/app_net.c`: the frame started with
+  `log == NULL`, which leaves out the mode chip and the alert line and makes
+  the home button LEAVE NET TOOLS. Its home page `sn_net_home` has seven
+  tiles, NETWORKS first (exported from `sn_wifi.c`). `hal_restart()` is new
+  in the HAL (the sim exits).
+- **The row** sits above the optional apps in APPLICATIONS, 96 px, a
+  cycling button and a RESTART button that appears only while the saved
+  choice differs from the one this boot used; RESTART asks with CANCEL
+  focused.
+- **Notices.** The rules are `deck_notice_rules.c` (no LVGL, host-tested in
+  `sim/notice_test.c`, eleven cases); `deck_notice.c` draws what they say.
+  `deck_shell_wake()` is new. The home tile's second line and the alert
+  line's tag are 20 px. Switching the board off no longer clears the count.
+- **The frame.** `g_pal.live` (#4FC3F7) is the running colour everywhere in
+  SENTINEL and nothing else in SENTINEL uses the accent for data. BACK says
+  BACK TO <parent>. `sn_screen_t.hold(go)` lets a leaf hold the alert line's
+  exit; `SN_KEEP_TOOL` now means the leaf is built with or without the board
+  and never swapped for the blocked page. `sn_say` yields to a live ALERT.
+  `sn_button_label`, `sn_button_danger` and `sn_confirm_or` are new.
+- **WARDRIVE** carries `SN_KEEP_TOOL` and `hold`; its START / END is a 320
+  by 100 button in the body, Enter in `key()`. The sim has `SIM_RF_DROP=<s>`
+  (the node silent for 60 s). Mine devices are skipped before the drive log
+  in both the Tab5 sink and the sim's.
+- **WI-FI.** `cap_file[link]` and `cap_failing[link]` in the store stats;
+  `wifi_mine` is a blob of up to eight BSSIDs kept in `sn_wifi.c`; the list
+  draws through a `shown[]` map so the filter and the selection agree.
+- **SPECTRUM.** Retuning with a list asks ("RETUNE?" with the counts);
+  opening TRANSMITTERS during a survey asks before parking the radio, CANCEL
+  goes back; the Enter label is RETUNE TO 433.92 (the dialog says what is
+  lost, and the longer label ran off the screen). BACK out of TRANSMITTERS
+  does not ask.
+- **The review of the SD and link-loss paths** found one critical and three
+  important problems, all fixed (the commit "SD and link-loss paths" has the
+  list): a drive on a card that refused the headers reported success; a
+  capture named a file that did not exist and retried the card on every
+  packet; WARDRIVE gave the wrong reason with the board off; a node restart
+  left the mirrored arm lease and a queued deauth in place (fixed in
+  `sentinel_core`, submodule commit 5b3a188, with a host test). Two minors
+  are recorded and not changed: a drive's lost count says 1 for a failed
+  sync, and the stats struct is copied without a lock.
+- **Measurements.** Firmware 2,466,608 bytes, 61 % of the 6 MB slot free, no
+  warnings. The jam scene shows the red ALERT banner over NOTES at 30 s and
+  the saver's warning line at 125 s. The drive scene with `SIM_RF_DROP=80`
+  keeps the drive through the drop (241 rows at 90 s, 274 at 150 s).
+- **Not done here.** The device checklist waits on the published prerelease
+  (the ROADMAP has it). The phase 2 decisions stand unreviewed.

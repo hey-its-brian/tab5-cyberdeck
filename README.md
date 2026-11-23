@@ -18,11 +18,15 @@ Seven modules: TERMINAL (SSH and Ollama chat), NOTES (markdown), CALC, WEATHER, 
 Wi-Fi with signed builds and tells you when a new one is out.
 
 **Next (v1.5): app toggles and a cleaner home.** The home screen is a live
-panel plus six fixed tiles: TERMINAL, NOTES, SETTINGS, APPS, FILES and SENTINEL.
+panel plus six fixed tiles: TERMINAL, NOTES, SETTINGS, CALC, FILES and APPS.
 Tiles carry only an icon, a name and their `Alt+letter`. The panel shows live
 sections from apps that have one (WEATHER today; tap a section to open the
-app). APPS holds the optional apps (CALC, WEATHER, PLAYER),
-each in a fixed slot. SETTINGS (formerly SYSTEM) has an **APPLICATIONS** tab
+app). APPS holds the optional apps (WEATHER, PLAYER, NET TOOLS), each in a
+fixed slot. SETTINGS > APPLICATIONS > WIRELESS TOOLS picks NET TOOLS (the
+default: the deck's own Wi-Fi as a toolkit) or SENTINEL (the radio board
+suite below, with those tools inside it); the choice takes effect at the
+next restart, and with SENTINEL the sixth tile is SENTINEL and CALC moves
+under APPS. SETTINGS (formerly SYSTEM) has an **APPLICATIONS** tab
 with a switch per optional app: a switched-off app is greyed in APPS, does no
 background work and ignores its shortcut; tapping its tile opens the switch.
 The first greyed tile carries a quiet "enable in settings" hint. The live panel
@@ -37,10 +41,12 @@ NEON (each home tile in its own color).
 | ![Home](docs/screenshots/home.png) | ![Apps](docs/screenshots/apps.png) | ![Applications](docs/screenshots/applications.png) |
 
 **v1.5: SENTINEL**, what is on the air and the network around you, as one
-module on the home screen. It took over from two earlier apps (RF WATCH,
-the tools of the RF Sentinel carrier board, and NET TOOLS, the deck's own
-Wi-Fi as a toolkit) and makes no distinction between them: screens are
-grouped by what they are for, not by which radio answers.
+module on the home screen when WIRELESS TOOLS says so. It took over from two
+earlier apps (RF WATCH, the tools of the RF Sentinel carrier board, and NET
+TOOLS, the deck's own Wi-Fi as a toolkit) and makes no distinction between
+them: screens are grouped by what they are for, not by which radio answers.
+Without the board, NET TOOLS is the same frame with the NETWORK screens and
+the Wi-Fi scan, and nothing on the rear bus is touched.
 
 The carrier board sits on the rear M5-Bus: a Stamp C5 with a 433 MHz radio
 (CC1101), a 2.4 GHz radio (nRF24L01+) and a GPS receiver. It does all the
