@@ -60,6 +60,7 @@ void deck_theme_set_accent(int index)
     g_pal.warn     = lv_color_hex(0xF3E600);
     g_pal.ok       = lv_color_hex(0x39FF14);
     g_pal.danger   = lv_color_hex(0xFF3B3B);
+    g_pal.live     = lv_color_hex(0x4FC3F7);
 
     /* Stock widgets (sliders, switches, rollers) pick up the accent through
      * LVGL's default theme. Needs fonts, so skip until deck_theme_init(). */

@@ -272,6 +272,23 @@ lv_obj_t *sn_button(lv_obj_t *parent, const char *key, const char *text, sn_fn_t
     return b;
 }
 
+/* The label is the last child; a key cap, when there is one, the first. */
+static lv_obj_t *button_label(lv_obj_t *b) { return lv_obj_get_child(b, (int32_t)lv_obj_get_child_count(b) - 1); }
+
+void sn_button_label(lv_obj_t *b, const char *text)
+{
+    lv_obj_t *l = b ? button_label(b) : NULL;
+    if (l && strcmp(lv_label_get_text(l), text) != 0) lv_label_set_text(l, text);
+}
+
+void sn_button_danger(lv_obj_t *b, bool on)
+{
+    if (!b) return;
+    lv_color_t c = on ? g_pal.danger : g_pal.accent;
+    control_style(b, c, 10);
+    if (lv_obj_get_child_count(b) > 1) lv_obj_set_style_bg_color(lv_obj_get_child(b, 0), c, 0);
+}
+
 /* BACK points the way it goes: its left end is an arrow head, not a corner. */
 static void back_draw(lv_event_t *e)
 {
@@ -731,9 +748,18 @@ static bool menu_key(const sn_screen_t *m, const deck_key_t *k)
 
 /* ---- The alert line -------------------------------------------------------- */
 
+static void open_log_now(void)
+{
+    if (s_fr.log && top() != s_fr.log) sn_open(s_fr.log);
+}
+
+/* The leaf may hold the way out (a drive, a capture) and open LOG itself once the user agrees. */
 static void strip_open(void)
 {
-    if (s_fr.strip_active && s_fr.log && top() != s_fr.log) sn_open(s_fr.log);
+    if (!s_fr.strip_active || !s_fr.log || top() == s_fr.log) return;
+    const sn_screen_t *sc = top();
+    if (sc && !sc->kids && s_fr.built && sc->hold && sc->hold(open_log_now)) return;
+    open_log_now();
 }
 
 static void strip_clicked(lv_event_t *e)
@@ -748,7 +774,7 @@ static void strip_clicked(lv_event_t *e)
 static void strip_set(sn_level_t level, bool active, const char *text)
 {
     if (!s_fr.strip) return;
-    lv_color_t c = active ? sn_level_color(level) : level == SN_NOTE ? g_pal.accent : g_pal.warn;
+    lv_color_t c = active ? sn_level_color(level) : level == SN_NOTE ? g_pal.live : g_pal.warn;
     s_fr.strip_active = active && s_fr.log && top() != s_fr.log;
     deck_panel_set_outline(s_fr.strip, active ? c : g_pal.line);
     deck_panel_set_fill(s_fr.strip_tag, c);
@@ -771,17 +797,6 @@ static void strip_update(void)
     const sentinel_state_t *st  = &s_fr.st;
     uint32_t                now = sentinel_now_ms();
     char                    text[200], span[24];
-    if (s_fr.say[0] && (int32_t)(s_fr.say_until - now) > 0) {
-        strip_set(s_fr.say_level, false, s_fr.say);
-        return;
-    }
-    s_fr.say[0] = 0;
-    const char *problem = sn_board_problem(st);
-    if (problem) {
-        snprintf(text, sizeof(text), "%s: NOTHING ON THE AIR IS BEING WATCHED", problem);
-        strip_set(SN_WARNING, false, text);
-        return;
-    }
     const sentinel_event_t *best = NULL, *last = NULL;
     sn_level_t              bl   = SN_NOTE;
     for (int i = 0; i < st->evt_count; i++) {
@@ -791,6 +806,19 @@ static void strip_update(void)
         if (l == SN_NOTE) continue;
         if (!last) last = e;
         if (now - e->ms < (l == SN_ALERT ? ALERT_HOLD_MS : WARN_HOLD_MS) && l > bl) best = e, bl = l;
+    }
+    bool band_up = st->nrf_band == SENTINEL_BAND_UP || st->sub_band == SENTINEL_BAND_UP;
+    /* What the deck itself has to say (a survey saved, a baseline reset) never covers an alert that is live now. */
+    if (s_fr.say[0] && (int32_t)(s_fr.say_until - now) > 0 && bl < SN_ALERT && !band_up) {
+        strip_set(s_fr.say_level, false, s_fr.say);
+        return;
+    }
+    s_fr.say[0] = 0;
+    const char *problem = sn_board_problem(st);
+    if (problem) {
+        snprintf(text, sizeof(text), "%s: NOTHING ON THE AIR IS BEING WATCHED", problem);
+        strip_set(SN_WARNING, false, text);
+        return;
     }
     /* A band that is up now is an alert for as long as it lasts, whatever the events' ages. */
     if (bl < SN_ALERT && st->nrf_band == SENTINEL_BAND_UP) {
@@ -825,7 +853,7 @@ static void strip_build(lv_obj_t *root)
     s_fr.strip_tag = deck_panel(s_fr.strip, DECK_CUT_BR, 8);
     lv_obj_set_size(s_fr.strip_tag, LV_SIZE_CONTENT, 30);
     lv_obj_set_style_pad_hor(s_fr.strip_tag, 10, 0);
-    s_fr.strip_tag_text = label(s_fr.strip_tag, g_font.disp_s, g_pal.bg, "SENTINEL>");
+    s_fr.strip_tag_text = label(s_fr.strip_tag, g_font.mono_m, g_pal.bg, "SENTINEL>");
     lv_obj_center(s_fr.strip_tag_text);
     s_fr.strip_text = label(s_fr.strip, g_font.mono_b, g_pal.text, "");
     lv_obj_set_flex_grow(s_fr.strip_text, 1);
@@ -920,16 +948,17 @@ static void show(void)
     lv_obj_set_flex_flow(s_fr.bar, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(s_fr.bar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(s_fr.bar, 10, 0);
-    char leave[40];
-    snprintf(leave, sizeof(leave), "LEAVE %s", s_fr.stack[0]->name);
-    sn_action(0, "ESC", s_fr.depth > 1 ? "BACK" : leave, sn_back);
+    char back[40]; /* where it goes: LEAVE SENTINEL at the home page, BACK TO WI-FI below it */
+    if (s_fr.depth > 1) snprintf(back, sizeof(back), "BACK TO %s", s_fr.stack[s_fr.depth - 2]->name);
+    else snprintf(back, sizeof(back), "LEAVE %s", s_fr.stack[0]->name);
+    sn_action(0, "ESC", back, sn_back);
 
     /* 4. The alert line, along the bottom edge: the same bar the DECK//OS home screen has there. */
     if (s_fr.log) strip_build(root);
 
 
     sentinel_snapshot(&s_fr.st);
-    const char *problem = (sc->flags & SN_BOARD) ? sn_board_problem(&s_fr.st) : NULL;
+    const char *problem = (sc->flags & SN_BOARD) && !(sc->flags & SN_KEEP_TOOL) ? sn_board_problem(&s_fr.st) : NULL;
     s_fr.blocked        = false;
     if (sc->kids) {
         menu_build(sc);
@@ -954,7 +983,7 @@ static void tick(lv_timer_t *t)
     if (!sc || !s_fr.body) return;
     sentinel_snapshot(&s_fr.st);
     /* The board came or went under a screen that needs it. */
-    if (!sc->kids && (sc->flags & SN_BOARD)) {
+    if (!sc->kids && (sc->flags & SN_BOARD) && !(sc->flags & SN_KEEP_TOOL)) {
         bool problem = sn_board_problem(&s_fr.st) != NULL;
         if (problem != s_fr.blocked) {
             leaf_down();

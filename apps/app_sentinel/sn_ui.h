@@ -39,8 +39,9 @@ const char *sn_level_mark(sn_level_t level); /* "", "!", "!!": a level is never 
 
 #define SN_BOARD     0x01 /* needs the radio board linked: the frame says so instead of building it */
 #define SN_OFFENSE   0x02 /* the OFFENSIVE menu: entering asks first, being under it is the mode */
-#define SN_KEEP_TOOL 0x04 /* leaving it does not hand the node's radio back (reserved) */
+#define SN_KEEP_TOOL 0x04 /* the board going away does not replace it with the blocked page: the leaf shows the problem itself, and is built without the board too */
 
+typedef void (*sn_fn_t)(void); /* an action, a continuation */
 typedef struct sn_screen sn_screen_t;
 struct sn_screen {
     const char *name;    /* "NETWORKS" */
@@ -56,6 +57,10 @@ struct sn_screen {
     void (*destroy)(void);                /* timers, and whatever the screen asked of the node */
     bool (*key)(const deck_key_t *k);     /* keys no action took */
     bool (*back)(void);                   /* true: the screen used BACK itself (a detail page closing) */
+    /* The frame is about to leave this leaf by a route that is not its own
+     * BACK (the alert line opening LOG). Return true to keep the screen up;
+     * call go() once the user has agreed, or never. Optional. */
+    bool (*hold)(sn_fn_t go);
     /* The live line on this screen's tile, and its level. Optional. */
     void (*status)(const sentinel_state_t *st, char *line, size_t n, sn_level_t *level);
 };
@@ -69,7 +74,6 @@ void sn_refresh(void);                   /* build the screen on top again (after
 /* An action: a button in the bar. `hid` is its key (0 for touch only),
  * `key` what the cap on the button says ("S", "ENTER"). Call these from
  * build(); BACK is always there already. */
-typedef void (*sn_fn_t)(void);
 void sn_action(uint8_t hid, const char *key, const char *label, sn_fn_t fn);
 void sn_action_label(sn_fn_t fn, const char *label); /* the same action says something else now */
 void sn_action_enable(sn_fn_t fn, bool on);
@@ -92,6 +96,8 @@ void      sn_set(lv_obj_t *label, lv_color_t color, const char *fmt, ...) LV_FOR
 
 /* A big button inside a body (WARDRIVE's START, a toggle). Same look as the bar's. */
 lv_obj_t *sn_button(lv_obj_t *parent, const char *key, const char *label, sn_fn_t fn);
+void      sn_button_label(lv_obj_t *b, const char *label);
+void      sn_button_danger(lv_obj_t *b, bool on); /* the danger colour: it ends something */
 
 /* A list of rows that can each be opened: Up and Down move, Enter or a tap
  * opens. The caller fills the labels on every render. */

@@ -27,6 +27,7 @@ typedef struct {
     lv_color_t warn;      /* acid yellow */
     lv_color_t ok;        /* status green */
     lv_color_t danger;    /* alarm red */
+    lv_color_t live;      /* something running or being measured: a blue that is never an accent, so it cannot be taken for warn or ok */
 } deck_palette_t;
 
 extern deck_palette_t g_pal;

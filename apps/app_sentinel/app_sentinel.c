@@ -199,7 +199,7 @@ static void on_panel(deck_app_t *self, lv_obj_t *body)
     lv_obj_set_flex_flow(body, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(body, 4, 0);
     s_tile.head = deck_icon_text(body, ICON_ANTENNA, "", g_font.mono_m, g_pal.dim);
-    s_tile.line = deck_label(body, g_font.mono_s, g_pal.dim, "");
+    s_tile.line = deck_label(body, g_font.mono_m, g_pal.label, "");
     lv_obj_set_width(s_tile.line, LV_PCT(100));
     lv_label_set_long_mode(s_tile.line, LV_LABEL_LONG_MODE_DOTS);
     s_tile.timer = lv_timer_create(tile_tick, 1000, NULL);
