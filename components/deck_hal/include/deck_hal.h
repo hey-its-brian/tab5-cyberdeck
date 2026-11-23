@@ -71,6 +71,9 @@ void *hal_tab5_sys_i2c(void);
  * turns it on and off with the RF Sentinel board. */
 void hal_ext5v(bool on);
 
+/* Restart the deck (a setting that only applies at boot). Never returns. */
+void hal_restart(void);
+
 /* Keyboard LEDs. brightness 0..100 (0 = off). With use_color the LEDs show
  * `rgb` (0xRRGGBB); otherwise the keyboard's own status colors (Caps/Sym).
  * Remembered and re-applied whenever the keyboard is (re)attached. */

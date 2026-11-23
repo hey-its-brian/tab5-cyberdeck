@@ -99,6 +99,7 @@ add_executable(deck_sim
     ${ROOT}/components/deck_core/deck_stub.c
     ${ROOT}/components/deck_core/deck_modal.c
     ${ROOT}/components/deck_core/deck_notice.c
+    ${ROOT}/components/deck_core/deck_wireless.c
     ${ROOT}/components/deck_md/deck_md.c
     ${ROOT}/components/deck_sync/deck_sync.c
     ${ROOT}/components/deck_sync/ls_sync.c
@@ -178,3 +179,15 @@ target_include_directories(weather_test PRIVATE ${ROOT}/apps/app_weather ${ROOT}
 target_compile_definitions(weather_test PRIVATE FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 target_link_libraries(weather_test PRIVATE cjson m)
 add_test(NAME weather_data COMMAND weather_test)
+
+# What each WIRELESS TOOLS choice registers and puts on the home grid, from
+# the real sim/main.c (main/main.c mirrors it line for line).
+add_test(NAME sim_list_net COMMAND deck_sim --headless --no-boot --list --set wireless=0)
+set_tests_properties(sim_list_net PROPERTIES PASS_REGULAR_EXPRESSION
+    "apps: term notes calc weather player files net sys\nhome: TERMINAL NOTES SETTINGS CALC FILES APPS\ngroup: WEATHER PLAYER \"NET TOOLS\"\n")
+add_test(NAME sim_list_sentinel COMMAND deck_sim --headless --no-boot --list --set wireless=1)
+set_tests_properties(sim_list_sentinel PROPERTIES PASS_REGULAR_EXPRESSION
+    "apps: term notes calc weather player files sentinel sys\nhome: TERMINAL NOTES SETTINGS APPS FILES SENTINEL\ngroup: CALC WEATHER PLAYER\n")
+add_test(NAME sim_list_net_off COMMAND deck_sim --headless --no-boot --list --set app_net=0)
+set_tests_properties(sim_list_net_off PROPERTIES PASS_REGULAR_EXPRESSION
+    "apps: term notes calc weather player files net sys\nhome: TERMINAL NOTES SETTINGS CALC FILES APPS\ngroup: WEATHER PLAYER \"NET TOOLS\" \\(off\\)\n")

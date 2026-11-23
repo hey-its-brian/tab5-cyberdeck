@@ -14,6 +14,7 @@ idf_component_register(
         "deck_stub.c"
         "deck_modal.c"
         "deck_notice.c"
+        "deck_wireless.c"
     INCLUDE_DIRS "include"
     REQUIRES lvgl__lvgl deck_hal deck_ui deck_net deck_ota deck_portal deck_audio
 )

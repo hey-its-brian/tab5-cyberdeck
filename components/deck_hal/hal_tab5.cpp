@@ -789,3 +789,6 @@ bool hal_init(void)
     xTaskCreatePinnedToCore(kbd_monitor_task, "kbd_mon", 4096, nullptr, 4, nullptr, 0);
     return true;
 }
+
+#include "esp_system.h"
+void hal_restart(void) { esp_restart(); }

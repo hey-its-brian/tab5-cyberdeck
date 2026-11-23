@@ -23,6 +23,7 @@
 #include "deck_shell.h"
 #include "deck_sync.h"
 #include "deck_theme.h"
+#include "deck_wireless.h"
 #include "lvgl.h"
 #include "sim.h"
 
@@ -249,9 +250,30 @@ static void register_stubs(int n)
     }
 }
 
+/* Three lines: the registered app ids, the home tiles, the APPS group (a
+ * name with a space in quotes, " (off)" after a switched-off app). */
+static void list_boot(void)
+{
+    printf("apps:");
+    for (size_t i = 0; i < deck_app_count(); i++) printf(" %s", deck_app_get(i)->id);
+    printf("\nhome:");
+    for (size_t i = 0; i < deck_home_count(); i++) {
+        const deck_tile_t *t = deck_home_tile(i);
+        printf(" %s", t->app ? t->app->name : t->group->name);
+    }
+    printf("\ngroup:");
+    const deck_group_t *g = deck_home_apps();
+    for (size_t i = 0; g && i < g->count; i++) {
+        const deck_app_t *a = g->apps[i];
+        printf(strchr(a->name, ' ') ? " \"%s\"" : " %s", a->name);
+        if (!deck_app_enabled(a)) printf(" (off)");
+    }
+    printf("\n");
+}
+
 int main(int argc, char **argv)
 {
-    bool headless = false, boot = true;
+    bool headless = false, boot = true, list = false;
     int accent    = -1;
     int stubs     = 0;
     for (int i = 1; i < argc; i++) {
@@ -259,6 +281,8 @@ int main(int argc, char **argv)
         const char *v = (i + 1 < argc) ? argv[i + 1] : "";
         if (strcmp(a, "--headless") == 0) {
             headless = true;
+        } else if (strcmp(a, "--list") == 0) {
+            list = true; /* print what this boot registers and exit (for the tests) */
         } else if (strcmp(a, "--realtime") == 0) {
             s_realtime = true;
         } else if (strcmp(a, "--wifi") == 0) {
@@ -335,14 +359,18 @@ int main(int argc, char **argv)
     if (accent >= 0) hal_cfg_set_i32("accent", accent);
     deck_theme_init();
     deck_input_init();
-    /* Every module, flat: Alt+letter shortcuts and lookups by name. */
+    /* Every module, flat: Alt+letter shortcuts and lookups by name. One of
+     * NET TOOLS and SENTINEL, never both (deck_wireless.h); CALC is a home
+     * tile without SENTINEL and lives under APPS with it. */
+    bool sentinel         = deck_wireless_sentinel();
+    app_calc()->optional = sentinel;
     deck_app_register(app_term());
     deck_app_register(app_notes());
     deck_app_register(app_calc());
     deck_app_register(app_weather());
     deck_app_register(app_player());
     deck_app_register(app_files());
-    deck_app_register(app_sentinel());
+    deck_app_register(sentinel ? app_sentinel() : app_net());
     deck_app_register(app_sys());
     register_stubs(stubs);
     deck_app_boot(); /* background work of enabled optional apps */
@@ -354,10 +382,20 @@ int main(int argc, char **argv)
     deck_home_add_app(app_term());
     deck_home_add_app(app_notes());
     deck_home_add_app(app_sys());
-    deck_home_add_apps("APPS", ICON_APPS);
-    deck_home_add_app(app_files());
-    deck_home_add_app(app_sentinel());
+    if (sentinel) {
+        deck_home_add_apps("APPS", ICON_APPS);
+        deck_home_add_app(app_files());
+        deck_home_add_app(app_sentinel());
+    } else { /* v1.5.0-beta.1's six */
+        deck_home_add_app(app_calc());
+        deck_home_add_app(app_files());
+        deck_home_add_apps("APPS", ICON_APPS);
+    }
     deck_shell_set_manage(app_sys_open_applications);
+    if (list) {
+        list_boot();
+        return 0;
+    }
     deck_shell_start(boot);
 
     if (headless) {

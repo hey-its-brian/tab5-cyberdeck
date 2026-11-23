@@ -11,6 +11,7 @@
 #include "deck_shell.h"
 #include "deck_sync.h"
 #include "deck_theme.h"
+#include "deck_wireless.h"
 
 #include "app_calc.h"
 #include "app_notes.h"
@@ -47,27 +48,36 @@ void app_main(void)
     deck_theme_init();
     deck_input_init();
 
-    /* Every module, flat: Alt+letter shortcuts and lookups by name. */
+    /* Every module, flat: Alt+letter shortcuts and lookups by name. One of
+     * NET TOOLS and SENTINEL, never both (deck_wireless.h); CALC is a home
+     * tile without SENTINEL and lives under APPS with it. */
+    bool sentinel         = deck_wireless_sentinel();
+    app_calc()->optional = sentinel;
     deck_app_register(app_term());
     deck_app_register(app_notes());
     deck_app_register(app_calc());
     deck_app_register(app_weather());
     deck_app_register(app_player());
     deck_app_register(app_files());
-    deck_app_register(app_sentinel());
+    deck_app_register(sentinel ? app_sentinel() : app_net());
     deck_app_register(app_sys());
     deck_app_boot(); /* background work of enabled optional apps (PLAYER's task) */
     deck_sync_set_backend(&g_sync_livesync); /* vault sync for NOTES */
 
-    /* Home tiles 01..06 (Alt+1..6), always these six. APPS holds every
-     * optional app (CALC among them), switched on or off in SETTINGS >
-     * APPLICATIONS. */
+    /* Home tiles 01..06 (Alt+1..6). APPS holds every optional app, switched
+     * on or off in SETTINGS > APPLICATIONS. */
     deck_home_add_app(app_term());
     deck_home_add_app(app_notes());
     deck_home_add_app(app_sys());
-    deck_home_add_apps("APPS", ICON_APPS);
-    deck_home_add_app(app_files());
-    deck_home_add_app(app_sentinel());
+    if (sentinel) {
+        deck_home_add_apps("APPS", ICON_APPS);
+        deck_home_add_app(app_files());
+        deck_home_add_app(app_sentinel());
+    } else { /* v1.5.0-beta.1's six */
+        deck_home_add_app(app_calc());
+        deck_home_add_app(app_files());
+        deck_home_add_apps("APPS", ICON_APPS);
+    }
     deck_shell_set_manage(app_sys_open_applications);
 
     deck_shell_start(hal_cfg_get_i32("boot", 1) != 0);

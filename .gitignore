@@ -9,3 +9,5 @@ dependencies.lock
 sdkconfig.defaults.local
 /shots/
 sim/sdcard/
+.superpowers/
+dist/

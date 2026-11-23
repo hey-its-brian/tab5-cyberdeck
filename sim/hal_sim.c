@@ -197,3 +197,9 @@ void hal_sysinfo(hal_sysinfo_t *out)
     out->psram_total    = 32768 * 1024;
     out->uptime_s       = lv_tick_get() / 1000;
 }
+
+void hal_restart(void)
+{
+    printf("[sim] restart\n");
+    exit(0);
+}
