@@ -553,6 +553,19 @@ static const sn_screen_t s_speed = {.name = "SPEED TEST", .purpose = "How fast y
 
 static const sn_screen_t *const s_kids[] = {&s_ping, &s_dns, &s_trace, &s_port, &s_lan, &s_speed};
 
+/* NET TOOLS as an app of its own: the same screens with NETWORKS in front,
+ * which lists what the deck's own Wi-Fi can see (v1.5's SCAN). */
+static const sn_screen_t *const s_home_kids[] = {&sn_networks_screen, &s_ping, &s_dns, &s_trace, &s_port, &s_lan, &s_speed};
+
+const sn_screen_t sn_net_home = {
+    .name    = "NET TOOLS",
+    .purpose = "Test the network the deck has joined: networks, hosts, devices, speed.",
+    .icon    = ICON_LAN,
+    .kids    = s_home_kids,
+    .nkids   = 7,
+    .status  = menu_status,
+};
+
 const sn_screen_t sn_net_menu = {
     .name    = "NETWORK",
     .purpose = "Test the network the deck has joined: hosts, devices, speed.", .quote = "This is not 'Nam. This is bowling. There are rules.", /* The Big Lebowski */

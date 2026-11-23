@@ -121,6 +121,7 @@ void sn_confirm(const char *title, const char *message, const char *yes_label, s
 
 /* ---- The module's side (app_sentinel.c) --------------------------------------- */
 
+/* `log` NULL: no board behind the frame (NET TOOLS), so no mode chip and no alert line. */
 void sn_frame_start(lv_obj_t *parent, const sn_screen_t *home, const sn_screen_t *log);
 void sn_frame_exit(const char *why); /* leaving SENTINEL by any route: back to DEFENSIVE */
 void sn_frame_stop(void);
@@ -134,6 +135,8 @@ void sn_say(sn_level_t level, const char *text, uint32_t ms);
 
 extern const sn_screen_t sn_wifi_menu, sn_ble_menu, sn_spectrum_menu, sn_net_menu, sn_board_menu, sn_offense_menu;
 extern const sn_screen_t sn_drive_screen, sn_log_screen;
+/* NETWORKS (it works without the board), and the NET TOOLS app's home page. */
+extern const sn_screen_t sn_networks_screen, sn_net_home;
 
 /* The radio board's power: a setting (BOARD > RADIO BOARD), not the app's. */
 bool sn_board_enabled(void);

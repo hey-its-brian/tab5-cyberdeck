@@ -747,6 +747,7 @@ static void strip_clicked(lv_event_t *e)
  * what kind of line it is, so the level is a word as well as a colour. */
 static void strip_set(sn_level_t level, bool active, const char *text)
 {
+    if (!s_fr.strip) return;
     lv_color_t c = active ? sn_level_color(level) : level == SN_NOTE ? g_pal.accent : g_pal.warn;
     s_fr.strip_active = active && s_fr.log && top() != s_fr.log;
     deck_panel_set_outline(s_fr.strip, active ? c : g_pal.line);
@@ -766,6 +767,7 @@ static void strip_set(sn_level_t level, bool active, const char *text)
 
 static void strip_update(void)
 {
+    if (!s_fr.strip) return;
     const sentinel_state_t *st  = &s_fr.st;
     uint32_t                now = sentinel_now_ms();
     char                    text[200], span[24];
@@ -811,6 +813,28 @@ static void strip_update(void)
 }
 
 /* ---- Building a screen ------------------------------------------------------ */
+
+static void strip_build(lv_obj_t *root)
+{
+    s_fr.strip = deck_panel(root, DECK_CUT_TL | DECK_CUT_BR, 12);
+    lv_obj_set_size(s_fr.strip, LV_PCT(100), STRIP_H);
+    lv_obj_set_style_pad_hor(s_fr.strip, 14, 0);
+    lv_obj_set_style_pad_column(s_fr.strip, 14, 0);
+    lv_obj_set_flex_flow(s_fr.strip, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(s_fr.strip, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    s_fr.strip_tag = deck_panel(s_fr.strip, DECK_CUT_BR, 8);
+    lv_obj_set_size(s_fr.strip_tag, LV_SIZE_CONTENT, 30);
+    lv_obj_set_style_pad_hor(s_fr.strip_tag, 10, 0);
+    s_fr.strip_tag_text = label(s_fr.strip_tag, g_font.disp_s, g_pal.bg, "SENTINEL>");
+    lv_obj_center(s_fr.strip_tag_text);
+    s_fr.strip_text = label(s_fr.strip, g_font.mono_b, g_pal.text, "");
+    lv_obj_set_flex_grow(s_fr.strip_text, 1);
+    lv_label_set_long_mode(s_fr.strip_text, LV_LABEL_LONG_MODE_DOTS);
+    lv_obj_set_height(s_fr.strip_text, lv_font_get_line_height(g_font.mono_b));
+    s_fr.strip_cap = keycap(s_fr.strip, "L  OPEN LOG", g_pal.warn);
+    lv_obj_add_event_cb(s_fr.strip, strip_clicked, LV_EVENT_CLICKED, NULL);
+}
+
 
 static void forget_widgets(void)
 {
@@ -879,8 +903,9 @@ static void show(void)
     lv_obj_set_width(s_fr.purpose, LV_PCT(100));
     lv_label_set_long_mode(s_fr.purpose, LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_height(s_fr.purpose, lv_font_get_line_height(g_font.mono_m));
-    bool off     = s_fr.mode == SN_OFFENSIVE;
-    s_fr.chip    = label(head, g_font.mono_b, off ? g_pal.danger : g_pal.ok, off ? "MODE: OFFENSIVE" : "MODE: DEFENSIVE");
+    /* Started without a log there is no board behind the frame (NET TOOLS): no mode, no alert line. */
+    bool off  = s_fr.mode == SN_OFFENSIVE;
+    s_fr.chip = s_fr.log ? label(head, g_font.mono_b, off ? g_pal.danger : g_pal.ok, off ? "MODE: OFFENSIVE" : "MODE: DEFENSIVE") : NULL;
 
     /* 2. The body. */
     s_fr.body = plain(root);
@@ -895,26 +920,12 @@ static void show(void)
     lv_obj_set_flex_flow(s_fr.bar, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(s_fr.bar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(s_fr.bar, 10, 0);
-    sn_action(0, "ESC", s_fr.depth > 1 ? "BACK" : "LEAVE SENTINEL", sn_back);
+    char leave[40];
+    snprintf(leave, sizeof(leave), "LEAVE %s", s_fr.stack[0]->name);
+    sn_action(0, "ESC", s_fr.depth > 1 ? "BACK" : leave, sn_back);
 
     /* 4. The alert line, along the bottom edge: the same bar the DECK//OS home screen has there. */
-    s_fr.strip = deck_panel(root, DECK_CUT_TL | DECK_CUT_BR, 12);
-    lv_obj_set_size(s_fr.strip, LV_PCT(100), STRIP_H);
-    lv_obj_set_style_pad_hor(s_fr.strip, 14, 0);
-    lv_obj_set_style_pad_column(s_fr.strip, 14, 0);
-    lv_obj_set_flex_flow(s_fr.strip, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(s_fr.strip, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    s_fr.strip_tag = deck_panel(s_fr.strip, DECK_CUT_BR, 8);
-    lv_obj_set_size(s_fr.strip_tag, LV_SIZE_CONTENT, 30);
-    lv_obj_set_style_pad_hor(s_fr.strip_tag, 10, 0);
-    s_fr.strip_tag_text = label(s_fr.strip_tag, g_font.disp_s, g_pal.bg, "SENTINEL>");
-    lv_obj_center(s_fr.strip_tag_text);
-    s_fr.strip_text = label(s_fr.strip, g_font.mono_b, g_pal.text, "");
-    lv_obj_set_flex_grow(s_fr.strip_text, 1);
-    lv_label_set_long_mode(s_fr.strip_text, LV_LABEL_LONG_MODE_DOTS);
-    lv_obj_set_height(s_fr.strip_text, lv_font_get_line_height(g_font.mono_b));
-    s_fr.strip_cap = keycap(s_fr.strip, "L  OPEN LOG", g_pal.warn);
-    lv_obj_add_event_cb(s_fr.strip, strip_clicked, LV_EVENT_CLICKED, NULL);
+    if (s_fr.log) strip_build(root);
 
 
     sentinel_snapshot(&s_fr.st);

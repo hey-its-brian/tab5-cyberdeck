@@ -7,12 +7,31 @@
 #include "app_sentinel.h"
 
 #include "deck_icons.h"
+#include "sn_ui.h"
 
 static bool start(deck_app_t *self, lv_obj_t *parent)
 {
     (void)self;
-    (void)parent;
-    return false; /* its screens arrive with the next commit */
+    sn_frame_start(parent, &sn_net_home, NULL);
+    return true;
+}
+
+static void stop(deck_app_t *self)
+{
+    (void)self;
+    sn_frame_stop();
+}
+
+static bool on_key(deck_app_t *self, const deck_key_t *k)
+{
+    (void)self;
+    return sn_frame_key(k);
+}
+
+static bool on_back(deck_app_t *self)
+{
+    (void)self;
+    return sn_frame_back();
 }
 
 static deck_app_t s_app = {
@@ -26,6 +45,9 @@ static deck_app_t s_app = {
     .optional   = true,
     .default_on = true,
     .on_start   = start,
+    .on_stop    = stop,
+    .on_key     = on_key,
+    .on_back    = on_back,
 };
 
 deck_app_t *app_net(void) { return &s_app; }
