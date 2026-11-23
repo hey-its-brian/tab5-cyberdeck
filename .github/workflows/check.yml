@@ -46,4 +46,4 @@ jobs:
 
       - name: Show errors on failure
         if: failure()
-        run: grep -n -iE -A4 "error:|undefined reference|cmake error" sim/build/check.log | head -n 120 || true
+        run: grep -n -iE -A4 "error:|undefined reference|cmake error|^FAIL |Failed  " sim/build/check.log | head -n 120 || true
